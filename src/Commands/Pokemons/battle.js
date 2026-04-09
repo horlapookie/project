@@ -799,6 +799,7 @@ const handleStats = async (client, M, exp, user, pokemon, player) => {
         if (pokemon.level < nextLevel) {
             pokemon.level = nextLevel;
             pokemon.displayExp = pokemon.exp - client.utils.getExpByLevel(nextLevel);
+            await client.utils.handlePokemonStats(client, M, pokemon, true, player, user);
         }
 
         const battle = client.pokemonBattleResponse.get(M.from);

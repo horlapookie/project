@@ -896,7 +896,7 @@ const handlePokemonStats = async (client, M, pkmn, inBattle, player, user) => {
     pkmn.maxHp = hp;
     pkmn.maxDefense = defense;
     party[i] = pkmn;
-    await client.poke.set(`${M.sender}_Party`, party);
+    await client.poke.set(`${jid}_Party`, party);
     if (inBattle) {
         const data = client.pokemonBattleResponse.get(M.from);
         if (data && data[player].activePokemon.tag === pkmn.tag) {
@@ -918,7 +918,7 @@ const handlePokemonStats = async (client, M, pkmn, inBattle, player, user) => {
                 client.pokemonBattleResponse.set(M.from, data);
             }
         }
-        await client.poke.set(`${M.sender}_Party`, party);
+        await client.poke.set(`${jid}_Party`, party);
         await client.sendMessage(M.from, {
             text: `*@${jid.split('@')[0]}*'s *${client.utils.capitalize(pkmn.name)}* learnt *${move}*`,
             mentions: [jid]
@@ -1024,7 +1024,7 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
             client.prefix
         }cancel-evolution* to cancel this evolution (within 60s)`;
  
-        let party = await client.poke.get(`${M.sender}_Party`) || [];
+        let party = await client.poke.get(`${user}_Party`) || [];
         const i = party.findIndex((x) => x.tag === pkmn.tag);
  
         await client.sendMessage(M.from, { text });
@@ -1054,7 +1054,7 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
             pkmn.maxHp = hp;
             pkmn.maxDefense = defense;
  
-            if (pkmn.tag === '0') await client.poke.set(`${M.sender}_Companion`, pData.name);
+            if (pkmn.tag === '0') await client.poke.set(`${user}_Companion`, pData.name);
             party[i] = pkmn;
  
             if (inBattle) {
@@ -1065,7 +1065,7 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
                 }
             }
  
-            await client.poke.set(`${M.sender}_Party`, party);
+            await client.poke.set(`${user}_Party`, party);
  
             const buffer = await client.utils.getBuffer(pkmn.image);
             await client.sendMessage(M.from, {
