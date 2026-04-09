@@ -1117,6 +1117,7 @@ const drawPokemonBattle = async (data) => {
         const style = pokemonStyles[`player${i + 1}`];
         const player = data[`player${i + 1}`];
         const activePokemon = data[`player${i + 1}`].activePokemon;
+        const showCaptureBall = i === 1 && data.captureBall;
         const spriteUrl = style.pokemon.showBack
             ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${activePokemon.id}.png`
             : (activePokemon.image || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${activePokemon.id}.png`);
@@ -1125,17 +1126,27 @@ const drawPokemonBattle = async (data) => {
         const size = style.pokemon.size;
 
         if (player.activePokemon.hp > 0) {
-            ctx.drawImage(
-                pokemonImage,
-                0,
-                0,
-                pokemonImage.width,
-                Math.max(1, pokemonImage.height - clipY),
-                style.pokemon.x,
-                style.pokemon.y,
-                size,
-                size - clipY
-            );
+            if (showCaptureBall) {
+                ctx.drawImage(
+                    pokeball,
+                    style.pokemon.x + size / 4,
+                    style.pokemon.y + size / 4,
+                    size / 2,
+                    size / 2
+                );
+            } else {
+                ctx.drawImage(
+                    pokemonImage,
+                    0,
+                    0,
+                    pokemonImage.width,
+                    Math.max(1, pokemonImage.height - clipY),
+                    style.pokemon.x,
+                    style.pokemon.y,
+                    size,
+                    size - clipY
+                );
+            }
         }
 
         const boxCanvas = Canvas.createCanvas(150, 60);

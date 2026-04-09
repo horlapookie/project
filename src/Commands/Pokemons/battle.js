@@ -1,4 +1,5 @@
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { getInventory, setInventoryQuantity } = require('../../Helpers/pokeballs');
 
 const isWildUser = (user = '') => typeof user === 'string' && user.endsWith('@pokemon');
 
@@ -56,6 +57,81 @@ const updateActivePokemonInParty = async (client, user, pokemon) => {
 const clearQueuedMoves = (battle) => {
     battle.player1.move = '';
     battle.player2.move = '';
+};
+
+const buildBattleOptionsText = (client, battle, currentUser) => {
+    if (battle.mode === 'wild') {
+        return `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\n- To fight use *${client.prefix}battle fight*\n\n- To browse the items in your bag use *${client.prefix}battle items*\n\n- To switch pokemon use *${client.prefix}battle switch*\n\n- To check the pokeballs in your bag use *${client.prefix}battle pokeballs*\n\n- To run away from this battle use *${client.prefix}battle run*`;
+    }
+
+    return `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\nTo fight, use *${client.prefix}battle fight*\n\nTo switch Pokemon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
+};
+
+const sendBattleState = async (client, M, battle, extra = {}) => {
+    const player1Party = await getPartyForUser(client, battle.player1.user);
+    const player2Party = await getPartyForUser(client, battle.player2.user);
+    const image = await client.utils.drawPokemonBattle({
+        player1: { activePokemon: battle.player1.activePokemon, party: player1Party },
+        player2: { activePokemon: battle.player2.activePokemon, party: player2Party },
+        captureBall: extra.captureBall || null
+    });
+
+    return client.sendMessage(M.from, {
+        image,
+        jpegThumbnail: image.toString('base64'),
+        ...(extra.text ? { caption: extra.text } : {})
+    });
+};
+
+const tryCatchWildPokemon = async (client, M, battle, ball) => {
+    const inventory = await getInventory(client, M.sender);
+    const ownedBall = inventory.find((item) => item.key === ball.key);
+    if (!ownedBall || ownedBall.quantity < 1) {
+        return M.reply(`You do not have any ${ball.name}s left.`)
+    }
+
+    await setInventoryQuantity(client, M.sender, ball.key, ownedBall.quantity - 1);
+
+    const wildPokemon = battle.player2.activePokemon;
+    const hpPercent = wildPokemon.maxHp > 0 ? (wildPokemon.hp / wildPokemon.maxHp) * 100 : 100;
+    const damagePercent = 100 - hpPercent;
+    const requiredDamage = 100 - ball.successRate;
+    const caught = ball.successRate >= 100 || damagePercent >= requiredDamage;
+
+    await sendBattleState(client, M, battle, {
+        captureBall: ball.key,
+        text: `*@${M.sender.split('@')[0]}* used *${ball.name}* on *${client.utils.capitalize(wildPokemon.name)}*!`,
+    });
+
+    if (caught) {
+        const capturedPokemon = { ...wildPokemon, hp: Math.max(1, wildPokemon.hp) };
+        const party = await getPartyForUser(client, M.sender);
+        const pc = await client.poke.get(`${M.sender}_PSS`) || [];
+
+        if (party.length >= 6) pc.push(capturedPokemon);
+        else party.push(capturedPokemon);
+
+        await savePartyForUser(client, M.sender, party);
+        await client.poke.set(`${M.sender}_PSS`, pc);
+        await cleanupWildBattle(client, battle);
+        client.pokemonBattleResponse.delete(M.from);
+        client.pokemonBattlePlayerMap.delete(M.sender);
+
+        return client.sendMessage(M.from, {
+            text: `🎉 *@${M.sender.split('@')[0]}* caught *${client.utils.capitalize(capturedPokemon.name)}* using *${ball.name}*!${party.length >= 6 ? ' It was sent to your PC.' : ''}`,
+            mentions: [M.sender]
+        });
+    }
+
+    await client.sendMessage(M.from, {
+        text: `*@${M.sender.split('@')[0]}* used *${ball.name}* on *${client.utils.capitalize(wildPokemon.name)}*, but it broke free!`,
+        mentions: [M.sender]
+    });
+
+    battle.player2.move = pickWildMove(battle);
+    battle.turn = 'player1';
+    setBattleData(client, M.from, battle);
+    return handleBattles(client, M);
 };
 
 module.exports = {
@@ -135,16 +211,82 @@ module.exports = {
             if (!otherActor.move) {
                 battle.turn = otherKey;
                 setBattleData(client, M.from, battle);
-                const text = `Use one of the options given below ${formatBattleTrainer(otherActor.user)}\n\nTo fight, use *${client.prefix}battle fight*\n\nTo switch Pokemon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
                 return client.sendMessage(M.from, {
-                    text,
-                    mentions: [otherActor.user]
+                    text: buildBattleOptionsText(client, battle, otherActor),
+                    mentions: isWildUser(otherActor.user) ? [] : [otherActor.user]
                 });
             }
 
             battle.turn = 'player1';
             setBattleData(client, M.from, battle);
             return handleBattles(client, M);
+        }
+
+        if (action === 'run') {
+            if (data.mode !== 'wild') {
+                return M.reply('Use *battle forfeit* for trainer battles.')
+            }
+            client.pokemonBattleResponse.delete(M.from);
+            client.pokemonBattlePlayerMap.delete(data.player1.user);
+            await cleanupWildBattle(client, data);
+            return client.sendMessage(M.from, {
+                text: `*@${M.sender.split('@')[0]}* ran away and the wild *${client.utils.capitalize(data.player2.activePokemon.name)}* fled.`,
+                mentions: [M.sender]
+            });
+        }
+
+        if (action === 'items') {
+            if (data.mode !== 'wild') {
+                return M.reply('Items can only be browsed in wild battles right now.')
+            }
+            return M.reply(`Use *${client.prefix}battle pokeballs* to check the pokeballs in your bag.`)
+        }
+
+        if (action === 'pokeballs') {
+            if (data.mode !== 'wild') {
+                return M.reply('Pokeballs can only be used in wild battles.')
+            }
+
+            const inventory = (await getInventory(client, M.sender)).filter((item) => item.quantity > 0);
+            if (!inventory.length) {
+                return M.reply(`You do not have any pokeballs. Use *${client.prefix}mart* and *${client.prefix}mart-buy* to buy some.`)
+            }
+
+            const [, subAction, subIndex] = context.split(' ');
+            if ((subAction || '').toLowerCase() === 'use') {
+                const ball = inventory[Number(subIndex) - 1];
+                if (!ball) {
+                    return M.reply('Please provide a valid pokeball index from your bag.')
+                }
+                return tryCatchWildPokemon(client, M, data, ball);
+            }
+
+            const username = M.pushName || 'Trainer';
+            const tag = `#${M.sender.replace(/\D/g, '').slice(-5) || '00000'}`;
+            const totalItems = inventory.reduce((sum, item) => sum + item.quantity, 0);
+            const lines = [
+                '🎒 *Bag*',
+                '',
+                '🎴 *ID:*',
+                ` 🏮 *Username:* ${username}`,
+                ` 🧧 *Tag:* ${tag}`,
+                '',
+                '🎗 *Category:* Pokeballs',
+                `〽 *Total Items:* ${totalItems}`,
+                ''
+            ];
+
+            inventory.forEach((item, index) => {
+                lines.push(
+                    `*#${index + 1}*`,
+                    `🎈 *Item:* ${item.name} (x${item.quantity})`,
+                    `🧧 *Description:* ${item.description}`,
+                    `*[Use ${client.prefix}battle pokeballs use ${index + 1} to use this pokeball]*`,
+                    ''
+                );
+            });
+
+            return M.reply(lines.join('\n').trim());
         }
 
         if (action === 'forfeit') {
@@ -554,9 +696,8 @@ const continueSelection = async (client, M) => {
             return handleBattles(client, M);
         }
 
-        const text = `To fight, use *${client.prefix}battle fight*\n\nTo switch Pokemon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
         await client.sendMessage(M.from, {
-            text: `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\n${text}`,
+            text: buildBattleOptionsText(client, battle, currentUser),
             mentions: isWildUser(currentUser.user) ? [] : [currentUser.user],
             image,
             jpegThumbnail: image.toString('base64')
