@@ -98,7 +98,9 @@ function serialize(msg, client) {
         try {
             const contextInfo = msg.message[msg.type]?.contextInfo || {};
             const quoted = contextInfo.quotedMessage;
-            const quotedParticipant = decodeJid(contextInfo.participant || contextInfo.remoteJid || '');
+            // In groups, the quoted participant is on contextInfo.participant.
+            // Never fall back to remoteJid here (that is the group JID, not a user).
+            const quotedParticipant = decodeJid(contextInfo.participant || '');
 
             if (quoted) {
                 if (quoted['ephemeralMessage']) {

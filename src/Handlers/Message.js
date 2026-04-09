@@ -17,6 +17,19 @@ module.exports = MessageHandler = async (messages, client) => {
         if (M.key && M.key.remoteJid === 'status@broadcast') return;
         if (['protocolMessage', 'senderKeyDistributionMessage', '', null].includes(M.type)) return;
 
+        // Persist a best-effort mapping between LID ids and phone numbers so mod commands
+        // can target users via reply/tag even when WhatsApp uses @lid addressing.
+        try {
+            const isLid = typeof M.sender === 'string' && M.sender.endsWith('@lid')
+            const lidDigits = String(M.sender || '').split('@')[0].replace(/\D/g, '')
+            const pnDigits = String(M.senderNumber || '').replace(/\D/g, '')
+            if (isLid && lidDigits && pnDigits) {
+                await client.DB.set(`lid-map-${lidDigits}`, pnDigits)
+            }
+        } catch (_) {
+            // ignore mapping failures
+        }
+
         const { isGroup, sender, from, body } = M;
         const gcMeta = isGroup ? await client.groupMetadata(from) : null;
         const gcName = isGroup ? gcMeta.subject : '';

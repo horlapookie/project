@@ -2,13 +2,22 @@ const normalizeNumber = (value = '') => String(value).replace(/\D/g, '')
 
 const resolveTarget = async (client, arg, M) => {
     if (M.quoted?.participant) {
-        const number = normalizeNumber(M.quoted.participant.split('@')[0])
+        const quotedJid = M.quoted.participant
+        let number = normalizeNumber(quotedJid.split('@')[0])
+        if (quotedJid.endsWith('@lid')) {
+            const mapped = normalizeNumber((await client.DB.get(`lid-map-${number}`)) || '')
+            if (mapped) number = mapped
+        }
         const contact = await client.contact.getContact(M.quoted.participant, client).catch(() => null)
         return { number, name: contact?.username || 'Unknown User' }
     }
     if (M.mentions?.length) {
         const mention = M.mentions[0]
-        const number = normalizeNumber(mention.split('@')[0])
+        let number = normalizeNumber(mention.split('@')[0])
+        if (mention.endsWith('@lid')) {
+            const mapped = normalizeNumber((await client.DB.get(`lid-map-${number}`)) || '')
+            if (mapped) number = mapped
+        }
         const contact = await client.contact.getContact(mention, client).catch(() => null)
         return { number, name: contact?.username || 'Unknown User' }
     }

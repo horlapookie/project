@@ -1,9 +1,21 @@
 const normalizeNumber = (value = '') => String(value).replace(/\D/g, '')
 
-const resolveTarget = (arg, M) => {
-    if (M.quoted?.participant) return normalizeNumber(M.quoted.participant.split('@')[0])
-    if (M.mentions?.length) return normalizeNumber(M.mentions[0].split('@')[0])
-    return normalizeNumber(arg)
+const resolveTarget = async (client, arg, M) => {
+    const raw =
+        M.quoted?.participant ||
+        (M.mentions?.length ? M.mentions[0] : '') ||
+        arg
+
+    const jid = String(raw || '').trim()
+    const digits = normalizeNumber(jid.split('@')[0])
+    if (!digits) return ''
+
+    if (jid.endsWith('@lid')) {
+        const mapped = normalizeNumber((await client.DB.get(`lid-map-${digits}`)) || '')
+        return mapped || digits
+    }
+
+    return digits
 }
 
 module.exports = {
@@ -20,7 +32,7 @@ module.exports = {
             return M.reply('Only the owner can remove moderators.')
         }
 
-        const target = resolveTarget(arg, M)
+        const target = await resolveTarget(client, arg, M)
         if (!target) {
             return M.reply('Reply to a user, tag a user, or type a number to remove as mod.')
         }

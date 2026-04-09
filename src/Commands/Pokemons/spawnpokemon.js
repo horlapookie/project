@@ -13,6 +13,15 @@ module.exports = {
                 return M.reply('Pokemon spawner is not ready yet. Try again in a moment.')
             }
 
+            const forced = String(arg || '').trim()
+            if (forced) {
+                if (!client.isMod(M)) {
+                    return M.reply('Only mods can force-spawn a specific Pokemon. Use the command without a name for a random spawn.')
+                }
+                await client.spawnWildPokemon(M.from, { spawnedBy: M.sender, forceName: forced })
+                return M.reply(`Wild *${forced}* spawned. For the next 60 seconds, only you can start the wild battle.`)
+            }
+
             await client.spawnWildPokemon(M.from, { spawnedBy: M.sender })
             await M.reply('Wild Pokemon spawned. For the next 60 seconds, only you can start the wild battle.')
         } catch (error) {

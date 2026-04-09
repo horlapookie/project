@@ -3,8 +3,9 @@ const axios = require("axios");
 const { PokemonClient } = require('pokenode-ts');
 
 const spawnWildPokemon = async (client, jid, options = {}) => {
-    const id = client.utils.getRandomInt(1, 898)
-    const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${id}`);
+    const forcedName = String(options.forceName || '').trim().toLowerCase()
+    const idOrName = forcedName || client.utils.getRandomInt(1, 898)
+    const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${idOrName}`);
     const data = response.data;
     const level = Math.floor(Math.random() * (10 - 5) + 5);
 
