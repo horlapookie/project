@@ -1,0 +1,103 @@
+{
+
+   "name":"𝕹𝖎𝖊𝖗 𝕬𝖚𝖙𝖔𝖒𝖆𝖙𝖆",
+
+   "description":"A WhatsApp Bot With Multi Device Supported",
+
+   "keywords":[
+
+      "bot",
+
+      "whatsapp"
+
+   ],
+
+   "website":"https://github.com/Kingshisui00/Aurora-Private#readme",
+
+   "repository":"https://github.com/Kingshisui00/Aurora-Private.git",
+
+   "logo":"https://i.ibb.co/1sbf4Zn/Picsart-24-02-20-16-40-03-063.jpg",
+
+   "success_url":"/",
+
+   "env":{
+
+      "NAME":{
+
+         "description":"Name of your bot",
+         "value":"𝕹𝖎𝖊𝖗 𝕬𝖚𝖙𝖔𝖒𝖆𝖙𝖆",
+         "required":true
+
+      },
+
+      "PREFIX":{
+
+         "description":"Prefix of your bot",
+         "value":"-",
+         "required":true
+
+      },
+
+      "MODS":{
+
+         "description":"The phone numbers of the users who you want to be admin for the bot (should be in international format without + and multiple numbers must be separated by a comma \",\")",
+         "value": "919529426293,918178640193",
+         "required":true
+
+      },
+
+      "URL":{
+
+         "description":"A secret String for Mongodb Connection.(Required)",
+         "value":"mongodb+srv://ancienthope8:AC97itFsNcdLMeKB@clusterhh.msyivv3.mongodb.net/?retryWrites=true&w=majority",
+         "required":true
+
+      },
+
+      "SESSION":{
+
+         "description": "for me",
+
+         "required": true
+
+      },
+
+      "PORT":{
+
+         "description":"A port for your app",
+         "value":"3000",
+         "required":true
+
+      }
+
+   },
+
+   "buildpacks":[
+
+      {
+
+         "url":"heroku/nodejs"
+
+      },
+
+      {
+
+         "url":"https://github.com/PrajjwalDatir/heroku-buildpack-imagemagick.git"
+
+      },
+
+      {
+
+         "url":"https://github.com/clhuang/heroku-buildpack-webp-binaries.git"
+
+      },
+
+      {
+
+         "url":"https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"
+
+      }
+
+   ]
+
+}
