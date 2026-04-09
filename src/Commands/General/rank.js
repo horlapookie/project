@@ -1,5 +1,5 @@
 const { getStats } = require('../../Helpers/Stats');
-const cx = require('canvacord');
+const { renderRankCard } = require('../../lib/CardRenderer')
 
 module.exports = {
     name: 'rank',
@@ -11,7 +11,6 @@ module.exports = {
     usage: 'Use :rank',
     description: 'Gives you your rank card',
     async execute(client, arg, M) {
-
         const user = M.quoted?.participant ? M.quoted.participant : M.mentions[0] ? M.mentions[0] : M.sender;
 
         let pfp;
@@ -26,25 +25,15 @@ module.exports = {
         const username = (await client.contact.getContact(user, client)).username;
         const experience = (await client.exp.get(user)) || 0;
 
-        const randomHexs = `#${(Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0')}`;
-        const randomHex = `#${(Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0')}`;
-        const randomHexz = `#${(Math.random() * 0xFFFFFF << 0).toString(16).padStart(6, '0')}`;
-
-        const card = await new cx.Rank()
-            .setAvatar(pfp)
-            .setLevel(level)
-            .setCurrentXP(experience, '#db190b')
-            .setRequiredXP(requiredXpToLevelUp, '#db190b')
-            .setProgressBar('#db190b')
-            .setDiscriminator(user.substring(3, 7), '#db190b')
-            .setCustomStatusColor('#db190b')
-            .setLevelColor(randomHexs, randomHex)
-            .setOverlay('', '', false)
-            .setUsername(username, '#db190b')
-            .setBackground('COLOR', randomHexz)
-            .setRank(1, '', false)
-            .renderEmojis(true)
-            .build();
+        const card = await renderRankCard({
+            avatar: pfp,
+            username,
+            level,
+            currentXP: experience,
+            requiredXP: requiredXpToLevelUp,
+            rank,
+            discriminator: `@${user.split('@')[0]}`
+        })
 
         client.sendMessage(
             M.from,

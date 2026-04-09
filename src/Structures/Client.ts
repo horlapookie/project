@@ -8,7 +8,7 @@ import Baileys, {
     ParticipantAction,
     proto,
     WACallEvent
-} from '@adiwajshing/baileys'
+} from '@whiskeysockets/baileys'
 import P from 'pino'
 import { connect } from 'mongoose'
 import { Boom } from '@hapi/boom'

@@ -1,10 +1,11 @@
-const { getBinaryNodeChild } = require('@adiwajshing/baileys');
+const { getBinaryNodeChild } = require('@whiskeysockets/baileys');
 const { serialize } = require('../Structures/WAclient');
 const { getStats } = require('../Helpers/Stats');
 const chalk = require('chalk');
 const axios = require('axios');
 const cron = require("node-cron");
 const { Collection } = require('discord.js');
+const { join } = require('path');
 const cool = new Collection();
 
 module.exports = MessageHandler = async (messages, client) => {
@@ -30,6 +31,7 @@ module.exports = MessageHandler = async (messages, client) => {
         const banned = (await client.DB.get('banned')) || [];
         const companion = await client.poke.get(`${sender}_Companion`);
         const economy = await client.econ.findOne({ userId: sender });
+        const senderIsMod = client.isMod(M);
 
         // Antilink system
         if (isGroup && ActivateMod.includes(from) && groupAdmins.includes(client.user.id.split(':')[0] + '@s.whatsapp.net') && body) {
@@ -118,7 +120,6 @@ module.exports = MessageHandler = async (messages, client) => {
 
         const cooldownAmount = (command.cool ?? 5) * 1000;
         const cooldownKey = `${sender}${command.name}`;
-        const senderIsMod = client.mods.includes(sender.split('@')[0]);
 
         if (!senderIsMod && cool.has(cooldownKey)) {
             const remainingTime = client.utils.convertMs(cool.get(cooldownKey) - Date.now());
@@ -136,9 +137,15 @@ module.exports = MessageHandler = async (messages, client) => {
             { condition: !groupAdmins.includes(sender) && command.category === 'moderation', message: 'This command can only be used by group or community admins.' },
             { condition: !groupAdmins.includes(client.user.id.split(':')[0] + '@s.whatsapp.net') && command.category === 'moderation', message: 'This command can only be used when the bot is an admin.' },
             { condition: !isGroup && command.category === 'moderation', message: 'This command is meant to be used in groups.' },
-            { condition: !isGroup && !client.mods.includes(sender.split('@')[0]), message: 'Bot can only be accessed in groups.' },
-            { condition: !client.mods.includes(sender.split('@')[0]) && command.category === 'dev', message: 'This command can only be accessed by the mods.' },
-            { condition: command.category === 'pokemon' && !companion && command.name !== 'start-journey', message: 'You haven\'t started your journey yet.' },
+            { condition: !isGroup && !senderIsMod, message: 'Bot can only be accessed in groups.' },
+            { condition: !senderIsMod && command.category === 'dev', message: 'This command can only be accessed by the mods.' },
+            {
+                condition:
+                    command.category === 'pokemon' &&
+                    !companion &&
+                    !['start-journey', 'spawnpokemon'].includes(command.name),
+                message: 'You haven\'t started your journey yet.'
+            },
             { condition: command.category === 'economy' && !economy && command.name !== 'bonus', message: 'Use :bonus to get started.' }
         ];
 
@@ -147,18 +154,15 @@ module.exports = MessageHandler = async (messages, client) => {
         }
 
         await command.execute(client, arg, M);
-        await client.exp.add(sender, command.exp);
-
-        const imageUrls = [
-            "https://i.ibb.co/FYkrfLC/images-8.jpg",
-            "https://i.ibb.co/9hbg7K9/images-7.jpg",
-            "https://i.ibb.co/NKvbSvy/images-9.jpg",
-            "https://i.ibb.co/1Q8swPd/images-10.jpg",
-            "https://i.ibb.co/ZVg4S3G/images-11.jpg"
-        ];
+        await client.exp.add(sender, command.exp ?? 0);
 
         if (Math.floor(Math.random() * 500) < 10) {
-            const randomImage = imageUrls[Math.floor(Math.random() * imageUrls.length)];
+            const surpriseImages = [
+                join(process.cwd(), 'assets/Images/battle.png'),
+                join(process.cwd(), 'assets/Images/pokeball.png'),
+                join(process.cwd(), 'assets/Images/greyPokeball.png')
+            ];
+            const randomImage = surpriseImages[Math.floor(Math.random() * surpriseImages.length)];
             await client.sendMessage(from, { image: { url: randomImage }, caption: "🐻✨ Have a bear-y nice day! ✨🐻" });
         }
 

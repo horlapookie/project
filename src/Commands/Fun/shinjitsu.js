@@ -3,7 +3,7 @@ const {
     proto,
     generateWAMessageFromContent,
     prepareWAMessageMedia
-} = require('@adiwajshing/baileys');
+} = require('@whiskeysockets/baileys');
 module.exports = {
     name: 'shinjitsu',
     aliases: ['td'],

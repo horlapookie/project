@@ -4,7 +4,7 @@ const {
   areJidsSameUser,
   generateWAMessageFromContent,
   prepareWAMessageMedia
-} = require('@adiwajshing/baileys');
+} = require('@whiskeysockets/baileys');
 
 
 // SettingUp Quick Buttons ShortCuts Here 
@@ -62,6 +62,7 @@ const shizobtn1 = async (client, from, text, btntxt, btnid, footer) => {
 
 //Single Quick Button with Image 
 const shizobtn1img = async (client, from, text, img, btntxt, btnid, footer) => {
+  const media = Buffer.isBuffer(img) ? { image: img } : { image: { url: `${img}` } }
   let msg = generateWAMessageFromContent(`${from}`, {
     viewOnceMessage: {
       message: {
@@ -77,7 +78,7 @@ const shizobtn1img = async (client, from, text, img, btntxt, btnid, footer) => {
             text: `${footer}`
           }),
           header: proto.Message.InteractiveMessage.Header.create({
-            ...(await prepareWAMessageMedia({ image: { url: `${img}` } }, { upload: client.waUploadToServer })),
+            ...(await prepareWAMessageMedia(media, { upload: client.waUploadToServer })),
             title: "",
             subtitle: "",
             hasMediaAttachment: false
@@ -103,6 +104,7 @@ const shizobtn1img = async (client, from, text, img, btntxt, btnid, footer) => {
 
 //Single Quick Button with Gif Buffer
 const shizobtn1gif = async (client, from, text, img, btntxt, btnid, footer) => {
+  const media = Buffer.isBuffer(img) ? { video: img } : { video: { url: `${img}` } }
   let msg = generateWAMessageFromContent(`${from}`, {
     viewOnceMessage: {
       message: {
@@ -118,7 +120,7 @@ const shizobtn1gif = async (client, from, text, img, btntxt, btnid, footer) => {
             text: `${footer}`
           }),
           header: proto.Message.InteractiveMessage.Header.create({
-            ...(await prepareWAMessageMedia({ video: { url: `${img}` } }, { upload: client.waUploadToServer })),
+            ...(await prepareWAMessageMedia(media, { upload: client.waUploadToServer })),
             title: "",
             subtitle: "",
             gifPlayback: true,

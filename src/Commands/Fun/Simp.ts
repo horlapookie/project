@@ -1,5 +1,5 @@
 import { Simp } from '@shineiichijo/canvas-chan'
-import { proto } from '@adiwajshing/baileys'
+import { proto } from '@whiskeysockets/baileys'
 import { Command, BaseCommand, Message } from '../../Structures'
 
 @Command('simp', {

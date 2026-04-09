@@ -1,6 +1,3 @@
-const { shizobtn1, shizobtn1img, shizobtn1gif, shizobtn2 } = require('../../shizofunc.js');
-const TD = require('better-tord');
-const fs = require('fs');
 const moment = require('moment-timezone');
 
 function wish() {
@@ -36,7 +33,7 @@ module.exports = {
     description: 'Displays the command list or specific command info',
     async execute(client, arg, M) {
         try {
-            const user = await client.DB.get('data');
+            const user = (await client.DB.get('data')) || [];
             const m = M.sender;
 
             // If user is not in data, push the user
@@ -45,14 +42,10 @@ module.exports = {
             }
 
             if (!arg) {
-                let pushName = M.pushName.trim();
+                let pushName = (M.pushName || 'Senpai').trim();
                 if (pushName.split(' ').length === 1) {
                     pushName += ' san';
                 }
-
-                const getGroups = await client.groupFetchAllParticipating();
-                const groups = Object.entries(getGroups).map((entry) => entry[1]);
-                const groupCount = groups.length;
 
                 const pad = (s) => (s < 10 ? '0' : '') + s;
                 const formatTime = (seconds) => {
@@ -66,7 +59,6 @@ module.exports = {
                 const usersCount = await client.DB.get('data') || [];
                 const usersCounts = usersCount.length;
                 const modCount = client.mods.length;
-                const website = 'coming soon...';
                 const categories = client.cmd.reduce((obj, cmd) => {
                     const category = cmd.category || 'Uncategorized';
                     obj[category] = obj[category] || [];
@@ -81,27 +73,38 @@ module.exports = {
                     commands += `*𓊈𒆜 ${client.utils.capitalize(category, true)} 𒆜𓊉* \n\`\`\`${categories[category].join(', ')}\`\`\`\n\n`;
                 }
 
-                let message = `*┌─🄱🄾🅃────────❀̥˚─┈ ⳹*
-*└──🄱🅄🄽🄽🅈 🄶🄸🅁🄻──┈ ⳹*
-*│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
-*│𓊈 ʜᴇʟʟᴏ ᴛʜᴇʀᴇ ɪ'ᴍ ꜱᴀᴋᴜʀᴀᴊɪᴍᴀ 𓊉*
-*│𓆩 ${M.sender.split('@')[0]} 𓆪*
-*│ᴡʜᴀᴛ's ᴜᴘ ꜱᴇɴᴘᴀɪ!! 👋🎐*
-*│🎯░ ${wish()} ░🎏*
-*│░░░░░░░░░░░░░░░░░░░░*
-*│📤 ɪɴғᴏ: ʙᴏᴛ ᴠᴇʀꜱɪᴏɴ 𝟐𝟎𝟐𝟒 🎯*
-*│░░░░░░░░░░░░░░░░░░░░*
-*│🚏 ᴜꜱᴇ ᴛʜᴇ ᴍᴀɴᴜᴀʟ ʙᴜᴛᴛᴏɴ!!🚦*
-*│💈ᴄᴀꜱɪɴᴏ ɢᴀᴍᴇ ʙᴏᴛ*
-*│- ᴘᴏᴋᴇᴍᴏɴ & ꜱʜᴏᴏʙ ɢᴀᴍᴇ 𖠌*
-*│- ᴏᴡɴᴇʀ: ʀᴇᴅᴢᴇᴏꭗ 彡*
-*│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
-*┌──🄱🅄🄽🄽🅈 🄶🄸🅁🄻──┈ ⳹*
-*└❀̥˚───────────🄱🄾🅃─┈ ⳹*`;
-                await shizobtn1img(client, M.from, message, "https://telegra.ph/file/e9b5fa49e5eac946baf4d.jpg", "Manual 🎋🎐", "-shinichi1", "𒉢 ꜱᴀʏ.ꜱᴄ֟፝ᴏᴛᴄʜ ⚡𐇻");
+                const message = `*BUNNY GIRL BOT HELP*\n\nHello ${pushName}\n${wish()}\n\n*User:* @${M.sender.split('@')[0]}\n*Uptime:* ${uptime}\n*Users:* ${usersCounts}\n*Mods:* ${modCount}\n\n${commands}`.trim();
+                return client.sendMessage(
+                    M.from,
+                    {
+                        image: { url: `${process.cwd()}/assets/Images/battle.png` },
+                        caption: message,
+                        mentions: [M.sender]
+                    },
+                    {
+                        quoted: M
+                    }
+                );
             }
+
+            const query = arg.trim().toLowerCase();
+            const command =
+                client.cmd.get(query) ||
+                client.cmd.find((cmd) => cmd.aliases && cmd.aliases.map((alias) => alias.toLowerCase()).includes(query));
+
+            if (!command) {
+                return M.reply(`No command named *${arg.trim()}* was found.`);
+            }
+
+            const aliases = command.aliases && command.aliases.length ? command.aliases.join(', ') : 'None';
+            return M.reply(
+                `*Command:* ${command.name}\n*Aliases:* ${aliases}\n*Category:* ${command.category || 'Uncategorized'}\n*Usage:* ${
+                    command.usage || 'No usage provided'
+                }\n*Description:* ${command.description || 'No description provided'}`
+            );
         } catch (error) {
             console.error(error);
+            await M.reply('Help command failed to render. Please try again.');
         }
     }
 };

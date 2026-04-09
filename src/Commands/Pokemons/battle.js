@@ -1,20 +1,83 @@
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const { get } = require('axios');
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isWildUser = (user = '') => typeof user === 'string' && user.endsWith('@pokemon');
+
+const formatBattleActor = (client, user, pokemonName) =>
+    isWildUser(user)
+        ? `the wild *${client.utils.capitalize(pokemonName)}*`
+        : `*@${user.split('@')[0]}*'s *${client.utils.capitalize(pokemonName)}*`;
+
+const formatBattleTrainer = (user = '') =>
+    isWildUser(user) ? 'the wild Pokemon' : `*@${user.split('@')[0]}*`;
+
+const getPartyForUser = async (client, user) => (await client.poke.get(`${user}_Party`)) || [];
+
+const savePartyForUser = async (client, user, party) => {
+    await client.poke.set(`${user}_Party`, party);
+};
+
+const cleanupWildBattle = async (client, battle) => {
+    if (battle?.wildUser) {
+        await client.poke.delete(`${battle.wildUser}_Party`);
+    }
+};
+
+const ensureBattleNotExpired = async (client, M, battle) => {
+    if (!battle || battle.mode !== 'wild' || !battle.expiresAt) return false;
+    if (Date.now() <= battle.expiresAt) return false;
+
+    client.pokemonBattleResponse.delete(M.from);
+    client.pokemonBattlePlayerMap.delete(battle.player1.user);
+    await cleanupWildBattle(client, battle);
+    await client.sendMessage(M.from, {
+        text: `The wild *${client.utils.capitalize(battle.player2.activePokemon.name)}* fled because nobody made a move in time.`
+    });
+    return true;
+};
+
+const setBattleData = (client, jid, data) => client.pokemonBattleResponse.set(jid, data);
+
+const pickWildMove = (battle) => {
+    const availableMoves = (battle.player2.activePokemon.moves || []).filter((move) => move.pp > 0);
+    if (!availableMoves.length) return 'skipped';
+    return availableMoves[Math.floor(Math.random() * availableMoves.length)];
+};
+
+const updateActivePokemonInParty = async (client, user, pokemon) => {
+    const party = await getPartyForUser(client, user);
+    const index = party.findIndex((entry) => entry.tag === pokemon.tag);
+    if (index >= 0) {
+        party[index] = pokemon;
+        await savePartyForUser(client, user, party);
+    }
+    return party;
+};
+
+const clearQueuedMoves = (battle) => {
+    battle.player1.move = '';
+    battle.player2.move = '';
+};
 
 module.exports = {
-    name: "battle",
-    aliases: ["bt"],
+    name: 'battle',
+    aliases: ['bt'],
     exp: 5,
     cool: 5,
-    react: "🟩",
-    category: "pokemon",
-    usage: 'Use :party',
-    description: "Challenge another trainer for a Pokemon battle",
+    react: '🟩',
+    category: 'pokemon',
+    usage: 'Use :battle fight / switch / forfeit',
+    description: 'Battle another trainer or a wild Pokemon',
     async execute(client, arg, M) {
         const context = arg.trim().toLowerCase();
         const data = client.pokemonBattleResponse.get(M.from);
 
-        if (!data || !data.players.includes(M.sender)) {
+        if (await ensureBattleNotExpired(client, M, data)) return;
+
+        const canControlBattle =
+            data &&
+            (data.players.includes(M.sender) || (data.mode === 'wild' && data.player1.user === M.sender));
+
+        if (!data || !canControlBattle) {
             return M.reply(`You aren't battling anyone here.`);
         }
 
@@ -26,60 +89,75 @@ module.exports = {
         const number = parseInt(indexStr, 10) - 1;
 
         if (action === 'fight') {
-            const cha = client.pokemonBattleResponse.get(M.from);
+            const battle = client.pokemonBattleResponse.get(M.from);
+            if (!battle) return null;
 
-            if (cha) {
-                const tUrn = M.sender === cha[cha.turn].user;
+            const isTurn = M.sender === battle[battle.turn].user;
+            if (!isTurn) return M.reply('Not your turn');
 
-                if (!tUrn) return M.reply('Not your turn');
-
-                if (isNaN(number)) {
-                    let texT = `*Moves | ${client.utils.capitalize(cha[cha.turn].activePokemon.name)}*`;
-                    for (let i = 0; i < cha[cha.turn].activePokemon.moves.length; i++) {
-                        const move = cha[cha.turn].activePokemon.moves[i];
-                        texT += `\n\n*#${i + 1}*\n❓ *Move:* ${move.name.split('-').map(client.utils.capitalize).join(' ')}\n〽 *PP:* ${move.pp} / ${move.maxPp}\n🎗 *Type:* ${client.utils.capitalize(move.type ?? 'Normal')}\n🎃 *Power:* ${move.power}\n🎐 *Accuracy:* ${move.accuracy}\n🧧 *Description:* ${move.description}\nUse *${client.prefix}battle fight ${i + 1}* to use this move.`;
-                    }
-                    return M.reply(texT);
+            if (isNaN(number)) {
+                let text = `*Moves | ${client.utils.capitalize(battle[battle.turn].activePokemon.name)}*`;
+                for (let i = 0; i < battle[battle.turn].activePokemon.moves.length; i++) {
+                    const move = battle[battle.turn].activePokemon.moves[i];
+                    text += `\n\n*#${i + 1}*\n❓ *Move:* ${move.name.split('-').map(client.utils.capitalize).join(' ')}\n〽 *PP:* ${move.pp} / ${move.maxPp}\n🎗 *Type:* ${client.utils.capitalize(move.type ?? 'Normal')}\n🎃 *Power:* ${move.power}\n🎐 *Accuracy:* ${move.accuracy}\n🧧 *Description:* ${move.description}\nUse *${client.prefix}battle fight ${i + 1}* to use this move.`;
                 }
-
-                if (number < 0 || number >= cha[cha.turn].activePokemon.moves.length) {
-                    return M.reply('Invalid move number.');
-                }
-
-                const datA = client.pokemonBattleResponse.get(M.from);
-                if (datA) {
-                    const pkmn = datA[datA.turn];
-                    if (pkmn.activePokemon.hp <= 0) {
-                        return M.reply("You can't fight with a fainted Pokemon. Switch to another Pokemon.");
-                    }
-
-                    if (pkmn.activePokemon.moves[number].pp <= 0) {
-                        return M.reply("You can't use this move now as it has run out of PP.");
-                    }
-
-                    const move = pkmn.activePokemon.moves[number];
-                    pkmn.move = move;
-                    pkmn.activePokemon.moves[number].pp -= 1;
-                    datA.turn = datA.turn === 'player1' ? 'player2' : 'player1';
-                    client.pokemonBattleResponse.set(M.from, datA);
-
-                    const party = await client.poke.get(`${M.sender}_Party`) || [];
-                    const index = party.findIndex(x => x.tag === pkmn.activePokemon.tag);
-                    if (index >= 0) {
-                        party[index].moves[number].pp -= 1;
-                        await client.poke.set(`${M.sender}_Party`, party);
-                    }
-
-                    if (datA.turn === 'player2') {
-                        return await continueSelection(client, M);
-                    }
-
-                    return await handleBattles(client, M);
-                }
+                return M.reply(text);
             }
-            return;
 
-        } else if (action === 'forfeit') {
+            if (number < 0 || number >= battle[battle.turn].activePokemon.moves.length) {
+                return M.reply('Invalid move number.');
+            }
+
+            const actor = battle[battle.turn];
+            if (actor.activePokemon.hp <= 0) {
+                return M.reply("You can't fight with a fainted Pokemon. Switch to another Pokemon.");
+            }
+
+            if (actor.activePokemon.moves[number].pp <= 0) {
+                return M.reply("You can't use this move now as it has run out of PP.");
+            }
+
+            const move = actor.activePokemon.moves[number];
+            actor.move = move;
+            actor.activePokemon.moves[number].pp -= 1;
+            await updateActivePokemonInParty(client, actor.user, actor.activePokemon);
+
+            if (battle.mode === 'wild') {
+                battle.player2.move = pickWildMove(battle);
+                battle.turn = 'player1';
+                setBattleData(client, M.from, battle);
+                return handleBattles(client, M);
+            }
+
+            const otherKey = actor.user === battle.player1.user ? 'player2' : 'player1';
+            const otherActor = battle[otherKey];
+
+            if (!otherActor.move) {
+                battle.turn = otherKey;
+                setBattleData(client, M.from, battle);
+                const text = `Use one of the options given below ${formatBattleTrainer(otherActor.user)}\n\nTo fight, use *${client.prefix}battle fight*\n\nTo switch Pokemon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
+                return client.sendMessage(M.from, {
+                    text,
+                    mentions: [otherActor.user]
+                });
+            }
+
+            battle.turn = 'player1';
+            setBattleData(client, M.from, battle);
+            return handleBattles(client, M);
+        }
+
+        if (action === 'forfeit') {
+            if (data.mode === 'wild') {
+                client.pokemonBattleResponse.delete(M.from);
+                client.pokemonBattlePlayerMap.delete(data.player1.user);
+                await cleanupWildBattle(client, data);
+                return client.sendMessage(M.from, {
+                    text: `*@${M.sender.split('@')[0]}* ran away and the wild *${client.utils.capitalize(data.player2.activePokemon.name)}* fled.`,
+                    mentions: [M.sender]
+                });
+            }
+
             client.pokemonBattlePlayerMap.delete(data.player2.user);
             client.pokemonBattlePlayerMap.delete(data.player1.user);
 
@@ -89,8 +167,7 @@ module.exports = {
             const economy = await client.econ.findOne({ userId: M.sender });
             const economy1 = await client.econ.findOne({ userId: data.player1.user === M.sender ? data.player2.user : data.player1.user });
 
-            let wallet = economy ? economy.coin : 0;
-            let wallet1 = economy1 ? economy1.coin : 0;
+            const wallet = economy ? economy.coin : 0;
             const amount = wallet > 5000 ? 4500 : wallet >= 250 ? 250 : wallet;
             const gold = Math.floor(Math.random() * amount);
 
@@ -102,303 +179,282 @@ module.exports = {
 
             client.pokemonBattleResponse.delete(M.from);
 
-            return await client.sendMessage(M.from, {
+            return client.sendMessage(M.from, {
                 text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and got *${gold}* gold from *@${user.split('@')[0]}* as they forfeited the battle.`,
                 mentions: [user, winner]
             });
+        }
 
-        } else if (action === 'switch') {
-            const c = client.pokemonBattleResponse.get(M.from);
-            if (!c || !c.players.includes(M.sender)) return null;
+        if (action === 'switch') {
+            const battle = client.pokemonBattleResponse.get(M.from);
+            if (!battle) return null;
 
-            const turn = M.sender === c[c.turn].user;
-            if (!turn) return M.reply('Not your turn');
+            const isTurn = M.sender === battle[battle.turn].user;
+            if (!isTurn) return M.reply('Not your turn');
 
-            const index = number;
-            const Party = await client.poke.get(`${M.sender}_Party`) || [];
-
-            if (index < 0 || index >= Party.length || Party[index].hp <= 0) {
-                return M.reply("You can't send out a fainted Pokémon to battle.");
+            const party = await getPartyForUser(client, M.sender);
+            if (number < 0 || number >= party.length || party[number].hp <= 0) {
+                return M.reply("You can't send out a fainted Pokemon to battle.");
             }
 
-            if (Party[index].name === c[c.turn].activePokemon.name &&
-                Party[index].rejectedMoves.length === c[c.turn].activePokemon.rejectedMoves.length) {
-                return M.reply(`*${client.utils.capitalize(c[c.turn].activePokemon.name)}* is already out here.`);
+            if (
+                party[number].name === battle[battle.turn].activePokemon.name &&
+                party[number].rejectedMoves.length === battle[battle.turn].activePokemon.rejectedMoves.length
+            ) {
+                return M.reply(`*${client.utils.capitalize(battle[battle.turn].activePokemon.name)}* is already out here.`);
             }
 
-            const Text = `*@${M.sender.split('@')[0]}* ${c[c.turn].activePokemon.hp > 0
-                    ? `withdrew *${client.utils.capitalize(c[c.turn].activePokemon.name)}* from the battle and`
-                    : ''} sent out *${client.utils.capitalize(Party[index].name)}* for the battle.`;
+            const text = `*@${M.sender.split('@')[0]}* ${battle[battle.turn].activePokemon.hp > 0 ? `withdrew *${client.utils.capitalize(battle[battle.turn].activePokemon.name)}* from the battle and` : ''} sent out *${client.utils.capitalize(party[number].name)}* for the battle.`;
 
-            if (c[c.turn].activePokemon.hp > 0) {
-                c.turn = c.turn === 'player1' ? 'player2' : 'player1';
-                c[c.turn].move = 'skipped';
+            if (battle[battle.turn].activePokemon.hp > 0) {
+                battle.turn = battle.turn === 'player1' ? 'player2' : 'player1';
+                battle[battle.turn].move = 'skipped';
             } else {
-                c.turn = 'player1';
+                battle.turn = 'player1';
             }
 
-            c[c.turn].activePokemon = Party[index];
-            client.pokemonBattleResponse.set(M.from, c);
+            battle[battle.turn].activePokemon = party[number];
+            setBattleData(client, M.from, battle);
 
             await client.sendMessage(M.from, {
                 mentions: [M.sender],
-                text: Text
+                text
             });
 
-            return await continueSelection(client, M);
+            if (battle.mode === 'wild' && battle.turn === 'player2') {
+                if (battle.player2.move !== 'skipped') {
+                    battle.player2.move = pickWildMove(battle);
+                }
+                battle.turn = 'player1';
+                setBattleData(client, M.from, battle);
+                return handleBattles(client, M);
+            }
 
-        } else if (action === 'pokemon') {
-            handlePokemonSelection(client, M)
-        } else {
-            return M.reply('Invalid Usage');
+            return continueSelection(client, M);
         }
+
+        if (action === 'pokemon') {
+            return handlePokemonSelection(client, M);
+        }
+
+        return M.reply('Invalid Usage');
     }
-}
+};
 
 const handlePokemonSelection = async (client, M) => {
     try {
-        const ch = client.pokemonBattleResponse.get(M.from);
-        if (!ch) return;
+        const battle = client.pokemonBattleResponse.get(M.from);
+        if (!battle) return null;
 
-        const isTurn = M.sender === ch[ch.turn].user;
+        const isTurn = M.sender === battle[battle.turn].user;
         if (!isTurn) return M.reply('Not your turn');
 
-        const party = await client.poke.get(`${M.sender}_Party`) || [];
+        const party = await getPartyForUser(client, M.sender);
         let text = '';
 
         for (let i = 0; i < party.length; i++) {
-            const pkmn = party[i];
-            text += `*#${i + 1}*\n🟩 *Pokémon:* ${client.utils.capitalize(pkmn.name)}\n🟨 *Level:* ${pkmn.level}\n♻ *State:* ${pkmn.hp <= 0
-                    ? 'Fainted'
-                    : pkmn.state.status === ''
-                        ? 'Fine'
-                        : client.utils.capitalize(pkmn.state.status)}\n🟢 *HP:* ${pkmn.hp} / ${pkmn.maxHp}\n🟧 *Types:* ${pkmn.types.map(client.utils.capitalize).join(', ')}\nUse *${client.prefix}battle switch ${i + 1}* to send out this Pokémon for the battle.`;
-
-            if (i < party.length - 1) {
-                text += '\n\n';
-            }
+            const pokemon = party[i];
+            text += `*#${i + 1}*\n🟩 *Pokemon:* ${client.utils.capitalize(pokemon.name)}\n🟨 *Level:* ${pokemon.level}\n♻ *State:* ${pokemon.hp <= 0 ? 'Fainted' : pokemon.state.status === '' ? 'Fine' : client.utils.capitalize(pokemon.state.status)}\n🟢 *HP:* ${pokemon.hp} / ${pokemon.maxHp}\n🟧 *Types:* ${pokemon.types.map(client.utils.capitalize).join(', ')}\nUse *${client.prefix}battle switch ${i + 1}* to send out this Pokemon for the battle.`;
+            if (i < party.length - 1) text += '\n\n';
         }
 
         await M.reply(text);
-
     } catch (error) {
         console.error('Error in handlePokemonSelection:', error);
     }
 };
 
-
 const handleBattles = async (client, M) => {
     try {
-        const data = client.pokemonBattleResponse.get(M.from);
-        if (!data) return; // Early return if no data
+        const battle = client.pokemonBattleResponse.get(M.from);
+        if (!battle) return;
 
-        const { player1, player2 } = data;
-        const arr = [player1, player2];
-
-        // Sort based on speed first, then accuracy if moves are not skipped
-        arr.sort((x, y) => y.activePokemon.speed - x.activePokemon.speed);
-        if (arr[0].move !== 'skipped' && arr[1].move !== 'skipped' && arr[0].move !== '' && arr[1].move !== '') {
-            arr.sort((x, y) => y.move.accuracy - x.move.accuracy);
+        const turns = [battle.player1, battle.player2];
+        turns.sort((a, b) => b.activePokemon.speed - a.activePokemon.speed);
+        if (turns[0].move !== 'skipped' && turns[1].move !== 'skipped' && turns[0].move !== '' && turns[1].move !== '') {
+            turns.sort((a, b) => b.move.accuracy - a.move.accuracy);
         }
 
         for (let i = 0; i < 2; i++) {
-            const current = arr[i];
-            const opponent = arr[i === 0 ? 1 : 0];
+            const current = turns[i];
+            const opponent = turns[i === 0 ? 1 : 0];
 
             if (current.activePokemon.hp <= 0) continue;
+            if (current.move === 'skipped') continue;
 
             const move = current.move;
-            if (move === 'skipped') continue;
-
             let moveLanded = move.accuracy === 100 || Math.floor(Math.random() * 100) < move.accuracy;
 
-            // Check and handle status conditions
             if (['sleeping', 'paralysis'].includes(current.activePokemon.state.status)) {
                 if (current.activePokemon.state.movesUsed > 0) {
-                    const trainerKey = current.user === player1.user ? 'player1' : 'player2';
-                    const trainerParty = await client.poke.get(`${data[trainerKey].user}_Party`) || [];
                     current.activePokemon.state.movesUsed -= 1;
 
                     if (current.activePokemon.state.movesUsed < 1) {
                         await client.sendMessage(M.from, {
-                            mentions: [current.user],
-                            text: `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(current.activePokemon.name)}* is ${current.activePokemon.state.status === 'sleeping' ? 'awake now' : 'free from paralysis now'}`
+                            text: `${formatBattleActor(client, current.user, current.activePokemon.name)} is ${current.activePokemon.state.status === 'sleeping' ? 'awake now' : 'free from paralysis now'}`,
+                            mentions: isWildUser(current.user) ? [] : [current.user]
                         });
                         await delay(3000);
                         current.activePokemon.state.status = '';
-                        client.pokemonBattleResponse.set(M.from, data);
-
-                        const partyIndex = trainerParty.findIndex(pokemon => pokemon.tag === current.activePokemon.tag);
-                        trainerParty[partyIndex] = current.activePokemon;
-                        await client.poke.set(`${current.user}_Party`, trainerParty);
+                        setBattleData(client, M.from, battle);
+                        await updateActivePokemonInParty(client, current.user, current.activePokemon);
                     } else {
-                        const statusMessage = current.activePokemon.state.status === 'sleeping'
-                            ? `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(current.activePokemon.name)}* is fast asleep`
-                            : `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(current.activePokemon.name)}* can't move as it's paralyzed`;
-
-                        await client.sendMessage(M.from, { mentions: [current.user], text: statusMessage });
+                        await client.sendMessage(M.from, {
+                            text: current.activePokemon.state.status === 'sleeping'
+                                ? `${formatBattleActor(client, current.user, current.activePokemon.name)} is fast asleep`
+                                : `${formatBattleActor(client, current.user, current.activePokemon.name)} can't move because it's paralyzed`,
+                            mentions: isWildUser(current.user) ? [] : [current.user]
+                        });
                         await delay(3000);
-                        client.pokemonBattleResponse.set(M.from, data);
+                        setBattleData(client, M.from, battle);
                         continue;
                     }
                 }
             }
 
-            // Notify move use
             await client.sendMessage(M.from, {
-                text: `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(current.activePokemon.name)}* used *${client.utils.capitalize(move.name.replace(/-/g, ' '))}* at *${client.utils.capitalize(opponent.activePokemon.name)}*`,
-                mentions: [current.user]
+                text: `${formatBattleActor(client, current.user, current.activePokemon.name)} used *${client.utils.capitalize(move.name.replace(/-/g, ' '))}* on ${formatBattleActor(client, opponent.user, opponent.activePokemon.name)}`,
+                mentions: [current.user, opponent.user].filter((jid) => !isWildUser(jid))
             });
-            
             await delay(5000);
 
-            if (moveLanded) {
-                const party1 = await client.poke.get(`${current.user}_Party`) || [];
-                const party2 = await client.poke.get(`${opponent.user}_Party`) || [];
-                const pokemon = current.activePokemon;
-                const pkmn = opponent.activePokemon;
-                const party1Index = party1.findIndex(poke => poke.tag === pokemon.tag);
-                const party2Index = party2.findIndex(poke => poke.tag === pkmn.tag);
-
-                // Handle stat changes
-                if (move.stat_change.length && move.power <= 0) {
-                    for (const { target, change } of move.stat_change) {
-                        let text = `Due to the usage of *${client.utils.capitalize(move.name.replace(/-/g, ' '))}* by *@${current.user.split('@')[0]}*'s Pokémon *${client.utils.capitalize(pokemon.name)}*,`;
-
-                        if (change < 0) {
-                            text += ` the *${target.toUpperCase()}* of *@${opponent.user.split('@')[0]}*'s Pokémon *${client.utils.capitalize(pkmn.name)}* fell by ${Math.abs(change)}`;
-                            await client.sendMessage(M.from, { text, mentions: [opponent.user, current.user] });
-                            await delay(3000);
-                            pkmn[target] += change;
-                        } else {
-                            text += ` the *${target.toUpperCase()}* of itself rose by ${change}`;
-                            await client.sendMessage(M.from, { text, mentions: [current.user] });
-                            pokemon[target] += change;
-                        }
-
-                        party1[party1Index] = pokemon;
-                        party2[party2Index] = pkmn;
-                        await client.poke.set(`${current.user}_Party`, party1);
-                        await client.poke.set(`${opponent.user}_Party`, party2);
-                        client.pokemonBattleResponse.set(M.from, data);
-                    }
-                    if (move.power <= 0) continue;
-                }
-
-                // Handle move effects (drain and healing)
-                if (move.drain > 0 || move.healing > 0) {
-                    if (move.drain > 0) {
-                        const drain = Math.min(pkmn.hp, move.drain);
-                        pkmn.hp -= drain;
-                        pokemon.hp += drain;
-                        await client.sendMessage(M.from, {
-                            text: `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(pokemon.name)}* drained and restored *${drain} HP* from *@${opponent.user.split('@')[0]}*'s *${client.utils.capitalize(pkmn.name)}*`,
-                            mentions: [current.user, opponent.user]
-                        });
-                    } else {
-                        const heal = Math.min(move.healing, pokemon.maxHp - pokemon.hp);
-                        pokemon.hp += heal;
-                        await client.sendMessage(M.from, {
-                            text: `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(pokemon.name)}* restored *${heal} HP*`,
-                            mentions: [current.user]
-                        });
-                    }
-                    await delay(3000);
-                    party1[party1Index] = pokemon;
-                    party2[party2Index] = pkmn;
-                    await client.poke.set(`${current.user}_Party`, party1);
-                    await client.poke.set(`${opponent.user}_Party`, party2);
-                    client.pokemonBattleResponse.set(M.from, data);
-                }
-
-                // Handle status effects
-                if (['sleep', 'paralysis', 'poison'].includes(move.effect)) {
-                    const status = pkmn.state.status;
-                    if (status === move.effect) {
-                        await client.sendMessage(M.from, {
-                            text: `*@${opponent.user.split('@')[0]}*'s *${client.utils.capitalize(pkmn.name)}* is already ${move.effect === 'poison' ? 'Poisoned' : move.effect === 'sleep' ? 'Sleeping' : 'Paralyzed'}`,
-                            mentions: [opponent.user]
-                        });
-                        await delay(5000);
-                    } else {
-                        pkmn.state.status = move.effect === 'sleep' ? 'sleeping' : move.effect === 'poison' ? 'poisoned' : 'paralyzed';
-                        pkmn.state.movesUsed = 5;
-                        party2[party2Index] = pkmn;
-                        await client.poke.set(`${opponent.user}_Party`, party2);
-                        client.pokemonBattleResponse.set(M.from, data);
-                    }
-                }
-
-                // Handle damage calculation
-                const attack = pokemon.attack;
-                const defense = pkmn.defense;
-                const typesData = await Promise.all(pkmn.types.map(type => client.utils.getPokemonWeaknessAndStrongTypes(type)));
-
-                const weakness = typesData.flatMap(data => data.weakness);
-                const strong = typesData.flatMap(data => data.strong);
-
-                let effect = ((attack - defense) / 50) * move.power + Math.floor(Math.random() * 25);
-                let effectiveness = '';
-
-                if (weakness.includes(move.type)) effectiveness = 's';
-                if (strong.includes(move.type) || pkmn.types.includes(move.type)) effectiveness = 'w';
-                if (move.type === 'normal') effectiveness = '';
-
-                if (effectiveness === 'w') effect = Math.floor(Math.random() * effect);
-                if (effectiveness === 's') effect *= 2;
-
-                const calcDamage = Math.floor((move.power + effect) / 2.5);
-                const result = Math.max(calcDamage, 5);
-
-                if (effectiveness === 'w' || effectiveness === 's') {
-                    await client.sendMessage(M.from, {
-                        text: `It's ${effectiveness === 'w' ? 'not' : 'super'} effective`,
-                        mentions: [current.user]
-                    });
-                    
-                }
-
-                pkmn.hp -= result;
+            if (!moveLanded) {
                 await client.sendMessage(M.from, {
-                    text: `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(pokemon.name)}* dealt *${result}* damage to *@${opponent.user.split('@')[0]}*'s *${client.utils.capitalize(pkmn.name)}*`,
-                    mentions: [current.user, opponent.user]
+                    text: `${formatBattleActor(client, current.user, current.activePokemon.name)} missed the attack`,
+                    mentions: isWildUser(current.user) ? [] : [current.user]
                 });
-                await delay(3000);
+                continue;
+            }
+
+            const party1 = await getPartyForUser(client, current.user);
+            const party2 = await getPartyForUser(client, opponent.user);
+            const pokemon = current.activePokemon;
+            const target = opponent.activePokemon;
+            const party1Index = party1.findIndex((poke) => poke.tag === pokemon.tag);
+            const party2Index = party2.findIndex((poke) => poke.tag === target.tag);
+
+            if (move.stat_change.length && move.power <= 0) {
+                for (const { target: statTarget, change } of move.stat_change) {
+                    let text = `Due to *${client.utils.capitalize(move.name.replace(/-/g, ' '))}* used by ${formatBattleActor(client, current.user, pokemon.name)},`;
+                    if (change < 0) {
+                        text += ` the *${statTarget.toUpperCase()}* of ${formatBattleActor(client, opponent.user, target.name)} fell by ${Math.abs(change)}`;
+                        target[statTarget] += change;
+                    } else {
+                        text += ` the *${statTarget.toUpperCase()}* of itself rose by ${change}`;
+                        pokemon[statTarget] += change;
+                    }
+
+                    await client.sendMessage(M.from, {
+                        text,
+                        mentions: [current.user, opponent.user].filter((jid) => !isWildUser(jid))
+                    });
+                    await delay(3000);
+                }
 
                 party1[party1Index] = pokemon;
-                party2[party2Index] = pkmn;
-                await client.poke.set(`${current.user}_Party`, party1);
-                await client.poke.set(`${opponent.user}_Party`, party2);
+                party2[party2Index] = target;
+                await savePartyForUser(client, current.user, party1);
+                await savePartyForUser(client, opponent.user, party2);
+                setBattleData(client, M.from, battle);
+                continue;
+            }
 
-                if (pkmn.hp <= 0) {
-                    pkmn.hp = 0;
+            if (move.drain > 0 || move.healing > 0) {
+                if (move.drain > 0) {
+                    const drain = Math.min(target.hp, move.drain);
+                    target.hp -= drain;
+                    pokemon.hp += drain;
                     await client.sendMessage(M.from, {
-                        text: `*@${opponent.user.split('@')[0]}*'s *${client.utils.capitalize(pkmn.name)}* fainted`,
-                        mentions: [opponent.user]
+                        text: `${formatBattleActor(client, current.user, pokemon.name)} drained and restored *${drain} HP* from ${formatBattleActor(client, opponent.user, target.name)}`,
+                        mentions: [current.user, opponent.user].filter((jid) => !isWildUser(jid))
+                    });
+                } else {
+                    const heal = Math.min(move.healing, pokemon.maxHp - pokemon.hp);
+                    pokemon.hp += heal;
+                    await client.sendMessage(M.from, {
+                        text: `${formatBattleActor(client, current.user, pokemon.name)} restored *${heal} HP*`,
+                        mentions: isWildUser(current.user) ? [] : [current.user]
+                    });
+                }
+                await delay(3000);
+            }
+
+            if (['sleep', 'paralysis', 'poison'].includes(move.effect)) {
+                if (target.state.status === move.effect) {
+                    await client.sendMessage(M.from, {
+                        text: `${formatBattleActor(client, opponent.user, target.name)} is already ${move.effect === 'poison' ? 'poisoned' : move.effect === 'sleep' ? 'sleeping' : 'paralyzed'}`,
+                        mentions: isWildUser(opponent.user) ? [] : [opponent.user]
                     });
                     await delay(5000);
-                    data.turn = current.user === player1.user ? 'player2' : 'player1';
-                    await client.poke.set(`${opponent.user}_Party`, party2);
-                    client.pokemonBattleResponse.set(M.from, data);
-
-                    if (pokemon.level < 100) {
-                        await handleStats(
-                            client,
-                            M,
-                            pkmn.exp,
-                            current.user,
-                            pokemon,
-                            opponent.user === player1.user ? 'player2' : 'player1'
-                        );
-                    }
+                } else {
+                    target.state.status = move.effect === 'sleep' ? 'sleeping' : move.effect === 'poison' ? 'poisoned' : 'paralyzed';
+                    target.state.movesUsed = 5;
                 }
-            } else {
+            }
+
+            const attack = pokemon.attack;
+            const defense = target.defense;
+            const typesData = await Promise.all(target.types.map((type) => client.utils.getPokemonWeaknessAndStrongTypes(type)));
+            const weakness = typesData.flatMap((entry) => entry.weakness);
+            const strong = typesData.flatMap((entry) => entry.strong);
+
+            let effect = ((attack - defense) / 50) * move.power + Math.floor(Math.random() * 25);
+            let effectiveness = '';
+
+            if (weakness.includes(move.type)) effectiveness = 's';
+            if (strong.includes(move.type) || target.types.includes(move.type)) effectiveness = 'w';
+            if (move.type === 'normal') effectiveness = '';
+
+            if (effectiveness === 'w') effect = Math.floor(Math.random() * effect);
+            if (effectiveness === 's') effect *= 2;
+
+            const calcDamage = Math.floor((move.power + effect) / 2.5);
+            const result = Math.max(calcDamage, 5);
+
+            if (effectiveness === 'w' || effectiveness === 's') {
                 await client.sendMessage(M.from, {
-                    text: `*@${current.user.split('@')[0]}*'s *${client.utils.capitalize(current.activePokemon.name)}* missed the attack`,
-                    mentions: [current.user]
+                    text: `It's ${effectiveness === 'w' ? 'not' : 'super'} effective`
                 });
             }
+
+            target.hp -= result;
+            await client.sendMessage(M.from, {
+                text: `${formatBattleActor(client, current.user, pokemon.name)} dealt *${result}* damage to ${formatBattleActor(client, opponent.user, target.name)}`,
+                mentions: [current.user, opponent.user].filter((jid) => !isWildUser(jid))
+            });
+            await delay(3000);
+
+            party1[party1Index] = pokemon;
+            party2[party2Index] = target;
+            await savePartyForUser(client, current.user, party1);
+            await savePartyForUser(client, opponent.user, party2);
+
+            if (target.hp <= 0) {
+                target.hp = 0;
+                await client.sendMessage(M.from, {
+                    text: `${formatBattleActor(client, opponent.user, target.name)} fainted`,
+                    mentions: isWildUser(opponent.user) ? [] : [opponent.user]
+                });
+                await delay(5000);
+                battle.turn = current.user === battle.player1.user ? 'player2' : 'player1';
+                await savePartyForUser(client, opponent.user, party2);
+                setBattleData(client, M.from, battle);
+
+                if (pokemon.level < 100 && !isWildUser(current.user)) {
+                    await handleStats(
+                        client,
+                        M,
+                        target.exp,
+                        current.user,
+                        pokemon,
+                        opponent.user === battle.player1.user ? 'player2' : 'player1'
+                    );
+                }
+            }
         }
+
+        clearQueuedMoves(battle);
+        setBattleData(client, M.from, battle);
 
         await continueSelection(client, M);
     } catch (error) {
@@ -408,93 +464,103 @@ const handleBattles = async (client, M) => {
 
 const continueSelection = async (client, M) => {
     try {
-        const data = client.pokemonBattleResponse.get(M.from);
-        if (data) {
-            const player1Party = await client.poke.get(`${data.player1.user}_Party`) || [];
-            const player2Party = await client.poke.get(`${data.player2.user}_Party`) || [];
+        const battle = client.pokemonBattleResponse.get(M.from);
+        if (!battle) return;
 
-            const image = await client.utils.drawPokemonBattle({
-                player1: { activePokemon: data.player1.activePokemon, party: player1Party },
-                player2: { activePokemon: data.player2.activePokemon, party: player2Party }
-            });
+        if (await ensureBattleNotExpired(client, M, battle)) return;
 
-            const currentUser = data[data.turn];
-            const opponent = data[data.turn === 'player1' ? 'player2' : 'player1'];
-            const userPokemon = currentUser.activePokemon;
-            const opponentPokemon = opponent.activePokemon;
+        const player1Party = await getPartyForUser(client, battle.player1.user);
+        const player2Party = await getPartyForUser(client, battle.player2.user);
 
-            const applyPoisonDamage = async (pokemon, userKey) => {
-                if (pokemon.state.status === 'poisoned' && pokemon.hp > 0) {
-                    const damage = Math.floor(Math.random() * pokemon.hp);
-                    pokemon.hp -= damage;
-                    await client.sendMessage(M.from, {
-                        text: `*@${userKey.split('@')[0]}*'s *${client.utils.capitalize(pokemon.name)}* took *${damage} HP* damage due to poisoning.`,
-                        mentions: [userKey]
-                    });
-                    client.pokemonBattleResponse.set(M.from, data);
-                    const partyData = await client.poke.get(`${userKey}_Party`) || [];
-                    const index = partyData.findIndex(p => p.tag === pokemon.tag);
-                    partyData[index] = pokemon;
-                    await client.poke.set(`${userKey}_Party`, partyData);
-                }
-            };
+        const image = await client.utils.drawPokemonBattle({
+            player1: { activePokemon: battle.player1.activePokemon, party: player1Party },
+            player2: { activePokemon: battle.player2.activePokemon, party: player2Party }
+        });
 
-            await applyPoisonDamage(userPokemon, currentUser.user);
-            await applyPoisonDamage(opponentPokemon, opponent.user);
+        const currentUser = battle[battle.turn];
+        const opponent = battle[battle.turn === 'player1' ? 'player2' : 'player1'];
 
-            if (userPokemon.hp <= 0) {
-                const playerData = await client.poke.get(`${currentUser.user}_Party`) || [];
-                const alivePokemon = playerData.filter(pokemon => pokemon.hp > 0);
-
-                if (alivePokemon.length === 0) {
-                    return await endBattle(client, M, opponent.user, currentUser.user);
-                }
-
+        const applyPoisonDamage = async (pokemon, userKey) => {
+            if (pokemon.state.status === 'poisoned' && pokemon.hp > 0) {
+                const damage = Math.floor(Math.random() * pokemon.hp);
+                pokemon.hp -= damage;
                 await client.sendMessage(M.from, {
-                    text: `*@${currentUser.user.split('@')[0]}*, send out a Pokémon from your party by selecting from the list sent.`,
-                    mentions: [currentUser.user]
+                    text: `${formatBattleActor(client, userKey, pokemon.name)} took *${damage} HP* damage due to poisoning.`,
+                    mentions: isWildUser(userKey) ? [] : [userKey]
                 });
+                await updateActivePokemonInParty(client, userKey, pokemon);
+                setBattleData(client, M.from, battle);
+            }
+        };
 
-                const originalSender = M.sender;
-                M.sender = currentUser.user;
-                await handlePokemonSelection(client, M)
-                M.sender = originalSender;
+        await applyPoisonDamage(currentUser.activePokemon, currentUser.user);
+        await applyPoisonDamage(opponent.activePokemon, opponent.user);
 
-                return;
+        if (currentUser.activePokemon.hp <= 0) {
+            const playerData = await getPartyForUser(client, currentUser.user);
+            const alivePokemon = playerData.filter((pokemon) => pokemon.hp > 0);
+
+            if (!alivePokemon.length) {
+                return endBattle(client, M, opponent.user, currentUser.user);
             }
 
-            if (opponentPokemon.hp <= 0) {
-                const opponentData = await client.poke.get(`${opponent.user}_Party`) || [];
-                const alivePokemon = opponentData.filter(pokemon => pokemon.hp > 0);
-
-                if (alivePokemon.length === 0) {
-                    return await endBattle(client, M, currentUser.user, opponent.user);
-                }
-
-                await client.sendMessage(M.from, {
-                    text: `*@${opponent.user.split('@')[0]}*, send out a Pokémon from your party by selecting from the list sent.`,
-                    mentions: [opponent.user]
-                });
-
-                data.turn = data.turn === 'player1' ? 'player2' : 'player1';
-                client.pokemonBattleResponse.set(M.from, data);
-
-                const originalSender = M.sender;
-                M.sender = opponent.user;
-                await handlePokemonSelection(client, M)
-                M.sender = originalSender;
-
-                return;
-            }
-
-            const text = `To fight, use *${client.prefix}battle fight*\n\nTo switch Pokémon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
             await client.sendMessage(M.from, {
-                text: `Use one of the options given below *@${currentUser.user.split('@')[0]}*\n\n${text}`,
-                mentions: [currentUser.user],
-                image,
-                jpegThumbnail: image.toString('base64')
+                text: `${formatBattleTrainer(currentUser.user)}, send out a Pokemon from your party by selecting from the list sent.`,
+                mentions: isWildUser(currentUser.user) ? [] : [currentUser.user]
             });
+
+            const originalSender = M.sender;
+            M.sender = currentUser.user;
+            await handlePokemonSelection(client, M);
+            M.sender = originalSender;
+            return;
         }
+
+        if (opponent.activePokemon.hp <= 0) {
+            const opponentData = await getPartyForUser(client, opponent.user);
+            const alivePokemon = opponentData.filter((pokemon) => pokemon.hp > 0);
+
+            if (!alivePokemon.length) {
+                return endBattle(client, M, currentUser.user, opponent.user);
+            }
+
+            if (isWildUser(opponent.user)) {
+                battle.player2.activePokemon = alivePokemon[0];
+                battle.player2.move = pickWildMove(battle);
+                battle.turn = 'player1';
+                setBattleData(client, M.from, battle);
+                return handleBattles(client, M);
+            }
+
+            await client.sendMessage(M.from, {
+                text: `${formatBattleTrainer(opponent.user)}, send out a Pokemon from your party by selecting from the list sent.`,
+                mentions: [opponent.user]
+            });
+
+            battle.turn = battle.turn === 'player1' ? 'player2' : 'player1';
+            setBattleData(client, M.from, battle);
+
+            const originalSender = M.sender;
+            M.sender = opponent.user;
+            await handlePokemonSelection(client, M);
+            M.sender = originalSender;
+            return;
+        }
+
+        if (battle.mode === 'wild' && currentUser.user === battle.wildUser) {
+            battle.player2.move = battle.player2.move === 'skipped' ? 'skipped' : pickWildMove(battle);
+            battle.turn = 'player1';
+            setBattleData(client, M.from, battle);
+            return handleBattles(client, M);
+        }
+
+        const text = `To fight, use *${client.prefix}battle fight*\n\nTo switch Pokemon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
+        await client.sendMessage(M.from, {
+            text: `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\n${text}`,
+            mentions: isWildUser(currentUser.user) ? [] : [currentUser.user],
+            image,
+            jpegThumbnail: image.toString('base64')
+        });
     } catch (error) {
         console.error('Error in continueSelection:', error);
     }
@@ -502,15 +568,15 @@ const continueSelection = async (client, M) => {
 
 const endBattle = async (client, M, winner, loser) => {
     try {
-        const data = client.pokemonBattleResponse.get(M.from);
-        if (!data) return;
+        const battle = client.pokemonBattleResponse.get(M.from);
+        if (!battle) return;
 
-        const player1Party = await client.poke.get(`${data.player1.user}_Party`) || [];
-        const player2Party = await client.poke.get(`${data.player2.user}_Party`) || [];
+        const player1Party = await getPartyForUser(client, battle.player1.user);
+        const player2Party = await getPartyForUser(client, battle.player2.user);
 
         const image = await client.utils.drawPokemonBattle({
-            player1: { activePokemon: data.player1.activePokemon, party: player1Party },
-            player2: { activePokemon: data.player2.activePokemon, party: player2Party }
+            player1: { activePokemon: battle.player1.activePokemon, party: player1Party },
+            player2: { activePokemon: battle.player2.activePokemon, party: player2Party }
         });
 
         await client.sendMessage(M.from, {
@@ -521,90 +587,87 @@ const endBattle = async (client, M, winner, loser) => {
         await delay(3000);
 
         await client.sendMessage(M.from, {
-            text: `*@${loser.split('@')[0]}* ran out of Pokémon for battle.`,
-            mentions: [loser]
+            text: isWildUser(loser)
+                ? `The wild *${client.utils.capitalize(battle.player2.activePokemon.name)}* ran out of Pokemon for battle.`
+                : `*@${loser.split('@')[0]}* ran out of Pokemon for battle.`,
+            mentions: isWildUser(loser) ? [] : [loser]
         });
 
         setTimeout(async () => {
+            if (battle.mode === 'wild') {
+                await cleanupWildBattle(client, battle);
+                client.pokemonBattleResponse.delete(M.from);
+                client.pokemonBattlePlayerMap.delete(winner);
+
+                return client.sendMessage(M.from, {
+                    text: `🎉 ${formatBattleTrainer(winner)} defeated the wild *${client.utils.capitalize((battle.wildPokemon || battle.player2.activePokemon).name)}*, and it fled the battlefield.`,
+                    mentions: [winner]
+                });
+            }
+
             const updateEconomy = async (userId, change) => {
                 const economy = await client.econ.findOne({ userId });
                 let wallet = economy ? economy.coin : 0;
                 wallet += change;
+
                 if (economy) {
                     economy.coin = wallet;
                     await economy.save();
                 } else if (change !== 0) {
-                    // If no existing economy record and change is non-zero, create a new record
                     await client.econ.create({ userId, coin: wallet });
                 }
+
                 return wallet;
             };
 
-            const loserWallet = await updateEconomy(loser, 0); // No change for loser
-            const winnerWallet = await updateEconomy(winner, 0); // Initial wallet for winner
+            const winnerWallet = await updateEconomy(winner, 0);
             const amount = winnerWallet > 5000 ? 4500 : winnerWallet >= 250 ? 250 : winnerWallet;
             const gold = Math.floor(Math.random() * amount);
 
-            await updateEconomy(winner, gold); // Add gold to winner
-            await updateEconomy(loser, -gold); // Deduct gold from loser
+            await updateEconomy(winner, gold);
+            await updateEconomy(loser, -gold);
 
             client.pokemonBattleResponse.delete(M.from);
             client.pokemonBattlePlayerMap.delete(loser);
             client.pokemonBattlePlayerMap.delete(winner);
 
             await client.sendMessage(M.from, {
-                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and received *${gold}* gold from *@${loser.split('@')[0]}* as they ran out of Pokémon for battle.`,
+                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and received *${gold}* gold from *@${loser.split('@')[0]}* as they ran out of Pokemon for battle.`,
                 mentions: [winner, loser]
             });
         }, 5000);
-
     } catch (error) {
         console.error('Error in endBattle:', error);
     }
 };
 
-const handleStats = async (client, M, exp, user, pkmn, player) => {
+const handleStats = async (client, M, exp, user, pokemon, player) => {
     try {
         const resultExp = Math.round(exp / 5);
 
-        // Notify the user about XP gain
         await client.sendMessage(M.from, {
-            text: `*@${user.split('@')[0]}*'s *${client.utils.capitalize(pkmn.name)}* gained *${resultExp} XP*`,
-            mentions: [user]
+            text: `${formatBattleActor(client, user, pokemon.name)} gained *${resultExp} XP*`,
+            mentions: isWildUser(user) ? [] : [user]
         });
         await delay(3000);
 
-        // Update Pokémon experience
-        pkmn.exp += resultExp;
-        pkmn.displayExp += resultExp;
+        pokemon.exp += resultExp;
+        pokemon.displayExp += resultExp;
 
-        // Fetch level data
-        const { data: levelData } = await get('https://aurora-api.vercel.app/poke/level');
-        const levels = levelData.filter(x => pkmn.exp >= x.expRequired);
-        if (levels.length) {
-            const highestLevel = levels[levels.length - 1];
-            if (pkmn.level < highestLevel.level) {
-                pkmn.level = highestLevel.level;
-                pkmn.displayExp = pkmn.exp - highestLevel.expRequired;
-                client.utils.handlePokemonStats(M, pkmn, true, player, user);
-            }
+        const nextLevel = client.utils.getLevelByExp(pokemon.exp);
+        if (pokemon.level < nextLevel) {
+            pokemon.level = nextLevel;
+            pokemon.displayExp = pokemon.exp - client.utils.getExpByLevel(nextLevel);
         }
 
-        // Update battle response data if needed
-        const data = client.pokemonBattleResponse.get(M.from);
-        if (data && data[player].activePokemon.tag === pkmn.tag) {
-            data[player].activePokemon = pkmn;
-            client.pokemonBattleResponse.set(M.from, data);
+        const battle = client.pokemonBattleResponse.get(M.from);
+        if (battle && battle[player].activePokemon.tag === pokemon.tag) {
+            battle[player].activePokemon = pokemon;
+            setBattleData(client, M.from, battle);
         }
 
-        // Update party data
-        const party = await client.poke.get(`${user}_Party`) || [];
-        const i = party.findIndex(x => x.tag === pkmn.tag);
-        if (i >= 0) {
-            party[i] = pkmn;
-            await client.poke.set(`${user}_Party`, party);
-        }
+        await updateActivePokemonInParty(client, user, pokemon);
     } catch (error) {
         console.error('Error in handleStats:', error);
     }
-}
+};

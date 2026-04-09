@@ -35,13 +35,13 @@ async function handleConfirmationOrRejection(client, action, M) {
 
         if (action === 'confirm') {
             if (pokemonIndex < 0 || pokemonIndex >= senderParty.length) {
-                await client.pkmn.delete(`${M.sender}_Confirm`);
+                await client.poke.delete(`${M.sender}_Confirm`);
                 return M.reply("The Pokémon index is invalid or the Pokémon is no longer available.");
             }
 
             const pokemon = senderParty[pokemonIndex];
             if (targetParty.length >= 6) {
-                await client.pkmn.delete(`${M.sender}_Confirm`);
+                await client.poke.delete(`${M.sender}_Confirm`);
                 return M.reply('Receiver does not have space in their party.');
             }
 
@@ -56,14 +56,16 @@ async function handleConfirmationOrRejection(client, action, M) {
             const text = `✔ @${sender.split('@')[0]} has transferred *${pokemon.name}* (Level: ${pokemon.level}) to @${mentionedUser.split('@')[0]}.`;
             await client.sendMessage(from, { text: text, mentions: [sender, mentionedUser] });
 
-            await client.sendMessage(client.groups.adminsGroup, { text: `${text} in ${M.from}`, mentions: [sender, mentionedUser] });
+            if (client.groups?.adminsGroup) {
+                await client.sendMessage(client.groups.adminsGroup, { text: `${text} in ${M.from}`, mentions: [sender, mentionedUser] });
+            }
 
         } else if (action === 'reject') {
-            await client.pkmn.delete(`${M.sender}_Confirm`);
+            await client.poke.delete(`${M.sender}_Confirm`);
             return M.reply("Pokémon give operation has been cancelled.");
         }
 
-        await client.pkmn.delete(`${M.sender}_Confirm`);
+        await client.poke.delete(`${M.sender}_Confirm`);
 
     } catch (err) {
         console.error(err);

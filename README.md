@@ -81,6 +81,6 @@
 
 ## ᴛʜᴀɴᴋꜱ ᴛᴏ
 * [`Shinei | Whatshell`](https://github.com/LuckyYam/)
-* [`@adiwajshing/baileys`](https://github.com/adiwajshing/baileys)
+* [`@whiskeysockets/baileys`](https://github.com/WhiskeySockets/Baileys)
 
 <a><img src="https://i.ibb.co/7Kk6XSg/Rainbow.gif" width="100%">

@@ -4,7 +4,7 @@ const {
     areJidsSameUser,
     generateWAMessageFromContent,
     prepareWAMessageMedia
-} = require('@adiwajshing/baileys');
+} = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const moment = require('moment-timezone');
 

@@ -12,13 +12,15 @@ module.exports = {
     async execute(client, arg, M) {
         const link = arg
         if (!link.includes('https://open.spotify.com/track/'))
-            return M.reply('Please use command with a valid youtube.com link')
+            return M.reply('Please use command with a valid open.spotify.com track link')
         const audioSpotify = await spotifydl(link.trim()).catch((err) => {
-            return M.reply(err.toString())
+            M.reply(err.toString())
             client.log(err, 'red')
+            return null
         })
 
-        if (spotifydl.error) return M.reply(`Error Fetching: ${link.trim()}. Check if the url is valid and try again`)
+        if (!audioSpotify) return
+        if (audioSpotify.error) return M.reply(`Error fetching: ${link.trim()}. Check if the URL is valid and try again.`)
 
         const caption = `🎧 *Title:* ${audioSpotify.data.name || ''}\n🎤 *Artists:* ${(
             audioSpotify.data.artists || []

@@ -5,6 +5,7 @@ module.exports = {
     name: "start-journey",
     aliases: ["start-journey"],
     category: "pokemon",
+    exp: 5,
     description: "Start your Pokémon journey by choosing a starter Pokémon.",
     async execute(client, arg, M) {
         try {
@@ -86,10 +87,7 @@ module.exports = {
                     female = genders[Math.floor(Math.random() * genders.length)] === 'female';
                 }
                 
-                // Fetch experience from the level API
-                const { data: pokemonLevelCharts } = await axios.get('https://aurora-api.vercel.app/poke/level');
-                const expArr = pokemonLevelCharts.filter((x) => x.level <= 5);
-                const { expRequired: exp } = expArr[expArr.length - 1];
+                const exp = client.utils.getExpByLevel(5);
 
                 const party = await client.poke.get(`${M.sender}_Party`) || [];
 

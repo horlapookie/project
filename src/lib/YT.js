@@ -1,5 +1,5 @@
-const ytdl = require('youtubedl-core')
-const { validateURL, getInfo } = require('youtubedl-core')
+const ytdl = require('ytdl-core')
+const { validateURL, getInfo } = require('ytdl-core')
 const { createWriteStream, readFile } = require('fs-extra')
 const { tmpdir } = require('os')
 const axios = require('axios')
@@ -16,11 +16,10 @@ const generateRandomFilename = (length) =>
 const getBuffer = (url, type) => {
     const filename = `${tmpdir()}/${generateRandomFilename(12)}.${type === 'audio' ? 'mp3' : 'mp4'}` // generate a random file name
     const stream = createWriteStream(filename)
-    ytdl(
-        url,
-        { filter: type === 'audio' ? 'audioonly' : 'videoandaudio' },
-        { quality: type === 'audio' ? 'highestaudio' : 'highest' }
-    ).pipe(stream) // Download the video or audio and pipe it to the write stream
+    ytdl(url, {
+        filter: type === 'audio' ? 'audioonly' : 'videoandaudio',
+        quality: type === 'audio' ? 'highestaudio' : 'highest'
+    }).pipe(stream)
     return new Promise((resolve, reject) => {
         stream.on('finish', () => {
             readFile(filename).then(resolve).catch(reject)

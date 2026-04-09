@@ -5,6 +5,7 @@ const moment = require('moment-timezone')
 const FormData = require('form-data')
 const { load } = require('cheerio')
 const { exec } = require('child_process')
+const Canvas = require('canvas')
 const { createCanvas ,loadImage } = require('canvas')
 const { sizeFormatter } = require('human-readable')
 const { readFile, unlink, writeFile } = require('fs-extra')
@@ -16,6 +17,27 @@ const { MoveClient } = require('pokenode-ts')
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const maxLevel = 100; // Maximum level for a Pokémon
 const path = require('path');
+const { join } = require('path');
+const TYPE_CHART_FALLBACK = {
+    normal: { weakness: ['fighting'], strong: [] },
+    fire: { weakness: ['water', 'ground', 'rock'], strong: ['fire', 'grass', 'ice', 'bug', 'steel', 'fairy'] },
+    water: { weakness: ['electric', 'grass'], strong: ['fire', 'water', 'ice', 'steel'] },
+    electric: { weakness: ['ground'], strong: ['electric', 'flying', 'steel'] },
+    grass: { weakness: ['fire', 'ice', 'poison', 'flying', 'bug'], strong: ['water', 'electric', 'grass', 'ground'] },
+    ice: { weakness: ['fire', 'fighting', 'rock', 'steel'], strong: ['ice'] },
+    fighting: { weakness: ['flying', 'psychic', 'fairy'], strong: ['bug', 'rock', 'dark'] },
+    poison: { weakness: ['ground', 'psychic'], strong: ['grass', 'fighting', 'poison', 'bug', 'fairy'] },
+    ground: { weakness: ['water', 'grass', 'ice'], strong: ['poison', 'rock'] },
+    flying: { weakness: ['electric', 'ice', 'rock'], strong: ['grass', 'fighting', 'bug'] },
+    psychic: { weakness: ['bug', 'ghost', 'dark'], strong: ['fighting', 'psychic'] },
+    bug: { weakness: ['fire', 'flying', 'rock'], strong: ['grass', 'fighting', 'ground'] },
+    rock: { weakness: ['water', 'grass', 'fighting', 'ground', 'steel'], strong: ['normal', 'fire', 'poison', 'flying'] },
+    ghost: { weakness: ['ghost', 'dark'], strong: ['poison', 'bug'] },
+    dragon: { weakness: ['ice', 'dragon', 'fairy'], strong: ['fire', 'water', 'electric', 'grass'] },
+    dark: { weakness: ['fighting', 'bug', 'fairy'], strong: ['ghost', 'dark'] },
+    steel: { weakness: ['fire', 'fighting', 'ground'], strong: ['normal', 'grass', 'ice', 'flying', 'psychic', 'bug', 'rock', 'dragon', 'steel', 'fairy'] },
+    fairy: { weakness: ['poison', 'steel'], strong: ['fighting', 'bug', 'dark'] }
+};
 
 
 /**
@@ -383,13 +405,19 @@ const webpToMp4 = async (webp) => {
 const gifToMp4 = async (gif, write = false) => {
     const filename = `${tmpdir()}/${Math.random().toString(36)}`
     await writeFile(`${filename}.gif`, gif)
-    await execute(
-        `ffmpeg -f gif -i ${filename}.gif -movflags faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" ${filename}.mp4`
-    )
-    if (write) return `${filename}.mp4`
-    const buffer = await readFile(`${filename}.mp4`)
-    Promise.all([unlink(`${filename}.gif`), unlink(`${filename}.mp4`)])
-    return buffer
+    try {
+        await execute(
+            `ffmpeg -f gif -i ${filename}.gif -movflags faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" ${filename}.mp4`
+        )
+        if (write) return `${filename}.mp4`
+        const buffer = await readFile(`${filename}.mp4`)
+        Promise.all([unlink(`${filename}.gif`), unlink(`${filename}.mp4`)])
+        return buffer
+    } catch (error) {
+        await unlink(`${filename}.gif`).catch(() => null)
+        await unlink(`${filename}.mp4`).catch(() => null)
+        return gif
+    }
 }
 
 const execute = promisify(exec)
@@ -607,7 +635,13 @@ const gifToPng = async (gif) => {
         const strong = new Set();
         const weakness = new Set();
         const typesDataPath = path.join(__dirname, '..', '..', 'assets', 'json', 'types.json');
-        const typesData = JSON.parse(await readFile(typesDataPath, 'utf8'));
+        let typesData = TYPE_CHART_FALLBACK;
+
+        try {
+            typesData = JSON.parse(await readFile(typesDataPath, 'utf8'));
+        } catch (error) {
+            typesData = TYPE_CHART_FALLBACK;
+        }
     
         for (const type of types) {
             const typeData = typesData[type.toLowerCase()];
@@ -957,33 +991,36 @@ const handlePokemonStats = async (client, M, pkmn, inBattle, player, user) => {
  */
 const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) => {
     try {
-        const evolutions = await client.utils.getPokemonEvolutionChain(pkmn.name);
-        if (!evolutions || evolutions.length < 1) return;
- 
-        const response = await axios.get('https://aurora-api.vercel.app/poke/chains');
-        const pokemonEvolutionChain = await response.data;
- 
-        if (!pokemonEvolutionChain || !Array.isArray(pokemonEvolutionChain)) {
-            throw new Error("Invalid Pokemon evolution chain data");
-        }
- 
-        const chain = pokemonEvolutionChain.filter((x) => evolutions.includes(x.species_name));
-        if (chain.length < 1) return;
- 
-        const index = evolutions.findIndex((x) => x === pkmn.name) + 1;
-        if (!evolutions[index]) return;
- 
-        const chainIndex = chain.findIndex((x) => x.species_name === evolutions[index]);
-        if (chainIndex < 0) return;
- 
-        const pokemonToEvolve = chain[chainIndex];
-        if (pokemonToEvolve.trigger_name !== 'level-up') return;
-        if (pokemonToEvolve.min_level > pkmn.level) return;
-        if (client.pokemonEvolutionResponse.has(`${pkmn.name}${user}`)) return;
+        const previousName = pkmn.name;
+        const speciesResponse = await axios.get(`https://pokeapi.co/api/v2/pokemon-species/${pkmn.name}`);
+        const speciesData = speciesResponse.data;
+        const chainResponse = await axios.get(speciesData.evolution_chain.url);
+        const evolutionChain = chainResponse.data;
+
+        const flattenChain = (node, result = []) => {
+            result.push({
+                species_name: node.species.name,
+                evolves_to: node.evolves_to
+            });
+            for (const child of node.evolves_to || []) {
+                flattenChain(child, result);
+            }
+            return result;
+        };
+
+        const flat = flattenChain(evolutionChain.chain);
+        const currentNode = flat.find((entry) => entry.species_name === pkmn.name);
+        if (!currentNode || !currentNode.evolves_to || currentNode.evolves_to.length < 1) return;
+
+        const nextEvolution = currentNode.evolves_to[0];
+        const evolutionDetails = nextEvolution.evolution_details?.[0];
+        if (!evolutionDetails || evolutionDetails.trigger?.name !== 'level-up') return;
+        if (evolutionDetails.min_level && evolutionDetails.min_level > pkmn.level) return;
+        if (client.pokemonEvolutionResponse.has(user)) return;
  
         const text = `*@${user.split('@')[0]}*, your Pokemon *${client.utils.capitalize(
             pkmn.name
-        )}* is evolving to *${client.utils.capitalize(evolutions[index])}*. Use *${
+        )}* is evolving to *${client.utils.capitalize(nextEvolution.species.name)}*. Use *${
             client.prefix
         }cancel-evolution* to cancel this evolution (within 60s)`;
  
@@ -1000,7 +1037,7 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
             if (!client.pokemonEvolutionResponse.has(user)) return;
             client.pokemonEvolutionResponse.delete(user);
  
-            const pDataResponse = await axios.get(`https://pokeapi.co/api/v2/pokemon/${evolutions[index]}`);
+            const pDataResponse = await axios.get(`https://pokeapi.co/api/v2/pokemon/${nextEvolution.species.name}`);
             const pData = pDataResponse.data;
  
             pkmn.id = pData.id;
@@ -1035,7 +1072,7 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
                 image: buffer,
                 jpegThumbnail: buffer.toString('base64'),
                 caption: `Congrats! *@${user.split('@')[0]}*, your ${client.utils.capitalize(
-                    evolutions[index - 1]
+                    previousName
                 )} has evolved to ${client.utils.capitalize(pkmn.name)}`,
                 mentions: [user]
             });
@@ -1060,13 +1097,13 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
 const drawPokemonBattle = async (data) => {
    
     const background = await Canvas.loadImage(
-        await readFile(join(__dirname, '..', '..', 'assets', 'images', 'battle.png'))
+        await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'battle.png'))
     );
     const pokeball = await Canvas.loadImage(
-        await readFile(join(__dirname, '..', '..', 'assets', 'images', 'pokeball.png'))
+        await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'pokeball.png'))
     );
     const greyPokeball = await Canvas.loadImage(
-        await readFile(join(__dirname, '..', '..', 'assets', 'images', 'greyPokeball.png'))
+        await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'greyPokeball.png'))
     );
     const canvas = Canvas.createCanvas(background.width, background.height);
     const ctx = canvas.getContext('2d');
@@ -1079,23 +1116,21 @@ const drawPokemonBattle = async (data) => {
     for (let i = 0; i < 2; i++) {
         const style = pokemonStyles[`player${i + 1}`];
         const player = data[`player${i + 1}`];
-
-        const pokemonPos = { x: 1, y: 1 };
-        const pokemonImage = await Canvas.loadImage(
-            i === 1
-                ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${data[`player${i + 1}`].activePokemon.id}.png`
-                : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${data[`player${i + 1}`].activePokemon.id}.png`
-        );
+        const activePokemon = data[`player${i + 1}`].activePokemon;
+        const spriteUrl = style.pokemon.showBack
+            ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${activePokemon.id}.png`
+            : (activePokemon.image || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${activePokemon.id}.png`);
+        const pokemonImage = await Canvas.loadImage(spriteUrl);
         const clipY = style.pokemon.clipY;
         const size = style.pokemon.size;
 
         if (player.activePokemon.hp > 0) {
             ctx.drawImage(
                 pokemonImage,
-                pokemonPos.x,
-                pokemonPos.y,
-                96,
-                96 - clipY,
+                0,
+                0,
+                pokemonImage.width,
+                Math.max(1, pokemonImage.height - clipY),
                 style.pokemon.x,
                 style.pokemon.y,
                 size,

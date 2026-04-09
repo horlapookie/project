@@ -1,5 +1,5 @@
 import { NHentai } from '@shineiichijo/nhentai-ts'
-import { delay, proto } from '@adiwajshing/baileys'
+import { delay, proto } from '@whiskeysockets/baileys'
 import { Command, BaseCommand, Message } from '../../Structures'
 import { IArgs } from '../../Types'
 

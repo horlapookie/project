@@ -5,7 +5,7 @@ const {
   areJidsSameUser,
   generateWAMessageFromContent,
   prepareWAMessageMedia
-} = require('@adiwajshing/baileys');
+} = require('@whiskeysockets/baileys');
 
 module.exports = {
   name: 'fact',

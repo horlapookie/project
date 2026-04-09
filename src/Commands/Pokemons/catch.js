@@ -1,74 +1,94 @@
-const axios = require('axios');
-
 module.exports = {
     name: "catch",
     aliases: ["catch"],
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :catch <name>',
+    usage: 'Use :catch',
     category: "pokemon",
-    description: "Catch the spawned Pokémon",
+    description: "Claim a spawned wild Pokemon and start a battle with it",
     async execute(client, arg, M) {
-        const context = arg;
         try {
             if (!client.pokemonResponse.has(M.from)) {
                 return M.reply("🟥 *There aren't any wild pokemons to catch*");
             }
 
             const data = await client.pokemonResponse.get(M.from);
-            if (!context) return M.reply('Provide the name of the pokemon, Baka!');
-            
-            const pokemon = context.trim().toLowerCase().split(' ')[0].trim();
-            if (pokemon !== data.name.toLowerCase()) return M.reply('Wrong Pokemon');
-
-            client.pokemonResponse.delete(M.from);
-
-            let flag = false;
-            let party = await client.poke.get(`${M.sender}_Party`) || [];
-            let pc = await client.poke.get(`${M.sender}_PSS`) || [];
-            const Text = `Well Done. You caught a Level ${data.level} ${client.utils.capitalize(data.name)}. ${
-                party.length >= 6 ? 'It has been transferred to your PC' : ''
-            }`;
-
-            const filteredParty = party.filter((x) => x.hp > 0);
-            if (party.length >= 1) flag = true;
-
-            party.length >= 6 ? pc.push(data) : party.push(data);
-
-            await client.poke.set(`${M.sender}_Party`, party);
-            await client.poke.set(`${M.sender}_PSS`, pc);
-
-            await M.reply(Text);
-
-            if (!flag) return;
-            if (!filteredParty.length) return;
-
-            const index = party.findIndex((x) => x.tag === filteredParty[0].tag);
-            const pkmn = party[index];
-            if (pkmn.level >= 100) return;
-
-            const resultExp = Math.round(data.exp / 8);
-            pkmn.exp += resultExp;
-            pkmn.displayExp += resultExp;
-
-            const pokemonLevelCharts = await client.utils.fetch('https://aurora-api.vercel.app/poke/level');
-            const levels = pokemonLevelCharts.filter((x) => pkmn.exp >= x.expRequired);
-            if (pkmn.level < levels[levels.length - 1].level) {
-                pkmn.level = levels[levels.length - 1].level;
-                pkmn.displayExp = pkmn.exp - levels[levels.length - 1].expRequired;
+            if (data.catchLockedUntil && Date.now() < data.catchLockedUntil && data.spawnedBy && data.spawnedBy !== M.sender) {
+                const remainingSeconds = Math.ceil((data.catchLockedUntil - Date.now()) / 1000)
+                return client.sendMessage(M.from, {
+                    text: `Only *@${data.spawnedBy.split('@')[0]}* can start this wild battle for the first ${remainingSeconds}s.`,
+                    mentions: [data.spawnedBy]
+                }, { quoted: M })
             }
 
-            await client.utils.handlePokemonStats(
-                client,
-                M,
-                pkmn,
-                false, // inBattle flag set to false
-                'player1', // player ID placeholder
-                M.sender // user ID from M object
-            );
+            if (client.pokemonBattleResponse.has(M.from)) {
+                return M.reply('A Pokemon battle is already happening in this chat.')
+            }
+            if (client.pokemonBattlePlayerMap.has(M.sender)) {
+                return M.reply('You are already in another Pokemon battle right now.')
+            }
 
-            await client.poke.set(`${M.sender}_Party`, party);
+            const party = await client.poke.get(`${M.sender}_Party`) || [];
+            const availableParty = party.filter((pokemon) => pokemon.hp > 0);
+            if (!availableParty.length) {
+                return M.reply("You don't have any Pokemon capable of battling right now.")
+            }
+
+            client.pokemonResponse.delete(M.from);
+            const wildUser = `wild-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`;
+            const wildParty = [{ ...data }];
+            const expiresAt = Date.now() + 5 * 60 * 1000;
+
+            await client.poke.set(`${wildUser}_Party`, wildParty);
+
+            client.pokemonBattleResponse.set(M.from, {
+                mode: 'wild',
+                wildUser,
+                wildPokemon: { ...data },
+                wildRewardPending: true,
+                expiresAt,
+                player1: {
+                    user: M.sender,
+                    ready: false,
+                    move: '',
+                    activePokemon: availableParty[0]
+                },
+                player2: {
+                    user: wildUser,
+                    ready: true,
+                    move: '',
+                    activePokemon: wildParty[0]
+                },
+                turn: 'player1',
+                players: [M.sender]
+            });
+            client.pokemonBattlePlayerMap.set(M.sender, M.from);
+
+            const image = await client.utils.drawPokemonBattle({
+                player1: { activePokemon: availableParty[0], party: availableParty },
+                player2: { activePokemon: wildParty[0], party: wildParty }
+            });
+
+            await client.sendMessage(M.from, {
+                image,
+                caption: `🌀 *A wild battle started!* 🌀\n\n*@${M.sender.split('@')[0]}* sent out *${client.utils.capitalize(availableParty[0].name)}*.\n\nA wild *${client.utils.capitalize(data.name)}* appeared at Level *${data.level}*.\n\nUse *${client.prefix}battle fight* to attack, *${client.prefix}battle switch* to switch Pokemon, or *${client.prefix}battle forfeit* to run away.`,
+                mentions: [M.sender]
+            });
+
+            setTimeout(async () => {
+                const battle = client.pokemonBattleResponse.get(M.from);
+                if (!battle || battle.mode !== 'wild' || battle.player1.user !== M.sender || battle.expiresAt !== expiresAt) {
+                    return;
+                }
+
+                client.pokemonBattleResponse.delete(M.from);
+                client.pokemonBattlePlayerMap.delete(M.sender);
+                await client.poke.delete(`${wildUser}_Party`);
+                await client.sendMessage(M.from, {
+                    text: `The wild *${client.utils.capitalize(data.name)}* fled because the battle took too long.`
+                });
+            }, 5 * 60 * 1000);
 
         } catch (err) {
             console.error(err);

@@ -10,12 +10,16 @@ module.exports = {
     usage: 'Use :party',
     description: "Challenge another trainer for a Pokemon battle",
     async execute(client, arg, M) {
+        const users = M.mentions ? [...M.mentions] : [];
+        if (M.quoted && M.quoted.participant && !users.includes(M.quoted.participant)) {
+            users.push(M.quoted.participant);
+        }
 
         if (client.pokemonBattleResponse.has(M.from)) {
             return M.reply('A battle in this group is ongoing at the moment');
         }
 
-        if (!arg.length) {
+        if (!arg.length || !arg.startsWith('--')) {
             const rawPartyData = await client.poke.get(`${M.sender}_Party`);
             const rawParty = rawPartyData ? rawPartyData : [];
             if (!rawParty || rawParty.length === 0) {
@@ -25,11 +29,6 @@ module.exports = {
             const party = rawParty.filter((pkmn) => pkmn.hp > 0);
             if (party.length === 0) {
                 return M.reply("You don't have any Pokemon capable of battling right now as all of them have fainted.");
-            }
-
-            const users = M.mentions ? [...M.mentions] : [];
-            if (M.quoted && M.quoted.participant && !users.includes(M.quoted.participant)) {
-                users.push(M.quoted.participant);
             }
 
             if (users.length === 0 || users[0] === M.sender) {

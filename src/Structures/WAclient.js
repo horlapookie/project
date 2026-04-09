@@ -1,9 +1,28 @@
-const { proto, getContentType, jidDecode, downloadContentFromMessage } = require('@adiwajshing/baileys');
+const { proto, getContentType, jidDecode, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const Bluebird = require('bluebird');
 
 const decodeJid = (jid) => {
     const { user, server } = jidDecode(jid) || {};
     return (user && server) ? `${user}@${server}`.trim() : jid;
+};
+const normalizeNumber = (value = '') => String(value).replace(/\D/g, '');
+
+const collectIdentityCandidates = (...values) => {
+    const normalized = new Set();
+
+    for (const value of values.flat().filter(Boolean)) {
+        const decoded = decodeJid(value);
+        normalized.add(decoded);
+
+        const digits = normalizeNumber(decoded.split('@')[0]);
+        if (!digits) continue;
+
+        normalized.add(digits);
+        normalized.add(`${digits}@s.whatsapp.net`);
+        normalized.add(`${digits}@lid`);
+    }
+
+    return Array.from(normalized);
 };
 
 /**
@@ -47,6 +66,12 @@ function serialize(msg, client) {
         msg.from = decodeJid(msg.key.remoteJid);
         msg.isGroup = msg.from.endsWith('@g.us');
         msg.sender = msg.isGroup ? decodeJid(msg.key.participant) : msg.isSelf ? decodeJid(client.user.id) : msg.from;
+        msg.senderPn = decodeJid(msg.key.participantPn || msg.key.senderPn || '');
+        msg.senderLid = decodeJid(msg.key.participantLid || msg.key.senderLid || '');
+        msg.senderNumber =
+            normalizeNumber(msg.senderPn.split('@')[0]) ||
+            normalizeNumber(msg.sender.split('@')[0]);
+        msg.senderAltIds = collectIdentityCandidates(msg.sender, msg.senderPn, msg.senderLid);
     }
 
     if (msg.message) {
@@ -71,7 +96,9 @@ function serialize(msg, client) {
         msg.mentions.push(...array.filter(Boolean));
 
         try {
-            const quoted = msg.message[msg.type]?.contextInfo?.quotedMessage;
+            const contextInfo = msg.message[msg.type]?.contextInfo || {};
+            const quoted = contextInfo.quotedMessage;
+            const quotedParticipant = decodeJid(contextInfo.participant || contextInfo.remoteJid || '');
 
             if (quoted) {
                 if (quoted['ephemeralMessage']) {
@@ -81,14 +108,14 @@ function serialize(msg, client) {
                         msg.quoted = {
                             type: 'view_once',
                             stanzaId: quoted.stanzaId,
-                            participant: decodeJid(quoted.participant),
+                            participant: quotedParticipant,
                             message: quoted.ephemeralMessage.message.viewOnceMessage.message
                         };
                     } else {
                         msg.quoted = {
                             type: 'ephemeral',
                             stanzaId: quoted.stanzaId,
-                            participant: decodeJid(quoted.participant),
+                            participant: quotedParticipant,
                             message: quoted.ephemeralMessage.message
                         };
                     }
@@ -96,19 +123,20 @@ function serialize(msg, client) {
                     msg.quoted = {
                         type: 'view_once',
                         stanzaId: quoted.stanzaId,
-                        participant: decodeJid(quoted.participant),
+                        participant: quotedParticipant,
                         message: quoted.viewOnceMessage.message
                     };
                 } else {
                     msg.quoted = {
                         type: 'normal',
                         stanzaId: quoted.stanzaId,
-                        participant: decodeJid(quoted.participant),
+                        participant: quotedParticipant,
                         message: quoted
                     };
                 }
 
                 msg.quoted.isSelf = msg.quoted.participant === decodeJid(client.user.id);
+                msg.quoted.participantNumber = normalizeNumber((msg.quoted.participant || '').split('@')[0]);
                 msg.quoted.mtype = Object.keys(msg.quoted.message).find(
                     (v) => v.includes('Message') || v.includes('conversation')
                 );

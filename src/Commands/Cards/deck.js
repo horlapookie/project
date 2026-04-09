@@ -30,7 +30,7 @@ module.exports = {
       const bgData = require(bgPath);
       const backgroundTitle = await client.DB.get(`${M.sender}_BG`);
 
-      let backgroundImageUrl = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRmru1INQycEtNqouDSnB0XU7_CS3MzEpORvw&usqp=CAU';
+      let backgroundImageUrl = path.join(process.cwd(), 'assets/Images/battle.png');
 
       if (backgroundTitle) {
         const background = bgData.find(bg => bg.Name === backgroundTitle);
@@ -60,7 +60,7 @@ module.exports = {
               caption: text
             });
           } else {
-            await client.sendMessage(M.from, {image: {url: cardUrl}, caption: text}, {quoted: M});
+            await client.sendMessage(M.from, {image: file, caption: text}, {quoted: M});
           }
         }
       } else {
@@ -95,7 +95,16 @@ module.exports = {
         const canvasHeight = 1800;
         const canvas = createCanvas(canvasWidth, canvasHeight);
         const ctx = canvas.getContext('2d');
-        const backgroundImage = await loadImage(backgroundImageUrl);
+        let backgroundImage;
+        try {
+          backgroundImage = await loadImage(
+            backgroundImageUrl.startsWith('http')
+              ? await client.utils.getBuffer(backgroundImageUrl)
+              : backgroundImageUrl
+          );
+        } catch (error) {
+          backgroundImage = await loadImage(path.join(process.cwd(), 'assets/Images/battle.png'));
+        }
         ctx.drawImage(backgroundImage, 0, 0, canvasWidth, canvasHeight);
         const imageWidth = 350;
         const imageHeight = 450;
@@ -106,7 +115,11 @@ module.exports = {
         const yStart = (canvasHeight - (imageHeight * rows + imagePadding * (rows - 1))) / 2;
         
         for (let i = 0; i < images.length; i++) {
-          const image = await loadImage(images[i]);
+          const image = await loadImage(
+            typeof images[i] === 'string' && images[i].startsWith('http')
+              ? await client.utils.getBuffer(images[i])
+              : images[i]
+          );
           const x = xStart + (i % imagesPerRow) * (imageWidth + imagePadding);
           const y = yStart + Math.floor(i / imagesPerRow) * (imageHeight + imagePadding);
           ctx.drawImage(image, x, y, imageWidth, imageHeight);

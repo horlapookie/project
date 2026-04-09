@@ -1,5 +1,5 @@
 const Spotify = require('spotifydl-x').default
-const canvacord = require('canvacord')
+const { renderSpotifyCard } = require('./CardRenderer')
 
 const credentials = {
     clientId: 'acc6302297e040aeb6e4ac1fbdfd62c3',
@@ -11,16 +11,19 @@ const spotifydl = async (url) => {
     const res = await spotify.getTrack(url).catch(() => {
         return { error: 'Failed' }
     })
-    const card = new canvacord.Spotify()
-        .setAuthor(res.artists.join(', '))
-        .setAlbum(res.album_name)
-        .setStartTimestamp(40000)
-        .setEndTimestamp(179000)
-        .setBackground('COLOR', '#A30000')
-        .setImage(res.cover_url)
-        .setTitle(res.name)
+    if (res.error) {
+        throw new Error('Failed to fetch Spotify track details.')
+    }
 
-    return { data: res, coverimage: await card.build(), audio: await spotify.downloadTrack(url) }
+    const card = await renderSpotifyCard({
+        cover: res.cover_url,
+        title: res.name,
+        artists: (res.artists || []).join(', '),
+        album: res.album_name || 'Unknown album',
+        accent: '#1db954'
+    })
+
+    return { data: res, coverimage: card, audio: await spotify.downloadTrack(url) }
     //audio: await spotify.downloadTrack(url)
 }
 

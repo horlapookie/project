@@ -41,10 +41,9 @@ module.exports = {
     });
 
     const giif = await client.utils.getBuffer(obj.url);
-    const cgif = await client.utils.gifToMp4(giif);
 
     await client.sendMessage(M.from, {
-      video: cgif,
+      video: giif,
       caption: `🎴 ━『 ANIME-CARD 』━ 🎴\n\n💮 Name: ${obj.title}\n\n💠 Tier: ${obj.tier}\n\n🏮 Price: ${price}\n\n📤 Info: These cards are originally owned by https://shoob.gg, and we are using them with all the required permissions.\n\n🔖 [ Use ${process.env.PREFIX}collect to claim the card, ${process.env.PREFIX}collection to see your Cards ]`,
       gifPlayback: true,
     });

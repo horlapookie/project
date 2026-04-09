@@ -40,7 +40,7 @@ module.exports = {
             }
 
             // Set party back to database after healing
-            await client.pkmn.set(`${M.sender}_Party`, party);
+            await client.poke.set(`${M.sender}_Party`, party);
 
             // Set cooldown for heal
             await client.DB.set(`${M.sender}_heal_cd`, Date.now());

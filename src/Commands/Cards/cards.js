@@ -68,9 +68,11 @@ module.exports = {
       const imageUrl = matchingCards.length > 0 ? matchingCards[0].url : '';
 
       if (imageUrl.endsWith(".gif")) {
-        return await client.sendMessage(M.from, { video: { url: imageUrl }, caption: tr, gifPlayback: true }, { quoted: M });
+        const gifBuffer = await client.utils.getBuffer(imageUrl)
+        return await client.sendMessage(M.from, { video: gifBuffer, caption: tr, gifPlayback: true }, { quoted: M });
       } else if (imageUrl) {
-        return await client.sendMessage(M.from, { image: { url: imageUrl }, caption: arg === "--name" ? null : tr }, { quoted: M });
+        const imageBuffer = await client.utils.getBuffer(imageUrl)
+        return await client.sendMessage(M.from, { image: imageBuffer, caption: arg === "--name" ? null : tr }, { quoted: M });
       } else {
         return M.reply("Error: Unable to find an image for the first card in your deck.");
       }

@@ -1,4 +1,4 @@
-const { Sticker } = require('wa-sticker-formatter');
+// const { Sticker } = require('wa-sticker-formatter');
 
 module.exports = {
     name: 'gamble',

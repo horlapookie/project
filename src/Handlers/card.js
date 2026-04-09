@@ -13,7 +13,7 @@ module.exports = CardHandler = async (client, M) => {
     if (cardgame.length > 0) {
       const randomIndex = Math.floor(Math.random() * cardgame.length);
       const randomJid = cardgame[randomIndex];
-      let jid = "120363313839059564@g.us"
+      let jid = randomJid
       console.log(jid);
 
       if (cardgame.includes(jid)) {
@@ -72,7 +72,6 @@ module.exports = CardHandler = async (client, M) => {
       })
             if (obj.tier.includes('6') || obj.tier.includes('S')) {
               const giif = await client.utils.getBuffer(obj.url);
-              const cgif = await client.utils.gifToMp4(giif);
         let shizoshona = `*┌─🄱🄾🅃────────❀̥˚─┈ ⳹*
 *└──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
 *│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*

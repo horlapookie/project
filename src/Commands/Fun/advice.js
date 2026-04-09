@@ -5,60 +5,62 @@ const {
   areJidsSameUser,
   generateWAMessageFromContent,
   prepareWAMessageMedia
-} = require('@adiwajshing/baileys');
+} = require('@whiskeysockets/baileys');
 
 module.exports = {
-  name: 'Latency',
-  aliases: ['advice', 'adv'],
+  name: 'advice',
+  aliases: ['adv'],
   category: 'fun',
   exp: 5,
   cool: 4,
   react: "📢",
-  usage: 'Use :Advice',
-  description: 'Sends random Advice',
+  usage: 'Use :advice',
+  description: 'Sends random advice',
   async execute(client, arg, M) {
     try {
-      const puppeteer = require('puppeteer');
+      const response = await axios.get('https://api.adviceslip.com/advice');
+      const text = `*🏮 Advice for you:-*\n> ${response.data.slip.advice}`;
+      const imageMessage = await prepareWAMessageMedia({ image: { url: "https://telegra.ph/file/18697b6f6d1e1b9bb45e9.jpg" } }, { upload: client.waUploadToServer });
 
-      (async () => {
-        const browser = await puppeteer.launch({ headless: false });
-        const page = await browser.newPage();
-
-        // Open WhatsApp Web
-        await page.goto('https://web.whatsapp.com');
-        await page.waitForSelector('._3GlyB', { timeout: 60000 }); // Wait for QR scan
-
-        console.log('Logged in! Monitoring for "ping"...');
-
-        // Listen for new messages
-        setInterval(async () => {
-          // Get the latest message in the active chat
-          const [lastMessage] = await page.$$eval('.message-in', (messages) => {
-            return messages.slice(-1).map(msg => msg.innerText);
-          });
-
-          if (lastMessage?.toLowerCase().trim() === 'ping') {
-            // Type and send "Latency"
-            await page.type('div[title="Type a message"]', 'pong');
-            await page.keyboard.press('Enter');
-            console.log('Replied with "Latency"!');
+      let msg = generateWAMessageFromContent(M.from, {
+        viewOnceMessage: {
+          message: {
+            "messageContextInfo": {
+              "deviceListMetadata": {},
+              "deviceListMetadataVersion": 2
+            },
+            interactiveMessage: proto.Message.InteractiveMessage.create({
+              body: proto.Message.InteractiveMessage.Body.create({
+                text: `${text}`
+              }),
+              footer: proto.Message.InteractiveMessage.Footer.create({
+                text: "𒉢 ꜱᴀʏ.ꜱᴄ֟፝ᴏᴛᴄʜ ⚡𐇻"
+              }),
+              header: proto.Message.InteractiveMessage.Header.create({
+                ...imageMessage,
+                title: "Advice From Web 💟",
+                subtitle: "",
+                hasMediaAttachment: false
+              }),
+              nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+                buttons: [
+                  {
+                    "name": "quick_reply",
+                    "buttonParamsJson": "{\"display_text\":\"Next Advice 🧧\",\"id\":\"-advice\"}"
+                  }
+                ],
+              })
+            })
           }
-        }, 2000); // Check every 2 seconds
-      })();
-    }
-           ],
-  })
-})
+        }
+      }, {});
+
+      await client.relayMessage(msg.key.remoteJid, msg.message, {
+        messageId: msg.key.id
+      });
+    } catch (err) {
+      console.error('Error fetching advice:', err);
+      M.reply('Error fetching advice. Please try again later.');
     }
   }
-}, { })
-
-await client.relayMessage(msg.key.remoteJid, msg.message, {
-  messageId: msg.key.id
-})
-        } catch (err) {
-  console.error('Error fetching Advice:', err);
-  M.reply('Error fetching Advice. Please try again later.');
-}
-    }
 };

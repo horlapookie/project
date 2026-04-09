@@ -1,4 +1,4 @@
-import { proto, MessageType, MediaType, AnyMessageContent, downloadContentFromMessage } from '@adiwajshing/baileys'
+import { proto, MessageType, MediaType, AnyMessageContent, downloadContentFromMessage } from '@whiskeysockets/baileys'
 import { Client } from '.'
 import { ISender, DownloadableMessage, IGroup } from '../Types'
 

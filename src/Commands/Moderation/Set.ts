@@ -1,4 +1,4 @@
-import { proto } from '@adiwajshing/baileys'
+import { proto } from '@whiskeysockets/baileys'
 import { Message, BaseCommand, Command } from '../../Structures'
 import { IArgs, GroupFeatures } from '../../Types'
 
