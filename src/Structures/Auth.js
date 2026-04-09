@@ -1,4 +1,4 @@
-const { initAuthCreds, BufferJSON, proto } = require('@adiwajshing/baileys')
+const { initAuthCreds, BufferJSON, proto } = require('@whiskeysockets/baileys')
 const Database = require("./Database")
 
 module.exports = class Authenication {
@@ -101,6 +101,24 @@ module.exports = class Authenication {
             const parsed = JSON.parse(raw, BufferJSON.reviver)
             if (parsed && parsed.creds && parsed.keys) {
                 return parsed
+            }
+            if (parsed && parsed.creds) {
+                return {
+                    creds: parsed.creds,
+                    keys: {}
+                }
+            }
+            if (
+                parsed &&
+                parsed.me &&
+                parsed.registrationId !== undefined &&
+                parsed.advSecretKey &&
+                parsed.noiseKey
+            ) {
+                return {
+                    creds: parsed,
+                    keys: {}
+                }
             }
         } catch (error) {
             // invalid base64 or JSON; ignore and fallback to DB auth
