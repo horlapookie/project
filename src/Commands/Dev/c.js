@@ -61,17 +61,11 @@ module.exports = {
     if (!url) {
       await M.reply(caption);
     } else if (url.toLowerCase().endsWith('.gif')) {
-      // No ffmpeg needed. WhatsApp will show it as a downloadable GIF document.
-      await client.sendMessage(
-        M.from,
-        {
-          document: { url },
-          mimetype: 'image/gif',
-          fileName: `${obj.title}.gif`,
-          caption
-        },
-        { quoted: M }
-      );
+      // Tier 6/S GIFs are often huge and WhatsApp may show a "harmful/unsupported" warning.
+      // Send a safe PNG preview (first frame) instead.
+      const gif = await client.utils.getBuffer(url)
+      const png = await client.utils.gifToPng(gif)
+      await client.sendMessage(M.from, { image: png, caption }, { quoted: M })
     } else {
       await client.sendMessage(
         M.from,

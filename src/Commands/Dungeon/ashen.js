@@ -38,6 +38,18 @@ const buildInfo = (prefix = '#') =>
     `- ${prefix}ashen quit`
   ].join('\n')
 
+const sendAnnouncement = async (client, M) => {
+  const prefix = client.altPrefix || '#'
+  return client.sendMessage(
+    M.from,
+    {
+      image: { url: `${process.cwd()}/assets/Images/dungeon.jpg` },
+      caption: buildInfo(prefix)
+    },
+    { quoted: M }
+  )
+}
+
 const buildPokemonFromName = async (client, name, level) => {
   const idOrName = String(name).trim().toLowerCase()
   const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${idOrName}`)
@@ -100,15 +112,11 @@ module.exports = {
 
     if (!M.isGroup) return M.reply('Use this in a group.')
 
-    if (!sub) {
-      return client.sendMessage(
-        M.from,
-        {
-          image: { url: `${process.cwd()}/assets/Images/dungeon.jpg` },
-          caption: buildInfo(prefix)
-        },
-        { quoted: M }
-      )
+    if (!sub) return sendAnnouncement(client, M)
+
+    if (sub === 'spawn' || sub === 'appear' || sub === 'announce') {
+      if (!client.isOwner(M)) return M.reply('Only the owner can force a dungeon announcement.')
+      return sendAnnouncement(client, M)
     }
 
     if (sub === 'status') {

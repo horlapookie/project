@@ -1225,7 +1225,10 @@ const drawPokemonBattle = async (data) => {
         boxCtx.font = `bold ${style.box.font}px Sans-Serif`;
         boxCtx.fillStyle = '#ffffff';
 
-        const namePos = { x: boxPadding, y: boxCanvas.height - boxPadding };
+        // Layout: Name/Level on first line, HP below it.
+        const line1Y = boxPadding + style.box.font;
+        const line2Y = line1Y + style.box.font + Math.round(style.box.font * 0.25);
+        const namePos = { x: boxPadding, y: line1Y };
         boxCtx.textAlign = 'left';
         boxCtx.fillText(
             `${capitalize(player.activePokemon.name)}${player.activePokemon.name.length <= 6 ? '\t\t' : '\t'}Lv. ${player.activePokemon.level}`,
@@ -1233,8 +1236,8 @@ const drawPokemonBattle = async (data) => {
             namePos.y
         );
 
-        const hpPos = { x: boxCanvas.width - boxPadding, y: boxPadding * 2 };
-        boxCtx.textAlign = 'right';
+        const hpPos = { x: boxPadding, y: line2Y };
+        boxCtx.textAlign = 'left';
         boxCtx.fillText(`HP: ${player.activePokemon.hp} / ${player.activePokemon.maxHp}`, hpPos.x, hpPos.y);
 
         const pokeballGap = Math.max(2, Math.round(base * 0.004));
@@ -1266,37 +1269,39 @@ const drawPokemonBattle = async (data) => {
 const getPokemonStyles = async ({ W, H, base }) => {
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-    const p1Size = clamp(Math.round(base * 0.24), 140, 240);
-    const p2Size = clamp(Math.round(base * 0.18), 110, 200);
+    const p1Size = clamp(Math.round(base * 0.34), 190, 340);
+    const p2Size = clamp(Math.round(base * 0.28), 160, 300);
     const p1Clip = Math.round(p1Size * 0.35);
 
-    const boxW = clamp(Math.round(base * 0.36), 220, 360);
-    const boxH = clamp(Math.round(base * 0.14), 80, 130);
+    const boxW = clamp(Math.round(base * 0.44), 300, 460);
+    const boxH = clamp(Math.round(base * 0.18), 110, 170);
     const font = clamp(Math.round(boxH * 0.22), 12, 22);
 
     return {
         player1: {
             pokemon: {
                 // bottom-left, facing away (back sprite)
-                x: Math.round(W * 0.22 - p1Size / 2),
-                y: Math.round(H * 0.70),
+                x: Math.round(W * 0.28 - p1Size / 2),
+                y: Math.round(H * 0.66),
                 size: p1Size,
                 showBack: true,
                 clipY: p1Clip
             },
-            box: { x: Math.round(W * 0.05), y: Math.round(H * 0.12), w: boxW, h: boxH, font },
+            // Player box bottom-right (classic Pokemon layout)
+            box: { x: Math.round(W - boxW - W * 0.06), y: Math.round(H - boxH - H * 0.10), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         },
         player2: {
             pokemon: {
                 // upper-right, facing player (front sprite)
                 x: Math.round(W * 0.76 - p2Size / 2),
-                y: Math.round(H * 0.38),
+                y: Math.round(H * 0.34),
                 size: p2Size,
                 showBack: false,
                 clipY: 0
             },
-            box: { x: Math.round(W * 0.60), y: Math.round(H * 0.06), w: boxW, h: boxH, font },
+            // Opponent box top-left
+            box: { x: Math.round(W * 0.06), y: Math.round(H * 0.08), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         }
     };
