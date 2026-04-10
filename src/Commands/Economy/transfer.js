@@ -7,7 +7,7 @@ module.exports = {
     cool: 4,
     react: "🖇️",
     usage: 'Use :transfer <amount> @taguser',
-    description: 'Transfer credits to your friend',
+    description: 'Transfer gems to your friend',
     async execute(client, arg, M) {
         try {
             const recipient = M.mentions[0] || (M.quoted && M.quoted.participant);
@@ -17,19 +17,17 @@ module.exports = {
             const amount = parseInt(arg.split(' ')[0]);
             if (isNaN(amount) || amount <= 0) return M.reply('Please provide a valid positive amount.');
 
-            const userId = M.sender;
-            const senderEconomy = await client.econ.findOne({ userId });
+            if (recipient === M.sender) return M.reply("You can't transfer gems to yourself.");
 
-            if (!senderEconomy) return M.reply('You do not have an economy account.');
+            // Use the bot's stable economy resolver (handles @lid -> phone mapping + auto-migration).
+            const senderEconomy = await client.getEcon(M, { createIfMissing: true });
+            if (!senderEconomy) return M.reply(`Use ${client.prefix}bonus to get started.`);
 
             const senderWallet = senderEconomy.gem || 0;
-            if (senderWallet < amount) return M.reply('You don\'t have enough credits in your wallet.');
+            if (senderWallet < amount) return M.reply("You don't have enough gems in your wallet.");
 
-            const recipientEconomy = await client.econ.findOne({ userId: recipient });
-
-            if (!recipientEconomy) {
-                return M.reply('The recipient does not have an economy account.');
-            }
+            const recipientEconomy = await client.getEcon(recipient, { createIfMissing: true });
+            if (!recipientEconomy) return M.reply('Could not open the recipient wallet right now.');
 
             senderEconomy.gem -= amount;
             await senderEconomy.save();
@@ -40,9 +38,9 @@ module.exports = {
             const senderName = M.sender.split('@')[0];
             const recipientName = recipient.split('@')[0];
 
-            const message = `You transferred *${amount}* credits to *@${recipientName}*`;
+            const message = `*@${senderName}* transferred *${amount}* gems to *@${recipientName}*`;
 
-            await client.sendMessage(M.from, { text: message, mentions: [recipient] });
+            await client.sendMessage(M.from, { text: message, mentions: [M.sender, recipient] });
           
         } catch (err) {
             console.error(err);
