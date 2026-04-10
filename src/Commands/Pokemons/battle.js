@@ -193,6 +193,28 @@ module.exports = {
         const [action, indexStr] = context.split(' ');
         const number = parseInt(indexStr, 10) - 1;
 
+        if (action === 'continue') {
+            const battle = client.pokemonBattleResponse.get(M.from);
+            if (!battle) return null;
+            if (!battle.isDungeon || !battle.awaitingContinue) {
+                return M.reply('Nothing to continue right now.')
+            }
+            if (battle.player1?.user !== M.sender) {
+                return M.reply('Only the dungeon challenger can continue.')
+            }
+            touchWildExpiry(battle);
+            battle.awaitingContinue = false;
+            battle.turn = 'player1';
+            setBattleData(client, M.from, battle);
+            return continueSelection(client, M);
+        }
+
+        // If we're waiting for the dungeon challenger to confirm the next encounter,
+        // block other battle actions until they use "battle continue".
+        if (data?.isDungeon && data?.awaitingContinue && action !== 'forfeit') {
+            return M.reply(`Use *${client.prefix}battle continue* to face the next guardian, or *${client.altPrefix || '#'}ashen quit* to quit.`)
+        }
+
         // Allow quitting actions even when it's not the user's turn.
         if (action === 'run') {
             if (data.mode !== 'wild') {
@@ -497,8 +519,15 @@ const handleBattles = async (client, M) => {
 
             if (current.activePokemon.hp <= 0) continue;
             if (current.move === 'skipped') continue;
+            if (!current.move || current.move === '') continue;
 
             const move = current.move;
+            if (typeof move !== 'object' || !move.name) {
+                // Safety: sometimes a move can be an unexpected value; skip instead of crashing.
+                current.move = '';
+                setBattleData(client, M.from, battle);
+                continue;
+            }
             let moveLanded = move.accuracy === 100 || Math.floor(Math.random() * 100) < move.accuracy;
 
             if (['sleeping', 'paralysis'].includes(current.activePokemon.state.status)) {
@@ -747,6 +776,25 @@ const continueSelection = async (client, M) => {
             }
 
             if (isWildUser(opponent.user)) {
+                // Dungeon: pause between guardians and require an explicit "battle continue".
+                if (battle.isDungeon) {
+                    battle.player2.activePokemon = alivePokemon[0];
+                    battle.player2.move = '';
+                    battle.turn = 'player1';
+                    battle.awaitingContinue = true;
+                    touchWildExpiry(battle);
+                    setBattleData(client, M.from, battle);
+
+                    const alt = client.altPrefix || '#'
+                    await sendBattleState(client, M, battle, {
+                        text:
+                            `🔥 *ASHEN SANCTUM* 🔥\n\n` +
+                            `You encountered a new wild guardian: *${client.utils.capitalize(alivePokemon[0].name)}* (Lv. ${alivePokemon[0].level}).\n\n` +
+                            `Use *${client.prefix}battle continue* to continue, or *${alt}ashen quit* to quit.`
+                    });
+                    return null;
+                }
+
                 battle.player2.activePokemon = alivePokemon[0];
                 battle.player2.move = pickWildMove(battle);
                 battle.turn = 'player1';

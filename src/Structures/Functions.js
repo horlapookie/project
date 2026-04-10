@@ -1282,26 +1282,30 @@ const getPokemonStyles = async ({ W, H, base }) => {
             pokemon: {
                 // bottom-left, facing away (back sprite)
                 x: Math.round(W * 0.28 - p1Size / 2),
-                y: Math.round(H * 0.60),
+                // Move up a bit so the bottom Pokemon is fully visible on the field.
+                y: Math.round(H * 0.52),
                 size: p1Size,
                 showBack: true,
                 clipY: p1Clip
             },
             // Player box bottom-right (classic Pokemon layout)
-            box: { x: Math.round(W - boxW - W * 0.06), y: Math.round(H - boxH - H * 0.10), w: boxW, h: boxH, font },
+            // Slightly higher so it doesn't crowd the bottom edge.
+            box: { x: Math.round(W - boxW - W * 0.06), y: Math.round(H - boxH - H * 0.18), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         },
         player2: {
             pokemon: {
                 // upper-right, facing player (front sprite)
                 x: Math.round(W * 0.76 - p2Size / 2),
-                y: Math.round(H * 0.34),
+                // Move up slightly so the top Pokemon sits better in the arena.
+                y: Math.round(H * 0.27),
                 size: p2Size,
                 showBack: false,
                 clipY: 0
             },
             // Opponent box top-left
-            box: { x: Math.round(W * 0.06), y: Math.round(H * 0.08), w: boxW, h: boxH, font },
+            // Move down slightly so it isn't glued to the top edge.
+            box: { x: Math.round(W * 0.06), y: Math.round(H * 0.14), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         }
     };
