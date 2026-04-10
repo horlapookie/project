@@ -1336,8 +1336,9 @@ const drawDungeonGallery = async (dungeonParty = [], options = {}) => {
 const getPokemonStyles = async ({ W, H, base }) => {
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-    const p1Size = clamp(Math.round(base * 0.36), 210, 360);
-    const p2Size = clamp(Math.round(base * 0.30), 180, 320);
+    // Slightly larger sprites for better readability on the new battlefield.
+    const p1Size = clamp(Math.round(base * 0.42), 240, 420);
+    const p2Size = clamp(Math.round(base * 0.36), 210, 380);
     const p1Clip = Math.round(p1Size * 0.35);
 
     const boxW = clamp(Math.round(base * 0.44), 300, 460);

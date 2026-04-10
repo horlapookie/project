@@ -11,7 +11,10 @@ module.exports = {
     
         if (!M.quoted) return M.reply('Quote the message that you want me to delete, Baka!')
         try {
-            await client.deleteMessage(M.from, M.quoted.id)
+            // Use the full quoted key when available so Baileys can delete reliably in groups.
+            const quotedKey = M.quoted?.key || null
+            const quotedParticipant = M.quoted?.participant || quotedKey?.participant || null
+            await client.deleteMessage(M.from, quotedKey || M.quoted.id, quotedParticipant)
             M.reply('Message deleted successfully!')
         } catch (error) {
             console.error('Error deleting message:', error)

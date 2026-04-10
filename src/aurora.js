@@ -126,6 +126,24 @@ const start = async () => {
         return rawSendMessage(jid, content, options)
     }
 
+    // Small helper for moderation: delete a message by quoted key/id.
+    // Baileys deletes via `sendMessage(jid, { delete: key })`.
+    client.deleteMessage = async (jid, keyOrId, participant) => {
+        if (!jid) throw new Error('Missing jid')
+        if (!keyOrId) throw new Error('Missing message key/id')
+
+        const key =
+            typeof keyOrId === 'object'
+                ? keyOrId
+                : {
+                      remoteJid: jid,
+                      id: String(keyOrId),
+                      fromMe: false,
+                      ...(participant ? { participant } : {})
+                  }
+        return rawSendMessage(jid, { delete: key })
+    }
+
     //Database
     client.DB = new QuickDB({
         // Pin the DB file path so restarts (pm2/codespaces) don't silently create a new DB elsewhere.
