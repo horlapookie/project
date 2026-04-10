@@ -13,9 +13,44 @@ module.exports = {
         const members = meta?.participants || []
         const { areJidsSameUser } = require('@whiskeysockets/baileys')
 
-        const botBase = String(client.user?.id || '').split(':')[0]
-        const botCandidates = [client.user?.id, client.meLid, client.user?.lid, `${botBase}@s.whatsapp.net`, `${botBase}@lid`].filter(Boolean)
-        const find = (jid) => members.find((p) => p?.id && areJidsSameUser(p.id, jid))
+        const normalizeNumber = (value = '') => String(value).replace(/\D/g, '')
+        const stripDevice = (jid = '') => String(jid || '').replace(/:\d+(?=@)/, '')
+        const getParticipantJid = (p) => stripDevice(p?.id || p?.jid || '')
+
+        const botBase = normalizeNumber(String(client.user?.id || '').split('@')[0])
+        const botCandidates = Array.from(
+            new Set(
+                [
+                    client.user?.id,
+                    stripDevice(client.user?.id),
+                    client.meLid,
+                    stripDevice(client.meLid),
+                    client.user?.lid,
+                    stripDevice(client.user?.lid),
+                    botBase ? `${botBase}@s.whatsapp.net` : null,
+                    botBase ? `${botBase}@lid` : null,
+                    botBase || null
+                ].filter(Boolean)
+            )
+        )
+
+        const sameDigits = (a, b) => {
+            const da = normalizeNumber(stripDevice(a).split('@')[0])
+            const db = normalizeNumber(stripDevice(b).split('@')[0])
+            return Boolean(da) && da === db
+        }
+
+        const find = (jid) =>
+            members.find((p) => {
+                const pid = getParticipantJid(p)
+                const candidate = stripDevice(jid)
+                return (
+                    (pid && candidate && areJidsSameUser(pid, candidate)) ||
+                    (pid && candidate && pid === candidate) ||
+                    (pid && candidate && sameDigits(pid, candidate))
+                )
+            })
+
         const botP = botCandidates.map(find).find(Boolean)
         const isAdmin = Boolean(botP?.admin)
 
