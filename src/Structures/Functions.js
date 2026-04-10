@@ -1316,7 +1316,8 @@ const drawDungeonGallery = async (dungeonParty = [], options = {}) => {
         ctx.fillText(name, cx, cy + spriteSize / 2 + Math.round(spriteSize * 0.25))
     }
 
-    return canvas.toBuffer()
+    // JPEG is smaller and more WhatsApp-friendly than PNG here.
+    return canvas.toBuffer('image/jpeg', { quality: 0.82 })
 }
 
 /**

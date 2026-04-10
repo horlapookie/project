@@ -366,7 +366,6 @@ module.exports = {
       const gallery = await client.utils.drawDungeonGallery(dungeonParty, { title: 'ASHEN SANCTUM GUARDIANS' })
       await client.sendMessage(M.from, {
         image: gallery,
-        jpegThumbnail: gallery.toString('base64'),
         caption:
           `🔥 *ASHEN SANCTUM* 🔥\n\n` +
           `Sanctum guardians have been revealed.\n` +
