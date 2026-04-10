@@ -38,16 +38,13 @@ module.exports = {
             client.pokemonResponse.delete(M.from);
             const wildUser = `wild-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`;
             const wildParty = [{ ...data }];
-            const expiresAt = Date.now() + 5 * 60 * 1000; // inactivity timeout (refreshed on moves)
-
             await client.poke.set(`${wildUser}_Party`, wildParty);
 
-            client.pokemonBattleResponse.set(M.from, {
+            const battleObj = {
                 mode: 'wild',
                 wildUser,
                 wildPokemon: { ...data },
                 wildRewardPending: true,
-                expiresAt,
                 expiryToken: `${Date.now()}-${Math.random()}`,
                 player1: {
                     user: M.sender,
@@ -63,7 +60,9 @@ module.exports = {
                 },
                 turn: 'player1',
                 players: [M.sender]
-            });
+            }
+            if (client.persistBattleSync) client.persistBattleSync(M.from, battleObj)
+            else client.pokemonBattleResponse.set(M.from, battleObj)
             client.pokemonBattlePlayerMap.set(M.sender, M.from);
 
             const image = await client.utils.drawPokemonBattle({
@@ -77,26 +76,7 @@ module.exports = {
                 mentions: [M.sender]
             });
 
-            // Inactivity timer (5 minutes). This re-schedules itself whenever `expiresAt` is extended.
-            const scheduleExpiry = () => {
-                const battle = client.pokemonBattleResponse.get(M.from);
-                if (!battle || battle.mode !== 'wild' || battle.player1.user !== M.sender) return;
-                const token = battle.expiryToken;
-                const waitMs = Math.max(1000, (battle.expiresAt || 0) - Date.now());
-                setTimeout(async () => {
-                    const b = client.pokemonBattleResponse.get(M.from);
-                    if (!b || b.mode !== 'wild' || b.expiryToken !== token) return;
-                    if (Date.now() <= (b.expiresAt || 0)) return scheduleExpiry();
-
-                    client.pokemonBattleResponse.delete(M.from);
-                    client.pokemonBattlePlayerMap.delete(M.sender);
-                    await client.poke.delete(`${wildUser}_Party`).catch(() => null);
-                    await client.sendMessage(M.from, {
-                        text: `The wild *${client.utils.capitalize(data.name)}* fled because nobody made a move in time.`
-                    });
-                }, waitMs);
-            };
-            scheduleExpiry();
+            // Inactivity timeout is enforced centrally (10 minutes) and is persistent across restarts.
 
         } catch (err) {
             console.error(err);

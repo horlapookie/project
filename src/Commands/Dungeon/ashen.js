@@ -349,14 +349,13 @@ module.exports = {
     await client.poke.set(`${wildUser}_Party`, dungeonParty)
 
     // Start as a "wild" battle (AI controlled), but no capturing.
-    client.pokemonBattleResponse.set(M.from, {
+    const battleObj = {
       mode: 'wild',
       isDungeon: true,
       dungeonId: 'ashen_sanctum',
       noCapture: true,
       wildUser,
       wildPokemon: { ...dungeonParty[0] },
-      expiresAt: Date.now() + 5 * 60 * 1000,
       expiryToken: `${Date.now()}-${Math.random()}`,
       player1: {
         user: M.sender,
@@ -372,7 +371,9 @@ module.exports = {
       },
       turn: 'player1',
       players: [M.sender]
-    })
+    }
+    if (client.persistBattleSync) client.persistBattleSync(M.from, battleObj)
+    else client.pokemonBattleResponse.set(M.from, battleObj)
     client.pokemonBattlePlayerMap.set(M.sender, M.from)
 
     // Send a single gallery image showing the 6 guardians for this run.
@@ -408,24 +409,7 @@ module.exports = {
       mentions: [M.sender]
     })
 
-    // Inactivity timer (5 minutes), rescheduled on moves.
-    const scheduleExpiry = () => {
-      const battle = client.pokemonBattleResponse.get(M.from)
-      if (!battle || !battle.isDungeon || battle.player1?.user !== M.sender) return
-      const token = battle.expiryToken
-      const waitMs = Math.max(1000, (battle.expiresAt || 0) - Date.now())
-      setTimeout(async () => {
-        const b = client.pokemonBattleResponse.get(M.from)
-        if (!b || !b.isDungeon || b.expiryToken !== token) return
-        if (Date.now() <= (b.expiresAt || 0)) return scheduleExpiry()
-
-        client.pokemonBattleResponse.delete(M.from)
-        client.pokemonBattlePlayerMap.delete(M.sender)
-        await client.poke.delete(`${wildUser}_Party`).catch(() => null)
-        await client.sendMessage(M.from, { text: '🔥 Ashen Sanctum ended because you took too long to make a move.' })
-      }, waitMs)
-    }
-    scheduleExpiry()
+    // Inactivity timeout is enforced centrally (10 minutes) and is persistent across restarts.
 
     return null
   }

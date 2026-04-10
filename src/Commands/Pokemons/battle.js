@@ -25,19 +25,36 @@ const cleanupWildBattle = async (client, battle) => {
 };
 
 const ensureBattleNotExpired = async (client, M, battle) => {
-    if (!battle || battle.mode !== 'wild' || !battle.expiresAt) return false;
-    if (Date.now() <= battle.expiresAt) return false;
+    if (!battle || !battle.expiresAt) return false;
+    if (Date.now() <= Number(battle.expiresAt)) return false;
 
-    client.pokemonBattleResponse.delete(M.from);
-    client.pokemonBattlePlayerMap.delete(battle.player1.user);
+    const jid = M.from;
+    // Cleanup maps
+    const players = Array.isArray(battle.players)
+        ? battle.players
+        : [battle.player1?.user, battle.player2?.user].filter(Boolean);
+    for (const p of players) {
+        if (!p || isWildUser(p)) continue;
+        client.pokemonBattlePlayerMap.delete(p);
+    }
+
     await cleanupWildBattle(client, battle);
-    await client.sendMessage(M.from, {
-        text: `The wild *${client.utils.capitalize(battle.player2.activePokemon.name)}* fled because nobody made a move in time.`
-    });
+    if (client.unpersistBattleSync) client.unpersistBattleSync(jid);
+    else client.pokemonBattleResponse.delete(jid);
+
+    const msg = battle.isDungeon
+        ? '🔥 Ashen Sanctum ended because nobody made a move for 10 minutes.'
+        : battle.mode === 'wild'
+        ? `The wild *${client.utils.capitalize(battle.player2.activePokemon.name)}* fled because nobody made a move for 10 minutes.`
+        : 'This Pokemon battle was cancelled due to 10 minutes of inactivity.';
+    await client.sendMessage(jid, { text: msg }).catch(() => null);
     return true;
 };
 
-const setBattleData = (client, jid, data) => client.pokemonBattleResponse.set(jid, data);
+const setBattleData = (client, jid, data) => {
+    if (client.persistBattleSync) return client.persistBattleSync(jid, data);
+    return client.pokemonBattleResponse.set(jid, data);
+};
 
 const pickWildMove = (battle) => {
     const availableMoves = (battle.player2.activePokemon.moves || []).filter((move) => move.pp > 0);
@@ -60,11 +77,11 @@ const clearQueuedMoves = (battle) => {
     battle.player2.move = '';
 };
 
-const touchWildExpiry = (battle) => {
-    if (battle && battle.mode === 'wild') {
-        // Use expiresAt as "inactivity" timeout.
-        battle.expiresAt = Date.now() + 5 * 60 * 1000;
-    }
+const touchBattleExpiry = (client, battle) => {
+    if (!battle) return;
+    const now = Date.now();
+    battle.lastActivityAt = now;
+    battle.expiresAt = now + (client.BATTLE_TIMEOUT_MS || 10 * 60 * 1000);
 };
 
 const buildBattleOptionsText = (client, battle, currentUser) => {
@@ -202,7 +219,7 @@ module.exports = {
             if (battle.player1?.user !== M.sender) {
                 return M.reply('Only the dungeon challenger can continue.')
             }
-            touchWildExpiry(battle);
+            touchBattleExpiry(client, battle);
             battle.awaitingContinue = false;
             battle.turn = 'player1';
             setBattleData(client, M.from, battle);
@@ -224,8 +241,9 @@ module.exports = {
             if (data.isDungeon || data.noCapture) {
                 return M.reply(`You can't run from this battle. Use *${client.prefix}battle forfeit*.`)
             }
-            touchWildExpiry(data);
-            client.pokemonBattleResponse.delete(M.from);
+            touchBattleExpiry(client, data);
+            if (client.unpersistBattleSync) client.unpersistBattleSync(M.from);
+            else client.pokemonBattleResponse.delete(M.from);
             client.pokemonBattlePlayerMap.delete(data.player1.user);
             await cleanupWildBattle(client, data);
             return client.sendMessage(M.from, {
@@ -237,8 +255,9 @@ module.exports = {
         if (action === 'forfeit') {
             // Works even when it's not the user's turn.
             if (data.mode === 'wild') {
-                touchWildExpiry(data);
-                client.pokemonBattleResponse.delete(M.from);
+                touchBattleExpiry(client, data);
+                if (client.unpersistBattleSync) client.unpersistBattleSync(M.from);
+                else client.pokemonBattleResponse.delete(M.from);
                 client.pokemonBattlePlayerMap.delete(data.player1.user);
                 await cleanupWildBattle(client, data);
                 return client.sendMessage(M.from, {
@@ -270,7 +289,8 @@ module.exports = {
             await econA.save();
             await econB.save();
 
-            client.pokemonBattleResponse.delete(M.from);
+            if (client.unpersistBattleSync) client.unpersistBattleSync(M.from);
+            else client.pokemonBattleResponse.delete(M.from);
 
             return client.sendMessage(M.from, {
                 text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and got *${gold}* gems from *@${user.split('@')[0]}* as they forfeited the battle.`,
@@ -284,7 +304,7 @@ module.exports = {
 
             const isTurn = M.sender === battle[battle.turn].user;
             if (!isTurn) return M.reply('Not your turn');
-            touchWildExpiry(battle);
+            touchBattleExpiry(client, battle);
 
             if (isNaN(number)) {
                 let text = `*Moves | ${client.utils.capitalize(battle[battle.turn].activePokemon.name)}*`;
@@ -401,7 +421,7 @@ module.exports = {
 
             const isTurn = M.sender === battle[battle.turn].user;
             if (!isTurn) return M.reply('Not your turn');
-            touchWildExpiry(battle);
+            touchBattleExpiry(client, battle);
 
             if (isNaN(number)) {
                 return M.reply(`Use *${client.prefix}battle switch <index>*`)

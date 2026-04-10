@@ -263,6 +263,112 @@ const start = async () => {
     client.pokemonBattleResponse = m1
     client.pokemonBattlePlayerMap = m2
 
+    // Battle persistence + inactivity timeout.
+    // Requirement: if the bot restarts mid-battle, it should continue; after 10 minutes of inactivity, cancel.
+    client.BATTLE_TIMEOUT_MS = 10 * 60 * 1000
+    const battleKey = (jid) => `battle:${jid}`
+    const battleIndexKey = 'battle:index'
+
+    const readBattleIndex = async () => {
+        const list = (await client.DB.get(battleIndexKey)) || []
+        return Array.isArray(list) ? list.filter(Boolean) : []
+    }
+
+    const writeBattleIndex = async (list) => client.DB.set(battleIndexKey, Array.from(new Set(list.filter(Boolean))))
+
+    client.persistBattleSync = (jid, battle) => {
+        try {
+            if (!jid || !battle) return
+            const now = Date.now()
+            battle.lastActivityAt = now
+            battle.expiresAt = now + client.BATTLE_TIMEOUT_MS
+
+            client.pokemonBattleResponse.set(jid, battle)
+            client.DB.set(battleKey(jid), battle).catch(() => null)
+            readBattleIndex()
+                .then((list) => writeBattleIndex([...list, jid]))
+                .catch(() => null)
+        } catch (_) {
+            // ignore persistence errors
+        }
+    }
+
+    client.unpersistBattleSync = (jid) => {
+        try {
+            if (!jid) return
+            client.pokemonBattleResponse.delete(jid)
+            client.DB.delete(battleKey(jid)).catch(() => null)
+            readBattleIndex()
+                .then((list) => writeBattleIndex(list.filter((x) => x !== jid)))
+                .catch(() => null)
+        } catch (_) {
+            // ignore
+        }
+    }
+
+    client.restoreBattles = async () => {
+        const list = await readBattleIndex()
+        const keep = []
+        for (const jid of list) {
+            const battle = await client.DB.get(battleKey(jid)).catch(() => null)
+            if (!battle || typeof battle !== 'object') continue
+            if (battle.expiresAt && Date.now() > Number(battle.expiresAt)) continue
+
+            client.pokemonBattleResponse.set(jid, battle)
+            // Restore player->group mapping to prevent users joining multiple battles.
+            const players = Array.isArray(battle.players)
+                ? battle.players
+                : [battle.player1?.user, battle.player2?.user].filter(Boolean)
+            for (const p of players) {
+                if (!p || String(p).endsWith('@pokemon')) continue
+                client.pokemonBattlePlayerMap.set(p, jid)
+            }
+            keep.push(jid)
+        }
+        await writeBattleIndex(keep).catch(() => null)
+        return keep.length
+    }
+
+    client.cancelExpiredBattles = async () => {
+        const list = await readBattleIndex()
+        if (!list.length) return
+
+        for (const jid of list) {
+            const battle = client.pokemonBattleResponse.get(jid) || (await client.DB.get(battleKey(jid)).catch(() => null))
+            if (!battle || typeof battle !== 'object') {
+                client.unpersistBattleSync(jid)
+                continue
+            }
+            if (battle.expiresAt && Date.now() <= Number(battle.expiresAt)) continue
+
+            // Cleanup maps
+            const players = Array.isArray(battle.players)
+                ? battle.players
+                : [battle.player1?.user, battle.player2?.user].filter(Boolean)
+            for (const p of players) {
+                if (!p || String(p).endsWith('@pokemon')) continue
+                client.pokemonBattlePlayerMap.delete(p)
+            }
+
+            // Cleanup wild/dungeon party storage
+            if (battle.wildUser) {
+                await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
+            }
+
+            client.unpersistBattleSync(jid)
+
+            // Notify chat if we are connected
+            if (client.state === 'open') {
+                const msg = battle.isDungeon
+                    ? '🔥 Ashen Sanctum ended because nobody made a move for 10 minutes.'
+                    : battle.mode === 'wild'
+                    ? `The wild *${client.utils.capitalize(battle.player2?.activePokemon?.name || 'Pokemon')}* fled because nobody made a move for 10 minutes.`
+                    : 'This Pokemon battle was cancelled due to 10 minutes of inactivity.'
+                await client.sendMessage(jid, { text: msg }).catch(() => null)
+            }
+        }
+    }
+
     //user
     client.getAllUsers = async () => {
         const data = (await client.contactDB.all()).map((x) => x.id)
@@ -321,6 +427,20 @@ const start = async () => {
             loadCommands()
             client.log('Connected to WhatsApp')
             client.log('Total Mods: ' + client.mods.length)
+
+            // Restore battles and start the inactivity sweeper once per process.
+            if (!client._battleSweeperStarted) {
+                client._battleSweeperStarted = true
+                try {
+                    const restored = await client.restoreBattles()
+                    if (restored) client.log(`Restored ${restored} active battle(s) from storage`, 'blue')
+                } catch (_) {
+                    // ignore restore errors
+                }
+                setInterval(() => {
+                    client.cancelExpiredBattles().catch(() => null)
+                }, 60 * 1000)
+            }
         }
     })
 

@@ -101,7 +101,7 @@ module.exports = {
                 const challengerPartyRaw = challengerPartyData ? challengerPartyData : [];
                 const challengerParty = (challengerPartyRaw || []).filter((pkmn) => pkmn.hp > 0);
 
-                client.pokemonBattleResponse.set(M.from, {
+                const battleObj = {
                     player1: {
                         user: data.challenger,
                         ready: false,
@@ -116,7 +116,9 @@ module.exports = {
                     },
                     turn: 'player1',
                     players: [data.challenger, M.sender]
-                });
+                }
+                if (client.persistBattleSync) client.persistBattleSync(M.from, battleObj)
+                else client.pokemonBattleResponse.set(M.from, battleObj)
 
                 client.pokemonBattlePlayerMap.set(M.sender, M.from);
                 client.pokemonBattlePlayerMap.set(data.challenger, M.from);
