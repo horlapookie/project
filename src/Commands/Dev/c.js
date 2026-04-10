@@ -82,7 +82,11 @@ module.exports = {
 
     // Auto-expire after 5 minutes
     setTimeout(async () => {
-      await client.cardMap.delete(M.from).catch(() => null)
+      try {
+        client.cardMap.delete(M.from)
+      } catch (_) {
+        // ignore
+      }
     }, 5 * 60 * 1000);
   }
 };
