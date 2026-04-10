@@ -218,7 +218,21 @@ const buildPokemonFromName = async (client, name, level) => {
   const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(data.name, level)
   const server = new PokemonClient()
   const genders = ['female', 'male']
-  const { gender_rate } = await server.getPokemonSpeciesByName(data.name)
+  // Mega/alt forms often don't exist as `pokemon-species/<form-name>`, but they do have a base species.
+  const speciesName =
+    data?.species?.name ||
+    String(data?.name || '')
+      .replace(/-mega(-x|-y)?$/i, '')
+      .replace(/-primal$/i, '')
+      .trim()
+  let gender_rate = 4
+  try {
+    const species = await server.getPokemonSpeciesByName(speciesName)
+    gender_rate = Number(species?.gender_rate ?? 4)
+  } catch (_) {
+    // If species lookup fails, keep a neutral default.
+    gender_rate = 4
+  }
   let female = false
   if (gender_rate >= 8) female = true
   if (gender_rate < 8 && gender_rate > 0) {

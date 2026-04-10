@@ -27,7 +27,20 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
     const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(data.name, level);
     const server = new PokemonClient();
     const genders = ['female', 'male'];
-    const { gender_rate } = await server.getPokemonSpeciesByName(data.name);
+    // Some forms (mega/primal/etc) do not exist under `pokemon-species/<form-name>`.
+    const speciesName =
+        data?.species?.name ||
+        String(data?.name || '')
+            .replace(/-mega(-x|-y)?$/i, '')
+            .replace(/-primal$/i, '')
+            .trim();
+    let gender_rate = 4;
+    try {
+        const species = await server.getPokemonSpeciesByName(speciesName);
+        gender_rate = Number(species?.gender_rate ?? 4);
+    } catch (_) {
+        gender_rate = 4;
+    }
     let female = false;
     if (gender_rate >= 8) female = true;
     if (gender_rate < 8 && gender_rate > 0) {
