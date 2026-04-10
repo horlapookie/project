@@ -18,7 +18,8 @@ module.exports = {
                 if (!client.isMod(M)) {
                     return M.reply('Only mods can force-spawn a specific Pokemon. Use the command without a name for a random spawn.')
                 }
-                await client.spawnWildPokemon(M.from, { spawnedBy: M.sender, forceName: forced })
+                const normalized = forced.toLowerCase().replace(/\s+/g, '-')
+                await client.spawnWildPokemon(M.from, { spawnedBy: M.sender, forceName: normalized })
                 return M.reply(`Wild *${forced}* spawned. For the next 60 seconds, only you can start the wild battle.`)
             }
 
@@ -26,7 +27,9 @@ module.exports = {
             await M.reply('Wild Pokemon spawned. For the next 60 seconds, only you can start the wild battle.')
         } catch (error) {
             console.error(error)
-            await M.reply('Failed to spawn a wild Pokemon right now.')
+            await M.reply(String(error?.message || '').includes('Invalid pokemon name')
+                ? 'Invalid Pokemon name. Try something like `mewtwo` or `mr-mime`.'
+                : 'Failed to spawn a wild Pokemon right now.')
         }
     }
 }

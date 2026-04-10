@@ -5,9 +5,17 @@ const { PokemonClient } = require('pokenode-ts');
 const spawnWildPokemon = async (client, jid, options = {}) => {
     const forcedName = String(options.forceName || '').trim().toLowerCase()
     const idOrName = forcedName || client.utils.getRandomInt(1, 898)
-    const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${idOrName}`);
-    const data = response.data;
-    const level = Math.floor(Math.random() * (10 - 5) + 5);
+    let data;
+    try {
+        const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${idOrName}`);
+        data = response.data;
+    } catch (error) {
+        if (forcedName) {
+            throw new Error(`Invalid pokemon name: ${forcedName}`)
+        }
+        throw error
+    }
+    const level = Math.floor(Math.random() * (28 - 15 + 1)) + 15;
 
     const exp = client.utils.getExpByLevel(level);
     const image = data.sprites.other['official-artwork'].front_default;

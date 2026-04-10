@@ -1,4 +1,4 @@
-const { getStats } = require('../../Helpers/Stats');
+const { getStats, getLevelFromXp } = require('../../Helpers/Stats');
 const sortArray = require('sort-array');
 
 module.exports = {
@@ -12,31 +12,33 @@ module.exports = {
     description: "Displays global leaderboard of Mai Sakurajima bot in various types",
     async execute(client, arg, M) {
         try {
-            const exp = Object.values(await client.exp.all()) ?? [];
+            const exp = await client.exp.all();
 
-            if (exp.length === 0) {
+            if (!exp || exp.length === 0) {
                 return M.reply('🟥 *There are no users with XP*');
             }
 
-            const users = exp.map((x) => ({
-                user: x.id,
-                xp: x.value?.whatsapp?.net ?? 0 // Ensure property exists before accessing it
-            }));
+            const users = exp
+                .filter((x) => x && x.id)
+                .map((x) => ({
+                    user: x.id,
+                    xp: Number(x.value || 0)
+                }));
 
             const lb = sortArray(users, {
                 by: 'xp',
                 order: 'desc'
             });
 
-            const myPosition = lb.findIndex((x) => x.user === M.sender.split('.whatsapp.net')[0]);
+            const myPosition = lb.findIndex((x) => x.user === M.sender);
             const topUsers = lb.slice(0, 10);
 
             let text = `☆☆💥 GLOBAL LEADERBOARD 💥☆☆\n\nYour Position: ${myPosition + 1}\n`;
 
             for (let i = 0; i < topUsers.length; i++) {
-                const level = (await client.DB.get(`${topUsers[i].user}.whatsapp.net_LEVEL`)) ?? 1;
+                const level = getLevelFromXp(topUsers[i].xp);
                 const { requiredXpToLevelUp, rank } = getStats(level);
-                const username = (await client.contact.getContact(topUsers[i].user, client)).username?.whatsapp?.net ?? 'Unknown'; // Ensure property exists before accessing it
+                const username = (await client.contact.getContact(topUsers[i].user, client)).username ?? 'Unknown';
                 
                 text += `\n\n*(${i + 1})*\n`;
                 text += `⛩ Username: ${username}\n`;

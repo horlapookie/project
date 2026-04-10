@@ -60,7 +60,23 @@ const getStats = (level) => {
     }
 }
 
+/**
+ * Compute level from total XP using getStats thresholds.
+ * @param {number} xp
+ * @param {number} [maxLevel=500]
+ * @returns {number}
+ */
+const getLevelFromXp = (xp, maxLevel = 500) => {
+    const totalXp = Math.max(0, Number(xp) || 0)
+    let level = 1
+    while (level < maxLevel && totalXp >= getStats(level).requiredXpToLevelUp) {
+        level += 1
+    }
+    return level
+}
+
 module.exports = {
     getStats,
-    ranks
+    ranks,
+    getLevelFromXp
 }

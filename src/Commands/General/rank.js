@@ -1,4 +1,4 @@
-const { getStats } = require('../../Helpers/Stats');
+const { getStats, getLevelFromXp } = require('../../Helpers/Stats');
 const { renderRankCard } = require('../../lib/CardRenderer')
 
 module.exports = {
@@ -20,10 +20,11 @@ module.exports = {
             pfp = 'https://i.ibb.co/Ycg1s7q/Picsart-24-05-18-15-10-43-623.jpg';
         }
 
-        const level = (await client.DB.get(`${user}_LEVEL`)) || 1;
-        const { requiredXpToLevelUp, rank } = getStats(level);
-        const username = (await client.contact.getContact(user, client)).username;
         const experience = (await client.exp.get(user)) || 0;
+        const level = getLevelFromXp(experience);
+        const { requiredXpToLevelUp, rank } = getStats(level);
+        await client.DB.set(`${user}_LEVEL`, level);
+        const username = (await client.contact.getContact(user, client)).username;
 
         const card = await renderRankCard({
             avatar: pfp,

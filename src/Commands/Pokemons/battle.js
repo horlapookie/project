@@ -104,6 +104,13 @@ const tryCatchWildPokemon = async (client, M, battle, ball) => {
     });
 
     if (caught) {
+        try {
+            // Award some XP for a successful capture.
+            await handleStats(client, M, wildPokemon.exp, M.sender, battle.player1.activePokemon, 'player1');
+        } catch (_) {
+            // ignore xp errors
+        }
+
         const capturedPokemon = { ...wildPokemon, hp: Math.max(1, wildPokemon.hp) };
         const party = await getPartyForUser(client, M.sender);
         const pc = await client.poke.get(`${M.sender}_PSS`) || [];
@@ -309,15 +316,18 @@ module.exports = {
             const economy = await client.econ.findOne({ userId: M.sender });
             const economy1 = await client.econ.findOne({ userId: data.player1.user === M.sender ? data.player2.user : data.player1.user });
 
-            const wallet = economy ? economy.coin : 0;
+            const econA = economy || await client.econ.create({ userId: M.sender });
+            const econB = economy1 || await client.econ.create({ userId: data.player1.user === M.sender ? data.player2.user : data.player1.user });
+
+            const wallet = econA ? (econA.gem || 0) : 0;
             const amount = wallet > 5000 ? 4500 : wallet >= 250 ? 250 : wallet;
             const gold = Math.floor(Math.random() * amount);
 
-            economy.coin += gold;
-            economy1.coin -= gold;
+            econA.gem = (econA.gem || 0) + gold;
+            econB.gem = (econB.gem || 0) - gold;
 
-            await economy.save();
-            await economy1.save();
+            await econA.save();
+            await econB.save();
 
             client.pokemonBattleResponse.delete(M.from);
 
@@ -333,6 +343,10 @@ module.exports = {
 
             const isTurn = M.sender === battle[battle.turn].user;
             if (!isTurn) return M.reply('Not your turn');
+
+            if (isNaN(number)) {
+                return M.reply(`Use *${client.prefix}battle switch <index>*`)
+            }
 
             const party = await getPartyForUser(client, M.sender);
             if (number < 0 || number >= party.length || party[number].hp <= 0) {
@@ -748,14 +762,14 @@ const endBattle = async (client, M, winner, loser) => {
 
             const updateEconomy = async (userId, change) => {
                 const economy = await client.econ.findOne({ userId });
-                let wallet = economy ? economy.coin : 0;
+                let wallet = economy ? (economy.gem || 0) : 0;
                 wallet += change;
 
                 if (economy) {
-                    economy.coin = wallet;
+                    economy.gem = wallet;
                     await economy.save();
                 } else if (change !== 0) {
-                    await client.econ.create({ userId, coin: wallet });
+                    await client.econ.create({ userId, gem: wallet });
                 }
 
                 return wallet;

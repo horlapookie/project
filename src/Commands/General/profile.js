@@ -1,4 +1,4 @@
-const { getStats } = require('../../Helpers/Stats');
+const { getStats, getLevelFromXp } = require('../../Helpers/Stats');
 
 module.exports = {
     name: 'profile',
@@ -34,11 +34,12 @@ module.exports = {
             bio = 'None'; // Set to 'None' if no bio is available
         }
 
-        const level = (await client.DB.get(`${user}_LEVEL`)) || 1;
+        const experience = (await client.exp.get(user)) || 0;
+        const level = getLevelFromXp(experience);
+        await client.DB.set(`${user}_LEVEL`, level);
         const stats = getStats(level);
         const contact = await client.contact.getContact(user, client);
         const username = M.pushName
-        const experience = (await client.exp.get(user)) || 0;
         const banned = (await client.DB.get('banned')) || [];
 
         let text = '';
