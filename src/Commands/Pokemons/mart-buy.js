@@ -16,7 +16,7 @@ module.exports = {
             return M.reply('You cannot buy from the mart while you are battling. Finish the battle first.')
         }
 
-        const userKey = client.getUserNumber(M) || M.sender
+        const userKey = (await client.resolveNumber(M)) || client.getUserNumber(M) || M.sender
 
         const idMatch = arg.match(/#?(\d+)/);
         const quantityMatch = arg.match(/--quantity=(\d+)/i);

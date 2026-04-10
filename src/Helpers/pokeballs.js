@@ -44,10 +44,57 @@ const getWeekKey = (date = new Date()) => {
 
 const getBallById = (id) => POKEBALLS.find((ball) => ball.id === Number(id));
 
-const getBagKey = (userId) => `${userId}_bag_pokeballs`;
+const normalizeUserKey = (userId) => String(userId || '').replace(/\D/g, '') || String(userId || '')
+
+const getBagKey = (userId) => `${normalizeUserKey(userId)}_bag_pokeballs`;
+
+const getLegacyBagKeys = (userId) => {
+    const raw = String(userId || '')
+    const digits = normalizeUserKey(userId)
+    // Older code paths sometimes used the full JID as the "userId" key (e.g. `123@lid`).
+    // We migrate those into the canonical numeric key so inventories survive restarts/logic changes.
+    return Array.from(
+        new Set(
+            [
+                raw ? `${raw}_bag_pokeballs` : null,
+                digits ? `${digits}@lid_bag_pokeballs` : null,
+                digits ? `${digits}@s.whatsapp.net_bag_pokeballs` : null,
+            ].filter(Boolean)
+        )
+    )
+}
+
+const migrateLegacyBagIfNeeded = async (client, userId) => {
+    const canonicalKey = getBagKey(userId)
+    const canonical = (await client.DB.get(canonicalKey)) || {}
+
+    const legacyKeys = getLegacyBagKeys(userId).filter((k) => k !== canonicalKey)
+    let changed = false
+
+    for (const key of legacyKeys) {
+        const legacy = (await client.DB.get(key)) || null
+        if (!legacy || typeof legacy !== 'object') continue
+        for (const ball of POKEBALLS) {
+            const prev = Number(canonical[ball.key] || 0)
+            const add = Number(legacy[ball.key] || 0)
+            if (add > 0) {
+                canonical[ball.key] = prev + add
+                changed = true
+            }
+        }
+        // Best-effort cleanup.
+        await client.DB.delete(key).catch(() => null)
+    }
+
+    if (changed) {
+        await client.DB.set(canonicalKey, canonical)
+    }
+
+    return canonical
+}
 
 const getInventory = async (client, userId) => {
-    const bag = (await client.DB.get(getBagKey(userId))) || {};
+    const bag = await migrateLegacyBagIfNeeded(client, userId);
     return POKEBALLS.map((ball) => ({
         ...ball,
         quantity: Number(bag[ball.key] || 0)
@@ -55,7 +102,7 @@ const getInventory = async (client, userId) => {
 };
 
 const setInventoryQuantity = async (client, userId, key, quantity) => {
-    const bag = (await client.DB.get(getBagKey(userId))) || {};
+    const bag = await migrateLegacyBagIfNeeded(client, userId);
     bag[key] = Math.max(0, Number(quantity || 0));
     await client.DB.set(getBagKey(userId), bag);
     return bag[key];
@@ -68,7 +115,7 @@ const addInventoryQuantity = async (client, userId, key, amount) => {
 };
 
 const getWeeklyPurchaseKey = (userId, ballId, weekKey = getWeekKey()) =>
-    `${userId}_pokeball_weekly_${ballId}_${weekKey}`;
+    `${normalizeUserKey(userId)}_pokeball_weekly_${ballId}_${weekKey}`;
 
 module.exports = {
     POKEBALLS,

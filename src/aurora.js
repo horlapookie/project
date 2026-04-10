@@ -36,6 +36,7 @@ const port = process.env.PORT || 3000
 const sessionDir = process.env.SESSION_DIR || join(process.cwd(), 'session')
 const logsDir = join(process.cwd(), 'logs')
 const whatsappLogFile = join(logsDir, 'whatsapp.log')
+const quickDbPath = join(__dirname, '..', 'quickdb.json')
 const normalizeNumber = (value = '') => String(value).replace(/\D/g, '')
 const OWNER_NUMBER = normalizeNumber(process.env.OWNER || '2347049044897')
 const DEFAULT_MODS = Array.from(
@@ -127,7 +128,8 @@ const start = async () => {
 
     //Database
     client.DB = new QuickDB({
-        driver: new JSONDriver()
+        // Pin the DB file path so restarts (pm2/codespaces) don't silently create a new DB elsewhere.
+        driver: new JSONDriver(quickDbPath)
     })
     //Tables
     client.contactDB = client.DB.table('contacts')

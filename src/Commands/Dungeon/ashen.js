@@ -1,9 +1,6 @@
 const axios = require('axios')
 const { PokemonClient } = require('pokenode-ts')
 const { addInventoryQuantity } = require('../../Helpers/pokeballs')
-const Canvas = require('canvas')
-const { readFile } = require('fs-extra')
-const { join } = require('path')
 
 // Randomized "strong Pokemon" pool for sanctum guardians.
 // Keep these as PokeAPI names (lowercase, hyphenated).
@@ -135,62 +132,74 @@ const sendAnnouncement = async (client, M) => {
   )
 }
 
-const pickRandomTeam = (client, size = 6) => {
-  const pool = Array.from(new Set(strongPool))
-  const chosen = []
-  while (chosen.length < size && pool.length) {
-    const idx = client.utils.getRandomInt(0, pool.length - 1)
-    chosen.push(pool.splice(idx, 1)[0])
+// Dungeon composition:
+// - 2 Mega Pokemon
+// - 2 Legendary Pokemon
+// - 1 very high HP "tank"
+// - 1 poison/status style Pokemon
+const megaPool = [
+  'charizard-mega-x',
+  'charizard-mega-y',
+  'mewtwo-mega-x',
+  'mewtwo-mega-y',
+  'gengar-mega',
+  'lucario-mega',
+  'gardevoir-mega',
+  'metagross-mega',
+  'salamence-mega',
+  'tyranitar-mega',
+  'blaziken-mega',
+  'kangaskhan-mega',
+  'banette-mega',
+  'rayquaza-mega'
+]
+const legendaryPool = [
+  'mewtwo',
+  'rayquaza',
+  'dialga',
+  'palkia',
+  'giratina-altered',
+  'zekrom',
+  'reshiram',
+  'kyurem',
+  'xerneas',
+  'yveltal',
+  'lugia',
+  'ho-oh',
+  'groudon',
+  'kyogre',
+  'necrozma'
+]
+const tankPool = ['blissey', 'snorlax', 'chansey', 'toxapex', 'corviknight', 'hippowdon']
+const poisonPool = ['toxapex', 'amoonguss', 'gliscor', 'crobat', 'tentacruel', 'gengar', 'dragalge', 'roserade']
+
+const pickUnique = (client, pool, count, taken = new Set()) => {
+  const available = pool.filter((n) => !taken.has(n))
+  const picked = []
+  while (picked.length < count && available.length) {
+    const idx = client.utils.getRandomInt(0, available.length - 1)
+    const choice = available.splice(idx, 1)[0]
+    picked.push(choice)
+    taken.add(choice)
   }
-  return chosen
+  return picked
 }
 
-const drawGuardianGallery = async (client, dungeonParty = []) => {
-  const bgPath = join(process.cwd(), 'assets', 'Images', 'dungeon.jpg')
-  const bg = await Canvas.loadImage(await readFile(bgPath))
-  const canvas = Canvas.createCanvas(bg.width, bg.height)
-  const ctx = canvas.getContext('2d')
-  ctx.drawImage(bg, 0, 0)
+const pickDungeonTeam = (client) => {
+  const taken = new Set()
+  const megas = pickUnique(client, megaPool, 2, taken)
+  const legends = pickUnique(client, legendaryPool, 2, taken)
+  const tanks = pickUnique(client, tankPool, 1, taken)
+  const poisons = pickUnique(client, poisonPool, 1, taken)
 
-  // Darken slightly for readability
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  const W = canvas.width
-  const H = canvas.height
-  const cols = 3
-  const rows = 2
-  const pad = Math.round(Math.min(W, H) * 0.05)
-  const cellW = Math.floor((W - pad * 2) / cols)
-  const cellH = Math.floor((H - pad * 2) / rows)
-  const spriteSize = Math.min(Math.round(cellW * 0.55), Math.round(cellH * 0.55))
-
-  ctx.textAlign = 'center'
-  ctx.fillStyle = '#ffffff'
-  ctx.font = `bold ${Math.max(22, Math.round(Math.min(W, H) * 0.04))}px Sans-Serif`
-  ctx.fillText('ASHEN SANCTUM GUARDIANS', W / 2, Math.max(40, Math.round(pad * 0.7)))
-
-  ctx.font = `bold ${Math.max(16, Math.round(Math.min(W, H) * 0.028))}px Sans-Serif`
-  for (let i = 0; i < Math.min(6, dungeonParty.length); i++) {
-    const p = dungeonParty[i]
-    const c = i % cols
-    const r = Math.floor(i / cols)
-    const cx = pad + c * cellW + cellW / 2
-    const cy = pad + r * cellH + cellH * 0.46
-
-    const spriteUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`
-    try {
-      const img = await Canvas.loadImage(spriteUrl)
-      ctx.drawImage(img, cx - spriteSize / 2, cy - spriteSize / 2, spriteSize, spriteSize)
-    } catch (_) {
-      // ignore sprite failures
-    }
-
-    const name = client.utils.capitalize(String(p.name || '').replace(/-/g, ' '))
-    ctx.fillText(name, cx, cy + spriteSize / 2 + Math.round(spriteSize * 0.25))
+  const team = [...megas, ...legends, ...tanks, ...poisons]
+  // Fallback: if any pool ran out, fill from strongPool.
+  while (team.length < 6) {
+    const extra = pickUnique(client, strongPool, 1, taken)[0]
+    if (!extra) break
+    team.push(extra)
   }
-
-  return canvas.toBuffer()
+  return team.slice(0, 6)
 }
 
 const buildPokemonFromName = async (client, name, level) => {
@@ -318,7 +327,7 @@ module.exports = {
     }
 
     const wildUser = `dungeon-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`
-    const dungeonTeamNames = pickRandomTeam(client, 6)
+    const dungeonTeamNames = pickDungeonTeam(client)
     const dungeonParty = []
     for (const name of dungeonTeamNames) {
       dungeonParty.push(await buildPokemonFromName(client, name, 100))
@@ -354,7 +363,7 @@ module.exports = {
 
     // Send a single gallery image showing the 6 guardians for this run.
     try {
-      const gallery = await drawGuardianGallery(client, dungeonParty)
+      const gallery = await client.utils.drawDungeonGallery(dungeonParty, { title: 'ASHEN SANCTUM GUARDIANS' })
       await client.sendMessage(M.from, {
         image: gallery,
         jpegThumbnail: gallery.toString('base64'),

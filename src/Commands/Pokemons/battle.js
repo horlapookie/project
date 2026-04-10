@@ -105,7 +105,7 @@ const sendBattleState = async (client, M, battle, extra = {}) => {
 };
 
 const tryCatchWildPokemon = async (client, M, battle, ball) => {
-    const userKey = client.getUserNumber(M) || M.sender
+    const userKey = (await client.resolveNumber(M)) || client.getUserNumber(M) || M.sender
     const inventory = await getInventory(client, userKey);
     const ownedBall = inventory.find((item) => item.key === ball.key);
     if (!ownedBall || ownedBall.quantity < 1) {
@@ -352,7 +352,7 @@ module.exports = {
                 return M.reply('You cannot use pokeballs in dungeon battles.')
             }
 
-            const userKey = client.getUserNumber(M) || M.sender
+            const userKey = (await client.resolveNumber(M)) || client.getUserNumber(M) || M.sender
             const inventory = (await getInventory(client, userKey)).filter((item) => item.quantity > 0);
             if (!inventory.length) {
                 return M.reply(`You do not have any pokeballs. Use *${client.prefix}mart* and *${client.prefix}mart-buy* to buy some.`)
@@ -872,7 +872,7 @@ const endBattle = async (client, M, winner, loser) => {
                     econ.gem = Math.round(Number(econ.gem || 0)) + rewardGems;
                     await econ.save().catch(() => null);
 
-                    const winnerKey = client.getUserNumber(winner) || winner;
+                    const winnerKey = (await client.resolveNumber(winner)) || client.getUserNumber(winner) || winner;
                     await addInventoryQuantity(client, winnerKey, 'master_ball', rewardBalls);
 
                     // Huge XP reward: apply once to the active Pokemon to avoid spamming.

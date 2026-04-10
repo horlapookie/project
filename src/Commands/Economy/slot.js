@@ -107,8 +107,11 @@ module.exports = {
             } else {
                 // Apply net change once.
                 if (points <= 0) {
-                    economy.gem -= amount;
-                    text += `\n\n📉 You lost ${amount} credits`;
+                    // Losing 100% of the bet feels too punishing, especially with low hit rates.
+                    // Keep the game negative-EV, but soften misses.
+                    const lossAmount = Math.max(1, Math.round(amount * 0.65));
+                    economy.gem -= lossAmount;
+                    text += `\n\n📉 You lost ${lossAmount} credits`;
                 } else {
                     economy.gem += resultAmount;
                     text += `\n\n📈 You won ${resultAmount} credits`;

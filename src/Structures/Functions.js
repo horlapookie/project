@@ -1263,6 +1263,63 @@ const drawPokemonBattle = async (data) => {
 };
 
 /**
+ * Render a simple 3x2 gallery of dungeon guardians.
+ * @param {Object[]} dungeonParty
+ * @param {Object} [options]
+ * @param {string} [options.title]
+ * @returns {Promise<Buffer>}
+ */
+const drawDungeonGallery = async (dungeonParty = [], options = {}) => {
+    const title = options.title || 'ASHEN SANCTUM GUARDIANS'
+    const background = await Canvas.loadImage(
+        await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'dungeon.jpg'))
+    )
+    const canvas = Canvas.createCanvas(background.width, background.height)
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(background, 0, 0)
+
+    // Darken slightly for readability.
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    const W = canvas.width
+    const H = canvas.height
+    const cols = 3
+    const rows = 2
+    const pad = Math.round(Math.min(W, H) * 0.05)
+    const cellW = Math.floor((W - pad * 2) / cols)
+    const cellH = Math.floor((H - pad * 2) / rows)
+    const spriteSize = Math.min(Math.round(cellW * 0.55), Math.round(cellH * 0.55))
+
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `bold ${Math.max(22, Math.round(Math.min(W, H) * 0.04))}px Sans-Serif`
+    ctx.fillText(title, W / 2, Math.max(40, Math.round(pad * 0.7)))
+
+    ctx.font = `bold ${Math.max(16, Math.round(Math.min(W, H) * 0.028))}px Sans-Serif`
+    for (let i = 0; i < Math.min(6, dungeonParty.length); i++) {
+        const p = dungeonParty[i]
+        const c = i % cols
+        const r = Math.floor(i / cols)
+        const cx = pad + c * cellW + cellW / 2
+        const cy = pad + r * cellH + cellH * 0.46
+
+        const spriteUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`
+        try {
+            const img = await Canvas.loadImage(spriteUrl)
+            ctx.drawImage(img, cx - spriteSize / 2, cy - spriteSize / 2, spriteSize, spriteSize)
+        } catch (_) {
+            // ignore sprite failures
+        }
+
+        const name = capitalize(String(p.name || '').replace(/-/g, ' '))
+        ctx.fillText(name, cx, cy + spriteSize / 2 + Math.round(spriteSize * 0.25))
+    }
+
+    return canvas.toBuffer()
+}
+
+/**
      * @param {number} pokemonSize - The size of the Pokémon image.
      * @returns {Promise<Object>} - Promise resolving to an object containing styles for player Pokémon.
      */
@@ -1387,5 +1444,6 @@ module.exports = {
     getRequiredExp,
     handlePokemonStats,
     handlePokemonEvolution,
-    drawPokemonBattle
+    drawPokemonBattle,
+    drawDungeonGallery
 }
