@@ -50,11 +50,11 @@ module.exports = MessageHandler = async (messages, client) => {
         const prefixes = Array.from(new Set([client.prefix, client.altPrefix || '#'].filter(Boolean)));
         const prefixUsed = prefixes.find((p) => body.startsWith(p)) || '';
         const isCmd = Boolean(prefixUsed);
-        const cmdName = isCmd
-            ? body.slice(prefixUsed.length).trim().split(/\s+/).shift().toLowerCase()
-            : '';
-        const args = body.trim().split(/\s+/).slice(1);
-        const arg = isCmd ? body.replace(cmdName, '').slice(prefixUsed.length).trim() : '';
+        const afterPrefix = isCmd ? body.slice(prefixUsed.length).trim() : '';
+        const parts = afterPrefix ? afterPrefix.split(/\s+/).filter(Boolean) : [];
+        const cmdName = isCmd && parts.length ? String(parts[0]).toLowerCase() : '';
+        const args = isCmd ? parts.slice(1) : [];
+        const arg = isCmd ? args.join(' ') : '';
     const groupMembers = gcMeta?.participants || [];
     const getParticipantJid = (p) => stripDevice(p?.id || p?.jid || '');
 
