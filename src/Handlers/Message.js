@@ -47,10 +47,14 @@ module.exports = MessageHandler = async (messages, client) => {
     const { isGroup, sender, from, body } = M;
     const gcMeta = isGroup ? await client.groupMetadata(from) : null;
     const gcName = isGroup ? gcMeta.subject : '';
+        const prefixes = Array.from(new Set([client.prefix, client.altPrefix || '#'].filter(Boolean)));
+        const prefixUsed = prefixes.find((p) => body.startsWith(p)) || '';
+        const isCmd = Boolean(prefixUsed);
+        const cmdName = isCmd
+            ? body.slice(prefixUsed.length).trim().split(/\s+/).shift().toLowerCase()
+            : '';
         const args = body.trim().split(/\s+/).slice(1);
-        const isCmd = body.startsWith(client.prefix);
-        const cmdName = body.slice(client.prefix.length).trim().split(/\s+/).shift().toLowerCase();
-        const arg = body.replace(cmdName, '').slice(client.prefix.length).trim();
+        const arg = isCmd ? body.replace(cmdName, '').slice(prefixUsed.length).trim() : '';
     const groupMembers = gcMeta?.participants || [];
     const getParticipantJid = (p) => stripDevice(p?.id || p?.jid || '');
 
@@ -167,10 +171,10 @@ module.exports = MessageHandler = async (messages, client) => {
             return M.reply(responses[body.toLowerCase()]);
         }
 
-        if (isCmd && !cmdName) return M.reply('I am alive, use -help to get started.');
+        if (isCmd && !cmdName) return M.reply(`I am alive, use ${client.prefix}help to get started.`);
 
         client.log(
-            `${chalk[isCmd ? 'red' : 'green'](`${isCmd ? '~EXEC' : '~RECV'}`)} ${isCmd ? `${client.prefix}${cmdName}` : 'Message'} ${chalk.white('from')} ${M.pushName} ${chalk.white('in')} ${isGroup ? gcName : 'DM'} ${chalk.white(`args: [${chalk.blue(args.length)}]`)}`,
+            `${chalk[isCmd ? 'red' : 'green'](`${isCmd ? '~EXEC' : '~RECV'}`)} ${isCmd ? `${prefixUsed}${cmdName}` : 'Message'} ${chalk.white('from')} ${M.pushName} ${chalk.white('in')} ${isGroup ? gcName : 'DM'} ${chalk.white(`args: [${chalk.blue(args.length)}]`)}`,
             'yellow'
         );
 

@@ -12,7 +12,8 @@ module.exports = {
             'mod': 'This features helps to auto remove a member from the group if he/she have sended a different group link also delete the link.',
             'events': 'This helps to turn on events where if any member joins, leaves, promoted or demoted eill be shown.',
             'cards': 'This function enables card spawning in your group.',
-            'wild': 'This feature enable wild pokemon encounters.'
+            'wild': 'This feature enable wild pokemon encounters.',
+            'dungeon': 'This feature enables dungeon announcements every 3 hours (PvE boss rush).'
         };
 
         if (!arg) {

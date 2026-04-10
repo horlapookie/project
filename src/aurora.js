@@ -16,6 +16,7 @@ const { Collection } = require('discord.js')
 const MessageHandler = require('./Handlers/Message')
 const CardHandler = require('./Handlers/card')
 const PokeHandler = require('./Handlers/pokemon')
+const DungeonHandler = require('./Handlers/dungeon')
 const EventsHandler = require('./Handlers/Events')
 const econ = require("./Database/Models/economy")
 const cardMap = new Map()
@@ -83,6 +84,7 @@ const start = async () => {
     //Config
     client.name = process.env.NAME || 'Mai_Sakurajima'
     client.prefix = process.env.PREFIX || '-'
+    client.altPrefix = process.env.ALT_PREFIX || '#'
     client.meLid = state?.creds?.me?.lid || null
     client.mePn = state?.creds?.me?.id || null
 
@@ -342,6 +344,8 @@ const start = async () => {
     await CardHandler(client);
 
     await PokeHandler(client);
+
+    await DungeonHandler(client);
 
     return client
 }

@@ -38,7 +38,7 @@ module.exports = {
             client.pokemonResponse.delete(M.from);
             const wildUser = `wild-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`;
             const wildParty = [{ ...data }];
-            const expiresAt = Date.now() + 5 * 60 * 1000;
+            const expiresAt = Date.now() + 5 * 60 * 1000; // inactivity timeout (refreshed on moves)
 
             await client.poke.set(`${wildUser}_Party`, wildParty);
 
@@ -75,20 +75,6 @@ module.exports = {
                 caption: `🌀 *A wild battle started!* 🌀\n\n*@${M.sender.split('@')[0]}* sent out *${client.utils.capitalize(availableParty[0].name)}*.\n\nA wild *${client.utils.capitalize(data.name)}* appeared at Level *${data.level}*.\n\nUse one of the options below:\n\n- *${client.prefix}battle fight* to attack\n- *${client.prefix}battle switch* to switch Pokemon\n- *${client.prefix}battle pokeballs* to check your pokeballs\n- *${client.prefix}battle run* to run away`,
                 mentions: [M.sender]
             });
-
-            setTimeout(async () => {
-                const battle = client.pokemonBattleResponse.get(M.from);
-                if (!battle || battle.mode !== 'wild' || battle.player1.user !== M.sender || battle.expiresAt !== expiresAt) {
-                    return;
-                }
-
-                client.pokemonBattleResponse.delete(M.from);
-                client.pokemonBattlePlayerMap.delete(M.sender);
-                await client.poke.delete(`${wildUser}_Party`);
-                await client.sendMessage(M.from, {
-                    text: `The wild *${client.utils.capitalize(data.name)}* fled because the battle took too long.`
-                });
-            }, 5 * 60 * 1000);
 
         } catch (err) {
             console.error(err);

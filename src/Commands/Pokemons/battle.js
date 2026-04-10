@@ -1,5 +1,6 @@
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const { getInventory, setInventoryQuantity } = require('../../Helpers/pokeballs');
+const axios = require('axios');
+const { getInventory, setInventoryQuantity, addInventoryQuantity } = require('../../Helpers/pokeballs');
 
 const isWildUser = (user = '') => typeof user === 'string' && user.endsWith('@pokemon');
 
@@ -59,9 +60,29 @@ const clearQueuedMoves = (battle) => {
     battle.player2.move = '';
 };
 
+const touchWildExpiry = (battle) => {
+    if (battle && battle.mode === 'wild') {
+        // Use expiresAt as "inactivity" timeout.
+        battle.expiresAt = Date.now() + 5 * 60 * 1000;
+    }
+};
+
 const buildBattleOptionsText = (client, battle, currentUser) => {
     if (battle.mode === 'wild') {
-        return `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\n- To fight use *${client.prefix}battle fight*\n\n- To switch pokemon use *${client.prefix}battle switch*\n\n- To check the pokeballs in your bag use *${client.prefix}battle pokeballs*\n\n- To run away from this battle use *${client.prefix}battle run*`;
+        const lines = [
+            `Use one of the options given below ${formatBattleTrainer(currentUser.user)}`,
+            '',
+            `- To fight use *${client.prefix}battle fight*`,
+            '',
+            `- To switch pokemon use *${client.prefix}battle switch*`
+        ];
+        if (!battle.noCapture && !battle.isDungeon) {
+            lines.push('', `- To check the pokeballs in your bag use *${client.prefix}battle pokeballs*`);
+            lines.push('', `- To run away from this battle use *${client.prefix}battle run*`);
+        } else {
+            lines.push('', `- To forfeit this battle use *${client.prefix}battle forfeit*`);
+        }
+        return lines.join('\n');
     }
 
     return `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\nTo fight, use *${client.prefix}battle fight*\n\nTo switch Pokemon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
@@ -178,6 +199,7 @@ module.exports = {
 
             const isTurn = M.sender === battle[battle.turn].user;
             if (!isTurn) return M.reply('Not your turn');
+            touchWildExpiry(battle);
 
             if (isNaN(number)) {
                 let text = `*Moves | ${client.utils.capitalize(battle[battle.turn].activePokemon.name)}*`;
@@ -234,6 +256,9 @@ module.exports = {
             if (data.mode !== 'wild') {
                 return M.reply('Use *battle forfeit* for trainer battles.')
             }
+            if (data.isDungeon || data.noCapture) {
+                return M.reply(`You can't run from this battle. Use *${client.prefix}battle forfeit*.`)
+            }
             client.pokemonBattleResponse.delete(M.from);
             client.pokemonBattlePlayerMap.delete(data.player1.user);
             await cleanupWildBattle(client, data);
@@ -253,6 +278,9 @@ module.exports = {
         if (action === 'pokeballs') {
             if (data.mode !== 'wild') {
                 return M.reply('Pokeballs can only be used in wild battles.')
+            }
+            if (data.isDungeon || data.noCapture) {
+                return M.reply('You cannot use pokeballs in dungeon battles.')
             }
 
             const userKey = client.getUserNumber(M) || M.sender
@@ -300,6 +328,7 @@ module.exports = {
 
         if (action === 'forfeit') {
             if (data.mode === 'wild') {
+                touchWildExpiry(data);
                 client.pokemonBattleResponse.delete(M.from);
                 client.pokemonBattlePlayerMap.delete(data.player1.user);
                 await cleanupWildBattle(client, data);
@@ -346,6 +375,7 @@ module.exports = {
 
             const isTurn = M.sender === battle[battle.turn].user;
             if (!isTurn) return M.reply('Not your turn');
+            touchWildExpiry(battle);
 
             if (isNaN(number)) {
                 return M.reply(`Use *${client.prefix}battle switch <index>*`)
@@ -784,6 +814,98 @@ const endBattle = async (client, M, winner, loser) => {
                 await cleanupWildBattle(client, battle);
                 client.pokemonBattleResponse.delete(M.from);
                 client.pokemonBattlePlayerMap.delete(winner);
+
+                if (battle.isDungeon) {
+                    const rewardGems = 500000;
+                    const rewardBalls = 10;
+
+                    const econ = await client.getEcon(winner, { createIfMissing: true });
+                    econ.gem = Math.round(Number(econ.gem || 0)) + rewardGems;
+                    await econ.save().catch(() => null);
+
+                    const winnerKey = client.getUserNumber(winner) || winner;
+                    await addInventoryQuantity(client, winnerKey, 'master_ball', rewardBalls);
+
+                    // Huge XP reward: apply once to the active Pokemon to avoid spamming.
+                    try {
+                        const party = await getPartyForUser(client, winner);
+                        const active = battle.player1?.user === winner ? battle.player1.activePokemon : battle.player2.activePokemon;
+                        if (active && active.hp > 0 && active.level < 100) {
+                            await handleStats(client, M, 5000000, winner, active, 'player1');
+                        }
+                        // keep party saved via handleStats' updateActivePokemonInParty
+                    } catch (_) {
+                        // ignore XP reward errors
+                    }
+
+                    // Chance to receive a special-form Pokemon.
+                    let bonusText = '';
+                    try {
+                        const roll = Math.random();
+                        if (roll < 0.2) {
+                            const choice = [
+                                'deoxys-attack',
+                                'deoxys-speed',
+                                'deoxys-defense',
+                                'groudon-primal',
+                                'kyogre-primal',
+                                'necrozma-dusk',
+                                'necrozma-dawn',
+                                'necrozma-ultra'
+                            ][Math.floor(Math.random() * 8)];
+
+                            const resp = await axios.get(`https://pokeapi.co/api/v2/pokemon/${choice}`);
+                            const pdata = resp.data;
+                            const level = 50;
+                            const { hp, attack, defense, speed } = await client.utils.getPokemonStats(pdata.id, level);
+                            const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(pdata.name, level);
+                            const rewardPokemon = {
+                                name: pdata.name,
+                                level,
+                                exp: client.utils.getExpByLevel(level),
+                                image:
+                                    pdata.sprites?.other?.['official-artwork']?.front_default ||
+                                    pdata.sprites?.front_default ||
+                                    '',
+                                id: pdata.id,
+                                displayExp: 0,
+                                hp,
+                                attack,
+                                defense,
+                                speed,
+                                maxHp: hp,
+                                maxDefense: defense,
+                                maxAttack: attack,
+                                maxSpeed: speed,
+                                types: pdata.types.map((t) => t.type.name),
+                                moves,
+                                rejectedMoves,
+                                state: { status: '', movesUsed: 0 },
+                                female: false,
+                                tag: client.utils.generateRandomUniqueTag(10)
+                            };
+
+                            const party = await getPartyForUser(client, winner);
+                            const pc = (await client.poke.get(`${winner}_PSS`)) || [];
+                            if (party.length >= 6) pc.push(rewardPokemon);
+                            else party.push(rewardPokemon);
+                            await savePartyForUser(client, winner, party);
+                            await client.poke.set(`${winner}_PSS`, pc);
+
+                            bonusText = `\n\n🎁 Bonus reward: *${client.utils.capitalize(rewardPokemon.name)}* joined your ${party.length >= 6 ? 'PC' : 'party'}!`;
+                        }
+                    } catch (_) {
+                        // ignore reward pokemon errors
+                    }
+
+                    return client.sendMessage(M.from, {
+                        text:
+                            `🔥 *ASHEN SANCTUM CLEARED!* 🔥\n\n` +
+                            `🎉 *@${winner.split('@')[0]}* defeated all sanctum guardians.\n\n` +
+                            `Rewards:\n- *${rewardGems}* gems\n- *${rewardBalls}* Master Balls${bonusText}`,
+                        mentions: [winner]
+                    });
+                }
 
                 return client.sendMessage(M.from, {
                     text: `🎉 ${formatBattleTrainer(winner)} defeated the wild *${client.utils.capitalize((battle.wildPokemon || battle.player2.activePokemon).name)}*, and it fled the battlefield.`,
