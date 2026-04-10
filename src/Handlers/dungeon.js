@@ -64,11 +64,15 @@ module.exports = async function DungeonHandler(client) {
         for (const jid of groups) {
           try {
             await markAshenActive(client, jid)
+            // Tag all participants without adding extra "tagall" text.
+            const meta = await client.groupMetadata(jid).catch(() => null)
+            const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)
             await client.sendMessage(
               jid,
               {
                 image: { url: imagePath },
-                caption: text
+                caption: text,
+                mentions
               }
             )
           } catch (_) {

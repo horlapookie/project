@@ -53,11 +53,15 @@ const markActive = async (client, jid) => {
 const sendAnnouncement = async (client, M) => {
   const prefix = client.altPrefix || '#'
   await markActive(client, M.from)
+  // Tag all participants without adding extra "tagall" text.
+  const meta = await client.groupMetadata(M.from).catch(() => null)
+  const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)
   return client.sendMessage(
     M.from,
     {
       image: { url: `${process.cwd()}/assets/Images/dungeon.jpg` },
-      caption: buildInfo(prefix)
+      caption: buildInfo(prefix),
+      mentions
     },
     { quoted: M }
   )

@@ -74,6 +74,25 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
             .join(', ')}\n🔹 Level: ${level}\n\n[Use *${client.prefix}catch* to challenge this Pokémon and try to catch it!]`
     });
 
+    // If this spawn was triggered by a user, we keep the first 60s lock silent,
+    // then announce that anyone can start the wild battle (only if still unclaimed).
+    if (wildPokemon.spawnedBy && wildPokemon.catchLockedUntil) {
+        setTimeout(async () => {
+            try {
+                const current = await client.pokemonResponse.get(jid);
+                if (!current || current.tag !== wildPokemon.tag) return;
+                if (client.pokemonBattleResponse.has(jid)) return;
+                if (Date.now() < Number(current.catchLockedUntil || 0)) return;
+
+                await client.sendMessage(jid, {
+                    text: `The wild *${client.utils.capitalize(current.name)}* can now be challenged by anyone using *${client.prefix}catch*.`
+                });
+            } catch (_) {
+                // ignore
+            }
+        }, 60 * 1000);
+    }
+
     // Auto-expire the spawn if nobody starts a battle within 5 minutes.
     setTimeout(async () => {
         try {

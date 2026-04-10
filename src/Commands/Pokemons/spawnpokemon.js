@@ -25,11 +25,13 @@ module.exports = {
                 }
                 const normalized = forced.toLowerCase().replace(/\s+/g, '-')
                 await client.spawnWildPokemon(M.from, { spawnedBy: M.sender, forceName: normalized })
-                return M.reply(`Wild *${forced}* spawned. For the next 60 seconds, only you can start the wild battle.`)
+                // Spawn handler announces the Pokemon; we keep the 60s lock silent.
+                return null
             }
 
             await client.spawnWildPokemon(M.from, { spawnedBy: M.sender })
-            await M.reply('Wild Pokemon spawned. For the next 60 seconds, only you can start the wild battle.')
+            // Spawn handler announces the Pokemon; we keep the 60s lock silent.
+            return null
         } catch (error) {
             console.error(error)
             await M.reply(String(error?.message || '').includes('Invalid pokemon name')
