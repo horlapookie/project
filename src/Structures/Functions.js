@@ -1172,15 +1172,28 @@ const drawPokemonBattle = async (data) => {
         const player = data[`player${i + 1}`];
         const activePokemon = data[`player${i + 1}`].activePokemon;
         const showCaptureBall = i === 1 && data.captureBall;
-        const spriteUrl = style.pokemon.showBack
+        const spriteUrlPrimary = style.pokemon.showBack
             ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${activePokemon.id}.png`
-            : (activePokemon.image || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${activePokemon.id}.png`);
+            : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${activePokemon.id}.png`;
+        const spriteUrlFallback = style.pokemon.showBack
+            ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${activePokemon.id}.png`
+            : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${activePokemon.id}.png`;
         let pokemonImage = null;
         try {
-            pokemonImage = await Canvas.loadImage(spriteUrl);
+            pokemonImage = await Canvas.loadImage(spriteUrlPrimary);
         } catch (_) {
-            pokemonImage = null;
+            try {
+                pokemonImage = await Canvas.loadImage(spriteUrlFallback);
+            } catch (_) {
+                try {
+                    // last resort: use the stored artwork url if present
+                    if (activePokemon.image) pokemonImage = await Canvas.loadImage(activePokemon.image);
+                } catch (_) {
+                    pokemonImage = null;
+                }
+            }
         }
+        // Clip in destination space (canvas) so low-res sprites don't get cropped to a 1px strip.
         const clipY = style.pokemon.clipY;
         const size = style.pokemon.size;
 
@@ -1194,17 +1207,13 @@ const drawPokemonBattle = async (data) => {
                     size / 2
                 );
             } else if (pokemonImage) {
-                ctx.drawImage(
-                    pokemonImage,
-                    0,
-                    0,
-                    pokemonImage.width,
-                    Math.max(1, pokemonImage.height - clipY),
-                    style.pokemon.x,
-                    style.pokemon.y,
-                    size,
-                    size - clipY
-                );
+                ctx.save();
+                ctx.beginPath();
+                // Draw the sprite but clip the lower part so it appears "in the grass".
+                ctx.rect(style.pokemon.x, style.pokemon.y, size, Math.max(1, size - clipY));
+                ctx.clip();
+                ctx.drawImage(pokemonImage, style.pokemon.x, style.pokemon.y, size, size);
+                ctx.restore();
             } else {
                 // Fallback if sprite failed to load.
                 ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -1346,8 +1355,8 @@ const getPokemonStyles = async ({ W, H, base }) => {
                 showBack: true,
                 clipY: p1Clip
             },
-            // Place the player's HP box near the player's field (bottom-left), above the sprite.
-            box: { x: Math.round(W * 0.06), y: Math.round(H * 0.58), w: boxW, h: boxH, font },
+            // Player HP box bottom-right (keeps the field clear so the sprite is visible).
+            box: { x: Math.round(W - boxW - W * 0.06), y: Math.round(H - boxH - H * 0.06), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         },
         player2: {
@@ -1360,8 +1369,8 @@ const getPokemonStyles = async ({ W, H, base }) => {
                 showBack: false,
                 clipY: 0
             },
-            // Place opponent HP box near the opponent field (upper-right), above the sprite.
-            box: { x: Math.round(W * 0.55), y: Math.round(H * 0.12), w: boxW, h: boxH, font },
+            // Opponent HP box top-left (keeps the top field clear for the sprite).
+            box: { x: Math.round(W * 0.06), y: Math.round(H * 0.10), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         }
     };
