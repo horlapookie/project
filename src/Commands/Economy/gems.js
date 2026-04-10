@@ -6,7 +6,7 @@ module.exports = {
     cool: 4,
     react: "✅",
     usage: 'Use :wallet',
-    description: 'Shows your gems and treasury balance',
+    description: 'Shows your wallet gems balance',
     async execute(client, arg, M) {
         const economy = await client.getEcon(M);
         const gems = Math.round(Number(economy?.gem || 0));
@@ -24,10 +24,10 @@ module.exports = {
         const thumbnail = await client.utils.getBuffer('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQq_uWYBUlowQjCzGGpph4KKF_mLSI2pMwBJA&usqp=CAU.jpg');
         
         await client.sendMessage(M.from, {
-            text: `💎 Wallet for ${username} (${tag})\n\nGems: *${gems}*\nTreasury: *${treasury}*\nTotal: *${gems + treasury}*`,
+            text: `💎 Wallet for ${username} (${tag})\n\nGems: *${gems}*\n\nUse *${client.prefix}treasury* to check your treasury.`,
             contextInfo: {
                 externalAdReply: {
-                    title: `${username}: ${gems + treasury}`,
+                    title: `${username}: ${gems}`,
                     mediaType: 2,
                     thumbnail: thumbnail,
                     sourceUrl: ''

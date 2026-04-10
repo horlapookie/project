@@ -14,10 +14,8 @@ module.exports = {
         const amount = parseInt(arg);
         if (amount <= 0) return M.reply('Please provide a positive amount.');
 
-        const userId = M.sender;
-        const economy = await client.econ.findOne({ userId });
-
-        if (!economy) return M.reply('You do not have an economy entry. Please register first.');
+        const economy = await client.getEcon(M);
+        if (!economy) return M.reply(`Use ${client.prefix}bonus to get started.`);
 
         const wallet = economy.gem || 0;
         if (wallet < amount) return M.reply('You don\'t have enough credits in your wallet.');

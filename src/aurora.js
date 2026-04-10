@@ -200,20 +200,36 @@ const start = async () => {
     client.getEcon = async (value = '', { createIfMissing = false } = {}) => {
         const number = client.getUserNumber(value)
         const rawSender = value && typeof value === 'object' ? value.sender : value
+        const rawSenderStr = String(rawSender || '')
+        const isLid = rawSenderStr.endsWith('@lid')
+        let mappedNumber = ''
+        if (isLid) {
+            const lidDigits = normalizeNumber(rawSenderStr.split('@')[0])
+            mappedNumber = normalizeNumber((await client.DB.get(`lid-map-${lidDigits}`)) || '')
+        }
         const candidates = Array.from(
             new Set(
-                [number, `${number}@s.whatsapp.net`, `${number}@lid`, rawSender]
+                [
+                    number,
+                    number ? `${number}@s.whatsapp.net` : null,
+                    number ? `${number}@lid` : null,
+                    mappedNumber,
+                    mappedNumber ? `${mappedNumber}@s.whatsapp.net` : null,
+                    mappedNumber ? `${mappedNumber}@lid` : null,
+                    rawSender
+                ]
                     .filter(Boolean)
                     .map((x) => String(x))
             )
         )
         let doc = await client.econ.findOne({ userId: { $in: candidates } })
         if (!doc && createIfMissing) {
-            doc = await client.econ.create({ userId: number || String(rawSender || '') })
+            doc = await client.econ.create({ userId: mappedNumber || number || String(rawSender || '') })
         }
-        // Best-effort migrate to stable numeric id.
-        if (doc && number && doc.userId !== number) {
-            doc.userId = number
+        // Best-effort migrate to stable numeric id (prefer mapped phone number over LID digits).
+        const stable = mappedNumber || number
+        if (doc && stable && doc.userId !== stable) {
+            doc.userId = stable
             await doc.save().catch(() => null)
         }
         return doc
