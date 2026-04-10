@@ -1339,31 +1339,29 @@ const getPokemonStyles = async ({ W, H, base }) => {
         player1: {
             pokemon: {
                 // bottom-left, facing away (back sprite)
-                x: Math.round(W * 0.28 - p1Size / 2),
-                // Move up a bit so the bottom Pokemon is fully visible on the field.
-                y: Math.round(H * 0.52),
+                x: Math.round(W * 0.26 - p1Size / 2),
+                // Tuned for the current battlefield image: keep the back sprite inside the left grass arena.
+                y: Math.round(H * 0.60),
                 size: p1Size,
                 showBack: true,
                 clipY: p1Clip
             },
-            // Player box bottom-right (classic Pokemon layout)
-            // Slightly higher so it doesn't crowd the bottom edge.
-            box: { x: Math.round(W - boxW - W * 0.06), y: Math.round(H - boxH - H * 0.18), w: boxW, h: boxH, font },
+            // Place the player's HP box near the player's field (bottom-left), above the sprite.
+            box: { x: Math.round(W * 0.06), y: Math.round(H * 0.58), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         },
         player2: {
             pokemon: {
                 // upper-right, facing player (front sprite)
                 x: Math.round(W * 0.76 - p2Size / 2),
-                // Move up slightly so the top Pokemon sits better in the arena.
-                y: Math.round(H * 0.27),
+                // Tuned for the current battlefield image: center on the right grass arena.
+                y: Math.round(H * 0.30),
                 size: p2Size,
                 showBack: false,
                 clipY: 0
             },
-            // Opponent box top-left
-            // Move down slightly so it isn't glued to the top edge.
-            box: { x: Math.round(W * 0.06), y: Math.round(H * 0.14), w: boxW, h: boxH, font },
+            // Place opponent HP box near the opponent field (upper-right), above the sprite.
+            box: { x: Math.round(W * 0.55), y: Math.round(H * 0.12), w: boxW, h: boxH, font },
             moves: { x: 0, y: 0 }
         }
     };
