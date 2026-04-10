@@ -653,7 +653,8 @@ const handleBattles = async (client, M) => {
                 });
                 await delay(5000);
                 await sendBattleState(client, M, battle);
-                battle.turn = current.user === battle.player1.user ? 'player2' : 'player1';
+                // For wild battles, keep the turn on player1 so replacement logic runs correctly.
+                battle.turn = battle.mode === 'wild' ? 'player1' : (current.user === battle.player1.user ? 'player2' : 'player1');
                 await savePartyForUser(client, opponent.user, party2);
                 setBattleData(client, M.from, battle);
 
@@ -768,12 +769,8 @@ const continueSelection = async (client, M) => {
             return;
         }
 
-        if (battle.mode === 'wild' && currentUser.user === battle.wildUser) {
-            battle.player2.move = battle.player2.move === 'skipped' ? 'skipped' : pickWildMove(battle);
-            battle.turn = 'player1';
-            setBattleData(client, M.from, battle);
-            return handleBattles(client, M);
-        }
+        // In wild/dungeon battles, we only let the AI act in response to the player's action
+        // (fight/switch/pokeball). Avoid auto-turning here to prevent "my Pokemon moved by itself".
 
         await client.sendMessage(M.from, {
             text: buildBattleOptionsText(client, battle, currentUser),

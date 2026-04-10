@@ -1269,8 +1269,8 @@ const drawPokemonBattle = async (data) => {
 const getPokemonStyles = async ({ W, H, base }) => {
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-    const p1Size = clamp(Math.round(base * 0.34), 190, 340);
-    const p2Size = clamp(Math.round(base * 0.28), 160, 300);
+    const p1Size = clamp(Math.round(base * 0.36), 210, 360);
+    const p2Size = clamp(Math.round(base * 0.30), 180, 320);
     const p1Clip = Math.round(p1Size * 0.35);
 
     const boxW = clamp(Math.round(base * 0.44), 300, 460);
@@ -1282,7 +1282,7 @@ const getPokemonStyles = async ({ W, H, base }) => {
             pokemon: {
                 // bottom-left, facing away (back sprite)
                 x: Math.round(W * 0.28 - p1Size / 2),
-                y: Math.round(H * 0.66),
+                y: Math.round(H * 0.60),
                 size: p1Size,
                 showBack: true,
                 clipY: p1Clip

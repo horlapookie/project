@@ -5,6 +5,10 @@ const buildAshenText = (prefix = '#') => {
   return [
     '🔥 *ASHEN SANCTUM* 🔥',
     '',
+    '⚠️ *An extremely dangerous dungeon has appeared!*',
+    'Set your party and use *enter* if you wish to enter.',
+    'Only one trainer can enter at a time in this group.',
+    '',
     'A high-risk 6v6 boss-rush dungeon where trainers enter with a full party of 6 Pokemon and battle against 6 maxed-out sanctum guardians.',
     '',
     '⚔️ *Mechanics:*',
@@ -30,10 +34,17 @@ const buildAshenText = (prefix = '#') => {
     '',
     '📌 *Suggested Commands:*',
     `- ${prefix}ashen`,
+    `- ${prefix}ashen spawn (owner only)`,
     `- ${prefix}ashen enter`,
     `- ${prefix}ashen status`,
     `- ${prefix}ashen quit`
   ].join('\n')
+}
+
+const markAshenActive = async (client, jid) => {
+  const key = `ashen-active-${jid}`
+  const expiresAt = Date.now() + 3 * 60 * 60 * 1000
+  await client.DB.set(key, { spawnedAt: Date.now(), expiresAt }).catch(() => null)
 }
 
 module.exports = async function DungeonHandler(client) {
@@ -52,6 +63,7 @@ module.exports = async function DungeonHandler(client) {
 
         for (const jid of groups) {
           try {
+            await markAshenActive(client, jid)
             await client.sendMessage(
               jid,
               {
@@ -71,4 +83,3 @@ module.exports = async function DungeonHandler(client) {
     console.error('DungeonHandler init error', err)
   }
 }
-

@@ -18,6 +18,10 @@ const buildInfo = (prefix = '#') =>
   [
     '🔥 *ASHEN SANCTUM* 🔥',
     '',
+    '⚠️ *An extremely dangerous dungeon has appeared!*',
+    'Set your party and use *enter* if you wish to enter.',
+    'Only one trainer can enter at a time in this group.',
+    '',
     'A high-risk 6v6 boss-rush dungeon where trainers enter with a full party of 6 Pokemon and battle against 6 maxed-out sanctum guardians.',
     '',
     '⚔️ *Mechanics:*',
@@ -33,13 +37,22 @@ const buildInfo = (prefix = '#') =>
     '- Chance for special-form Pokemon',
     '',
     '📌 *Commands:*',
+    `- ${prefix}ashen spawn (owner only)`,
     `- ${prefix}ashen enter`,
     `- ${prefix}ashen status`,
     `- ${prefix}ashen quit`
   ].join('\n')
 
+const markActive = async (client, jid) => {
+  const key = `ashen-active-${jid}`
+  const expiresAt = Date.now() + 3 * 60 * 60 * 1000
+  await client.DB.set(key, { spawnedAt: Date.now(), expiresAt }).catch(() => null)
+  return { expiresAt }
+}
+
 const sendAnnouncement = async (client, M) => {
   const prefix = client.altPrefix || '#'
+  await markActive(client, M.from)
   return client.sendMessage(
     M.from,
     {
@@ -151,6 +164,11 @@ module.exports = {
     const enabled = ((await client.DB.get('dungeon')) || []).includes(M.from)
     if (!enabled) {
       return M.reply(`Dungeon is not enabled in this group. Use *${client.prefix}set --dungeon=enable*.`)
+    }
+
+    const active = await client.DB.get(`ashen-active-${M.from}`).catch(() => null)
+    if (!active || !active.expiresAt || Date.now() > Number(active.expiresAt)) {
+      return M.reply(`No active Ashen Sanctum right now. Wait for it to appear, or the owner can use *${prefix}ashen spawn*.`)
     }
 
     if (client.pokemonBattleResponse.has(M.from)) {
