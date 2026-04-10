@@ -86,18 +86,36 @@ const start = async () => {
     client.meLid = state?.creds?.me?.lid || null
     client.mePn = state?.creds?.me?.id || null
 
-    // Baileys expects media as { url: ... } or a stream. If we pass a raw Buffer,
-    // Baileys currently treats it as a file path and crashes. Wrap buffers as streams.
+    // Baileys media expects:
+    // - Buffer (raw bytes)
+    // - { url: 'https://...' | '/path/to/file' | 'data:...' }
+    // - { stream: Readable }
+    // Some commands in this repo accidentally pass `{ url: <Buffer> }` or a raw Readable.
+    // Normalize those shapes before calling Baileys.
     const rawSendMessage = client.sendMessage.bind(client)
     client.sendMessage = async (jid, content, options) => {
         if (content && typeof content === 'object') {
             const fixed = { ...content }
             for (const key of ['image', 'video', 'audio', 'document', 'sticker']) {
-                if (Buffer.isBuffer(fixed[key])) {
-                    fixed[key] = Readable.from(fixed[key])
+                const value = fixed[key]
+                if (!value) continue
+
+                // If someone passed a raw Readable, wrap it.
+                if (typeof value === 'object' && typeof value.pipe === 'function' && !Buffer.isBuffer(value)) {
+                    fixed[key] = { stream: value }
+                    continue
                 }
-                if (fixed[key] && typeof fixed[key] === 'object' && Buffer.isBuffer(fixed[key].url)) {
-                    fixed[key] = { ...fixed[key], url: Readable.from(fixed[key].url) }
+
+                // If someone passed `{ url: <Buffer> }`, convert to a raw Buffer so Baileys treats it as bytes.
+                if (typeof value === 'object' && 'url' in value && Buffer.isBuffer(value.url)) {
+                    fixed[key] = value.url
+                    continue
+                }
+
+                // If someone passed `{ url: <Readable> }`, wrap as `{ stream }`.
+                if (typeof value === 'object' && 'url' in value && value.url && typeof value.url.pipe === 'function') {
+                    fixed[key] = { stream: value.url }
+                    continue
                 }
             }
             return rawSendMessage(jid, fixed, options)
