@@ -193,6 +193,69 @@ module.exports = {
         const [action, indexStr] = context.split(' ');
         const number = parseInt(indexStr, 10) - 1;
 
+        // Allow quitting actions even when it's not the user's turn.
+        if (action === 'run') {
+            if (data.mode !== 'wild') {
+                // PvP doesn't support "run"; treat as forfeit guidance.
+                return M.reply(`Use *${client.prefix}battle forfeit* for trainer battles.`)
+            }
+            if (data.isDungeon || data.noCapture) {
+                return M.reply(`You can't run from this battle. Use *${client.prefix}battle forfeit*.`)
+            }
+            touchWildExpiry(data);
+            client.pokemonBattleResponse.delete(M.from);
+            client.pokemonBattlePlayerMap.delete(data.player1.user);
+            await cleanupWildBattle(client, data);
+            return client.sendMessage(M.from, {
+                text: `*@${M.sender.split('@')[0]}* ran away and the wild *${client.utils.capitalize(data.player2.activePokemon.name)}* fled.`,
+                mentions: [M.sender]
+            });
+        }
+
+        if (action === 'forfeit') {
+            // Works even when it's not the user's turn.
+            if (data.mode === 'wild') {
+                touchWildExpiry(data);
+                client.pokemonBattleResponse.delete(M.from);
+                client.pokemonBattlePlayerMap.delete(data.player1.user);
+                await cleanupWildBattle(client, data);
+                return client.sendMessage(M.from, {
+                    text: `*@${M.sender.split('@')[0]}* forfeited and the wild *${client.utils.capitalize(data.player2.activePokemon.name)}* fled.`,
+                    mentions: [M.sender]
+                });
+            }
+
+            client.pokemonBattlePlayerMap.delete(data.player2.user);
+            client.pokemonBattlePlayerMap.delete(data.player1.user);
+
+            const user = data.player1.user === M.sender ? data.player1.user : data.player2.user;
+            const winner = data.player1.user === M.sender ? data.player2.user : data.player1.user;
+
+            const economy = await client.getEcon(M);
+            const opponentId = data.player1.user === M.sender ? data.player2.user : data.player1.user
+            const economy1 = await client.getEcon(opponentId);
+
+            const econA = economy || await client.econ.create({ userId: M.sender });
+            const econB = economy1 || await client.econ.create({ userId: data.player1.user === M.sender ? data.player2.user : data.player1.user });
+
+            const wallet = econA ? (econA.gem || 0) : 0;
+            const amount = wallet > 5000 ? 4500 : wallet >= 250 ? 250 : wallet;
+            const gold = Math.floor(Math.random() * amount);
+
+            econA.gem = (econA.gem || 0) + gold;
+            econB.gem = (econB.gem || 0) - gold;
+
+            await econA.save();
+            await econB.save();
+
+            client.pokemonBattleResponse.delete(M.from);
+
+            return client.sendMessage(M.from, {
+                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and got *${gold}* gems from *@${user.split('@')[0]}* as they forfeited the battle.`,
+                mentions: [user, winner]
+            });
+        }
+
         if (action === 'fight') {
             const battle = client.pokemonBattleResponse.get(M.from);
             if (!battle) return null;
@@ -252,22 +315,6 @@ module.exports = {
             return handleBattles(client, M);
         }
 
-        if (action === 'run') {
-            if (data.mode !== 'wild') {
-                return M.reply('Use *battle forfeit* for trainer battles.')
-            }
-            if (data.isDungeon || data.noCapture) {
-                return M.reply(`You can't run from this battle. Use *${client.prefix}battle forfeit*.`)
-            }
-            client.pokemonBattleResponse.delete(M.from);
-            client.pokemonBattlePlayerMap.delete(data.player1.user);
-            await cleanupWildBattle(client, data);
-            return client.sendMessage(M.from, {
-                text: `*@${M.sender.split('@')[0]}* ran away and the wild *${client.utils.capitalize(data.player2.activePokemon.name)}* fled.`,
-                mentions: [M.sender]
-            });
-        }
-
         if (action === 'items') {
             if (data.mode !== 'wild') {
                 return M.reply('Items can only be browsed in wild battles right now.')
@@ -324,49 +371,6 @@ module.exports = {
             });
 
             return M.reply(lines.join('\n').trim());
-        }
-
-        if (action === 'forfeit') {
-            if (data.mode === 'wild') {
-                touchWildExpiry(data);
-                client.pokemonBattleResponse.delete(M.from);
-                client.pokemonBattlePlayerMap.delete(data.player1.user);
-                await cleanupWildBattle(client, data);
-                return client.sendMessage(M.from, {
-                    text: `*@${M.sender.split('@')[0]}* ran away and the wild *${client.utils.capitalize(data.player2.activePokemon.name)}* fled.`,
-                    mentions: [M.sender]
-                });
-            }
-
-            client.pokemonBattlePlayerMap.delete(data.player2.user);
-            client.pokemonBattlePlayerMap.delete(data.player1.user);
-
-            const user = data.player1.user === M.sender ? data.player1.user : data.player2.user;
-            const winner = data.player1.user === M.sender ? data.player2.user : data.player1.user;
-
-            const economy = await client.getEcon(M);
-            const opponentId = data.player1.user === M.sender ? data.player2.user : data.player1.user
-            const economy1 = await client.getEcon(opponentId);
-
-            const econA = economy || await client.econ.create({ userId: M.sender });
-            const econB = economy1 || await client.econ.create({ userId: data.player1.user === M.sender ? data.player2.user : data.player1.user });
-
-            const wallet = econA ? (econA.gem || 0) : 0;
-            const amount = wallet > 5000 ? 4500 : wallet >= 250 ? 250 : wallet;
-            const gold = Math.floor(Math.random() * amount);
-
-            econA.gem = (econA.gem || 0) + gold;
-            econB.gem = (econB.gem || 0) - gold;
-
-            await econA.save();
-            await econB.save();
-
-            client.pokemonBattleResponse.delete(M.from);
-
-            return client.sendMessage(M.from, {
-                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and got *${gold}* gems from *@${user.split('@')[0]}* as they forfeited the battle.`,
-                mentions: [user, winner]
-            });
         }
 
         if (action === 'switch') {
