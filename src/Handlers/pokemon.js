@@ -37,6 +37,8 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
     const wildPokemon = {
         spawnedBy: options.spawnedBy || null,
         catchLockedUntil: options.spawnedBy ? Date.now() + 60 * 1000 : 0,
+        spawnedAt: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000,
         name: data.name,
         level,
         exp,
@@ -71,6 +73,23 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
             .map((type) => type.type.name)
             .join(', ')}\n🔹 Level: ${level}\n\n[Use *${client.prefix}catch* to challenge this Pokémon and try to catch it!]`
     });
+
+    // Auto-expire the spawn if nobody starts a battle within 5 minutes.
+    setTimeout(async () => {
+        try {
+            const current = await client.pokemonResponse.get(jid);
+            if (!current || current.tag !== wildPokemon.tag) return;
+            if (client.pokemonBattleResponse.has(jid)) return;
+            if (Date.now() < (current.expiresAt || 0)) return;
+
+            await client.pokemonResponse.delete(jid);
+            await client.sendMessage(jid, {
+                text: `The wild *${client.utils.capitalize(current.name)}* fled because nobody challenged it in time.`
+            });
+        } catch (_) {
+            // ignore expiry errors
+        }
+    }, 5 * 60 * 1000);
 
     return wildPokemon
 }

@@ -57,8 +57,8 @@ module.exports = {
         
         if (arg.startsWith('-') || arg.startsWith('+')) return M.reply('Please provide a valid amount.');
 
-        const userId = M.sender;
-        const economy = await client.econ.findOne({ userId });
+        const economy = await client.getEcon(M);
+        if (!economy) return M.reply(`Use ${client.prefix}bonus to get started.`)
 
         const credits = economy.gem || 0;
 
@@ -96,9 +96,6 @@ module.exports = {
             resultAmount = Math.round(resultAmount);
             if (resultAmount > 150000) resultAmount = 150000;
 
-            economy.gem += resultAmount;
-            await economy.save();
-
             let text = '*☆::. 🎰𓊈 ꜱʟᴏᴛ ᴍᴀᴄʜɪɴᴇ 𓊉 🎰 .::.☆*\n\n';
             text += machine.visualize();
 
@@ -108,11 +105,15 @@ module.exports = {
                 await economy.save();
                 text += '\n\nYou have been saved by your luck potion!🙂';
             } else {
+                // Apply net change once.
                 if (points <= 0) {
                     economy.gem -= amount;
-                    await economy.save();
+                    text += `\n\n📉 You lost ${amount} credits`;
+                } else {
+                    economy.gem += resultAmount;
+                    text += `\n\n📈 You won ${resultAmount} credits`;
                 }
-                text += points <= 0 ? `\n\n📉 You lost ${amount} credits` : `\n\n📈 You won ${resultAmount} credits`;
+                await economy.save();
             }
 
             M.reply(text);

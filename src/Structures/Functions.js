@@ -1144,7 +1144,7 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
      */
 
 const drawPokemonBattle = async (data) => {
-   
+
     const background = await Canvas.loadImage(
         await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'battle.png'))
     );
@@ -1158,9 +1158,14 @@ const drawPokemonBattle = async (data) => {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(background, 0, 0);
 
-    const pokemonSize = 128;
-    const pokemonStyles = await getPokemonStyles(pokemonSize);
-    const boxPadding = 12;
+    // Scale the UI to the actual background size. The old coordinates were tuned for a much
+    // smaller canvas; our battle background is now 1280x853, so we place things by percent.
+    const W = background.width;
+    const H = background.height;
+    const base = Math.min(W, H);
+    const boxPadding = Math.max(10, Math.round(base * 0.02));
+
+    const pokemonStyles = await getPokemonStyles({ W, H, base });
 
     for (let i = 0; i < 2; i++) {
         const style = pokemonStyles[`player${i + 1}`];
@@ -1170,7 +1175,12 @@ const drawPokemonBattle = async (data) => {
         const spriteUrl = style.pokemon.showBack
             ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${activePokemon.id}.png`
             : (activePokemon.image || `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${activePokemon.id}.png`);
-        const pokemonImage = await Canvas.loadImage(spriteUrl);
+        let pokemonImage = null;
+        try {
+            pokemonImage = await Canvas.loadImage(spriteUrl);
+        } catch (_) {
+            pokemonImage = null;
+        }
         const clipY = style.pokemon.clipY;
         const size = style.pokemon.size;
 
@@ -1183,7 +1193,7 @@ const drawPokemonBattle = async (data) => {
                     size / 2,
                     size / 2
                 );
-            } else {
+            } else if (pokemonImage) {
                 ctx.drawImage(
                     pokemonImage,
                     0,
@@ -1195,16 +1205,24 @@ const drawPokemonBattle = async (data) => {
                     size,
                     size - clipY
                 );
+            } else {
+                // Fallback if sprite failed to load.
+                ctx.fillStyle = 'rgba(0,0,0,0.28)';
+                ctx.fillRect(style.pokemon.x, style.pokemon.y, size, Math.max(10, size - clipY));
+                ctx.fillStyle = '#fff';
+                ctx.font = `bold ${Math.max(14, Math.round(size * 0.12))}px Sans-Serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText(capitalize(activePokemon.name), style.pokemon.x + size / 2, style.pokemon.y + (size - clipY) / 2);
             }
         }
 
-        const boxCanvas = Canvas.createCanvas(150, 60);
+        const boxCanvas = Canvas.createCanvas(style.box.w, style.box.h);
         const boxCtx = boxCanvas.getContext('2d');
         boxCtx.fillStyle = 'rgb(24,24,24)';
         boxCtx.strokeStyle = 'rgb(36,36,36)';
         roundRect(boxCtx, 0, 0, boxCanvas.width, boxCanvas.height, 16);
 
-        boxCtx.font = 'bold 12px Sans-Serif';
+        boxCtx.font = `bold ${style.box.font}px Sans-Serif`;
         boxCtx.fillStyle = '#ffffff';
 
         const namePos = { x: boxPadding, y: boxCanvas.height - boxPadding };
@@ -1219,8 +1237,8 @@ const drawPokemonBattle = async (data) => {
         boxCtx.textAlign = 'right';
         boxCtx.fillText(`HP: ${player.activePokemon.hp} / ${player.activePokemon.maxHp}`, hpPos.x, hpPos.y);
 
-        const pokeballGap = 2;
-        const pokeballSize = 7;
+        const pokeballGap = Math.max(2, Math.round(base * 0.004));
+        const pokeballSize = Math.max(7, Math.round(base * 0.014));
         const pokeballPos = { x: boxPadding, y: boxPadding };
         const length = player.party.length <= 6 ? player.party.length : 6;
 
@@ -1245,30 +1263,44 @@ const drawPokemonBattle = async (data) => {
      * @param {number} pokemonSize - The size of the Pokémon image.
      * @returns {Promise<Object>} - Promise resolving to an object containing styles for player Pokémon.
      */
-const getPokemonStyles = async (pokemonSize) => ({
-    player1: {
-        pokemon: {
-            x: 100 - pokemonSize / 2,
-            y: 138,
-            size: 128,
-            showBack: true,
-            clipY: 45
+const getPokemonStyles = async ({ W, H, base }) => {
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    const p1Size = clamp(Math.round(base * 0.24), 140, 240);
+    const p2Size = clamp(Math.round(base * 0.18), 110, 200);
+    const p1Clip = Math.round(p1Size * 0.35);
+
+    const boxW = clamp(Math.round(base * 0.36), 220, 360);
+    const boxH = clamp(Math.round(base * 0.14), 80, 130);
+    const font = clamp(Math.round(boxH * 0.22), 12, 22);
+
+    return {
+        player1: {
+            pokemon: {
+                // bottom-left, facing away (back sprite)
+                x: Math.round(W * 0.22 - p1Size / 2),
+                y: Math.round(H * 0.70),
+                size: p1Size,
+                showBack: true,
+                clipY: p1Clip
+            },
+            box: { x: Math.round(W * 0.05), y: Math.round(H * 0.12), w: boxW, h: boxH, font },
+            moves: { x: 0, y: 0 }
         },
-        box: { x: 25, y: 60 },
-        moves: { x: 0, y: 225 }
-    },
-    player2: {
-        pokemon: {
-            x: 300 - pokemonSize / 2,
-            y: 60,
-            size: 100,
-            showBack: false,
-            clipY: 0
-        },
-        box: { x: 230, y: 150 },
-        moves: { x: 0, y: 5 }
-    }
-});
+        player2: {
+            pokemon: {
+                // upper-right, facing player (front sprite)
+                x: Math.round(W * 0.76 - p2Size / 2),
+                y: Math.round(H * 0.38),
+                size: p2Size,
+                showBack: false,
+                clipY: 0
+            },
+            box: { x: Math.round(W * 0.60), y: Math.round(H * 0.06), w: boxW, h: boxH, font },
+            moves: { x: 0, y: 0 }
+        }
+    };
+};
 
  /**
      * @param {CanvasRenderingContext2D} ctx - The 2D rendering context of the canvas.

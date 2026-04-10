@@ -177,6 +177,7 @@ module.exports = {
       wildUser,
       wildPokemon: { ...dungeonParty[0] },
       expiresAt: Date.now() + 5 * 60 * 1000,
+      expiryToken: `${Date.now()}-${Math.random()}`,
       player1: {
         user: M.sender,
         ready: false,
@@ -213,7 +214,25 @@ module.exports = {
       mentions: [M.sender]
     })
 
+    // Inactivity timer (5 minutes), rescheduled on moves.
+    const scheduleExpiry = () => {
+      const battle = client.pokemonBattleResponse.get(M.from)
+      if (!battle || !battle.isDungeon || battle.player1?.user !== M.sender) return
+      const token = battle.expiryToken
+      const waitMs = Math.max(1000, (battle.expiresAt || 0) - Date.now())
+      setTimeout(async () => {
+        const b = client.pokemonBattleResponse.get(M.from)
+        if (!b || !b.isDungeon || b.expiryToken !== token) return
+        if (Date.now() <= (b.expiresAt || 0)) return scheduleExpiry()
+
+        client.pokemonBattleResponse.delete(M.from)
+        client.pokemonBattlePlayerMap.delete(M.sender)
+        await client.poke.delete(`${wildUser}_Party`).catch(() => null)
+        await client.sendMessage(M.from, { text: '🔥 Ashen Sanctum ended because you took too long to make a move.' })
+      }, waitMs)
+    }
+    scheduleExpiry()
+
     return null
   }
 }
-

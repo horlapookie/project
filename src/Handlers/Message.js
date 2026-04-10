@@ -143,12 +143,18 @@ module.exports = MessageHandler = async (messages, client) => {
 	        !isCmd &&
 	        isGroup
 	    ) {
-            const response = await axios.get(`https://hercai.onrender.com/beta/hercai?question=${encodeURIComponent(body)}`, {
-                headers: {
-                    'content-type': 'application/json'
-                }
-            });
-            M.reply(body.toLowerCase() === 'hi' ? `Hey ${M.pushName}, what's up?` : response.data.reply);
+            try {
+                const response = await axios.get(
+                    `https://hercai.onrender.com/beta/hercai?question=${encodeURIComponent(body)}`,
+                    { headers: { 'content-type': 'application/json' }, timeout: 10000 }
+                );
+                const reply = response?.data?.reply || ''
+                if (!reply) return M.reply('Chatbot is unavailable right now.')
+                M.reply(body.toLowerCase() === 'hi' ? `Hey ${M.pushName}, what's up?` : reply);
+            } catch (_) {
+                // Service is often suspended; don't crash the handler.
+                return M.reply('Chatbot is unavailable right now.')
+            }
         }
 
         // Link handling

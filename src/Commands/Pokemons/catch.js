@@ -48,6 +48,7 @@ module.exports = {
                 wildPokemon: { ...data },
                 wildRewardPending: true,
                 expiresAt,
+                expiryToken: `${Date.now()}-${Math.random()}`,
                 player1: {
                     user: M.sender,
                     ready: false,
@@ -75,6 +76,27 @@ module.exports = {
                 caption: `🌀 *A wild battle started!* 🌀\n\n*@${M.sender.split('@')[0]}* sent out *${client.utils.capitalize(availableParty[0].name)}*.\n\nA wild *${client.utils.capitalize(data.name)}* appeared at Level *${data.level}*.\n\nUse one of the options below:\n\n- *${client.prefix}battle fight* to attack\n- *${client.prefix}battle switch* to switch Pokemon\n- *${client.prefix}battle pokeballs* to check your pokeballs\n- *${client.prefix}battle run* to run away`,
                 mentions: [M.sender]
             });
+
+            // Inactivity timer (5 minutes). This re-schedules itself whenever `expiresAt` is extended.
+            const scheduleExpiry = () => {
+                const battle = client.pokemonBattleResponse.get(M.from);
+                if (!battle || battle.mode !== 'wild' || battle.player1.user !== M.sender) return;
+                const token = battle.expiryToken;
+                const waitMs = Math.max(1000, (battle.expiresAt || 0) - Date.now());
+                setTimeout(async () => {
+                    const b = client.pokemonBattleResponse.get(M.from);
+                    if (!b || b.mode !== 'wild' || b.expiryToken !== token) return;
+                    if (Date.now() <= (b.expiresAt || 0)) return scheduleExpiry();
+
+                    client.pokemonBattleResponse.delete(M.from);
+                    client.pokemonBattlePlayerMap.delete(M.sender);
+                    await client.poke.delete(`${wildUser}_Party`).catch(() => null);
+                    await client.sendMessage(M.from, {
+                        text: `The wild *${client.utils.capitalize(data.name)}* fled because nobody made a move in time.`
+                    });
+                }, waitMs);
+            };
+            scheduleExpiry();
 
         } catch (err) {
             console.error(err);
