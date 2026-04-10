@@ -7,15 +7,10 @@ const resolveTarget = async (client, arg, M) => {
         arg
 
     const jid = String(raw || '').trim()
-    const digits = normalizeNumber(jid.split('@')[0])
-    if (!digits) return ''
-
-    if (jid.endsWith('@lid')) {
-        const mapped = normalizeNumber((await client.DB.get(`lid-map-${digits}`)) || '')
-        return mapped || digits
+    if (client.resolveNumber) {
+        return await client.resolveNumber(jid)
     }
-
-    return digits
+    return normalizeNumber(jid.split('@')[0])
 }
 
 module.exports = {

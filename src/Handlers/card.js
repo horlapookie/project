@@ -71,9 +71,9 @@ module.exports = CardHandler = async (client, M) => {
 	      price: price
       })
             if (obj.tier.includes('6') || obj.tier.includes('S')) {
-              const giif = await client.utils.getBuffer(obj.url);
+              const mediaBuffer = await client.utils.getBuffer(obj.url);
         let shizoshona = `*┌─🄱🄾🅃────────❀̥˚─┈ ⳹*
-*└──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
+    *└──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
 *│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
 *│𓊈 ᴀ ʀᴀʀᴇ ᴄᴀʀᴅ ʜᴀꜱ ꜱᴘᴀᴡɴᴇᴅ 𓊉*
 *│🏮 ɴᴀᴍᴇ: 𓆩 ${obj.title} 𓆪*
@@ -84,14 +84,27 @@ module.exports = CardHandler = async (client, M) => {
 *│░▒ ᴠᴇʀꜱɪᴏɴ 𝟐𝟎𝟐𝟒-𝟐𝟓 ▒░*
 *│ᴄᴀʀᴅ.ᴊꜱᴏɴ ғɪʟᴇ ꜱᴜᴘᴘᴏʀᴛᴇᴅ 🎯*
 *│░░░░░░░░░░░░░░░░░░░░*
-*│🔮 ᴜꜱᴇ ᴄᴏʟʟᴇᴄᴛ ᴛᴏ ᴄʟᴀɪᴍ 📢*
-*│🎋 ʏᴏᴜʀ ᴄᴀʀᴅ ᴡɪʟʟ ʙᴇ ꜱᴛᴏʀᴇᴅ*
-*│ɪɴ ʏᴏᴜ ᴅᴇᴄᴋ... 💾📀*
-*│- ᴏᴡɴᴇʀ: ʀᴇᴅᴢᴇᴏꭗ 彡*
-*│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
-*┌──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
-*└❀̥˚───────────🄱🄾🅃─┈ ⳹*`
-		return shizobtn1gif(client, jid, shizoshona, giif, ' Collect 🔖', `${client.prefix}collect`, '𒉢 ꜱᴀʏ.ꜱᴄ֟፝ᴏᴛᴄʜ ⚡𐇻')
+    *│🔮 ᴜꜱᴇ ᴄᴏʟʟᴇᴄᴛ ᴛᴏ ᴄʟᴀɪᴍ 📢*
+    *│🎋 ʏᴏᴜʀ ᴄᴀʀᴅ ᴡɪʟʟ ʙᴇ ꜱᴛᴏʀᴇᴅ*
+    *│ɪɴ ʏᴏᴜ ᴅᴇᴄᴋ... 💾📀*
+    *│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
+    *┌──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
+    *└❀̥˚───────────🄱🄾🅃─┈ ⳹*`
+              if (String(obj.url || '').toLowerCase().endsWith('.gif')) {
+                const mp4 = await client.utils.gifToMp4(mediaBuffer);
+                if (client.utils.isLikelyMp4(mp4)) {
+                  return shizobtn1gif(client, jid, shizoshona, mp4, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+                }
+                const png = await client.utils.gifToPng(mediaBuffer);
+                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+              }
+
+              if (String(obj.url || '').toLowerCase().endsWith('.webp')) {
+                const png = await client.utils.webpToPng(mediaBuffer);
+                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+              }
+
+              return shizobtn1img(client, jid, shizoshona, mediaBuffer, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
             } else {
  let shizocutie = `*┌─🄱🄾🅃────────❀̥˚─┈ ⳹*
 *└──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
@@ -105,14 +118,13 @@ module.exports = CardHandler = async (client, M) => {
 *│░▒ ᴠᴇʀꜱɪᴏɴ 𝟐𝟎𝟐𝟒-𝟐𝟓 ▒░*
 *│ᴄᴀʀᴅ.ᴊꜱᴏɴ ғɪʟᴇ ꜱᴜᴘᴘᴏʀᴛᴇᴅ 🎯*
 *│░░░░░░░░░░░░░░░░░░░░*
-*│🔮 ᴜꜱᴇ ᴄᴏʟʟᴇᴄᴛ ᴛᴏ ᴄʟᴀɪᴍ 📢*
-*│🎋 ʏᴏᴜʀ ᴄᴀʀᴅ ᴡɪʟʟ ʙᴇ ꜱᴛᴏʀᴇᴅ*
-*│ɪɴ ʏᴏᴜ ᴅᴇᴄᴋ... 💾📀*
-*│- ᴏᴡɴᴇʀ: ʀᴇᴅᴢᴇᴏꭗ 彡*
-*│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
-*┌──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
-*└❀̥˚───────────🄱🄾🅃─┈ ⳹*`
-              return shizobtn1img(client, jid, shizocutie, obj.url, ' Collect 🔖', `${client.prefix}collect`, '𒉢 ꜱᴀʏ.ꜱᴄ֟፝ᴏᴛᴄʜ ⚡𐇻')
+   *│🔮 ᴜꜱᴇ ᴄᴏʟʟᴇᴄᴛ ᴛᴏ ᴄʟᴀɪᴍ 📢*
+   *│🎋 ʏᴏᴜʀ ᴄᴀʀᴅ ᴡɪʟʟ ʙᴇ ꜱᴛᴏʀᴇᴅ*
+   *│ɪɴ ʏᴏᴜ ᴅᴇᴄᴋ... 💾📀*
+   *│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
+   *┌──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
+   *└❀̥˚───────────🄱🄾🅃─┈ ⳹*`
+	              return shizobtn1img(client, jid, shizocutie, obj.url, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
             }
 
           } catch (err) {

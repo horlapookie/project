@@ -10,7 +10,7 @@ module.exports = {
     async execute(client, arg, M) {
         const groupMetadata = await client.groupMetadata(M.from)
         const groupMembers = groupMetadata?.participants.map((x) => x.id) || []
-        const groupAdmins = groupMetadata.participants.filter((x) => x.isAdmin).map((x) => x.id)
+        const groupAdmins = groupMetadata.participants.filter((x) => x.admin).map((x) => x.id)
 
         let text = `${arg !== '' ? `🧧 *Message: ${arg}*\n\n` : ''}🍀 *Group:* ${
             groupMetadata.subject

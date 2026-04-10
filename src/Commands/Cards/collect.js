@@ -16,15 +16,10 @@ module.exports = {
 
       const deck = await client.DB.get(`${M.sender}_Deck`) || [];
       const collection = await client.DB.get(`${M.sender}_Collection`) || [];
-      const userId = M.sender;
-      const economy = await client.econ.findOne({ userId });
+      const economy = await client.getEcon(M);
 
       let wallet = economy ? economy.gem : 0;
       
-      if (wallet === 0) {
-        return M.reply("You have an empty wallet");
-      }
-
       if (wallet < card.price) {
         return M.reply(`You don't have enough in your wallet. Current balance: ${wallet}`);
       }
@@ -47,7 +42,7 @@ module.exports = {
       await client.DB.set(`${M.sender}_Collection`, collection);
 
       await M.reply(
-        `🎉 You have successfully claimed the card for *${card.price} Credits* ${text}`
+        `🎉 You have successfully claimed the card for *${card.price} gems*. ${text}`
       );
 
       await client.cardMap.delete(M.from);

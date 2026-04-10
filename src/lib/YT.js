@@ -1,5 +1,14 @@
-const ytdl = require('ytdl-core')
-const { validateURL, getInfo } = require('ytdl-core')
+// ytdl-core frequently breaks when YouTube updates.
+// We try ytdl-core first, then fall back to youtubedl-core (a compatible fork).
+let ytdlLib
+try {
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    ytdlLib = require('ytdl-core')
+} catch (_) {
+    ytdlLib = require('youtubedl-core')
+}
+const ytdl = ytdlLib
+const { validateURL, getInfo } = ytdlLib
 const { createWriteStream, readFile } = require('fs-extra')
 const { tmpdir } = require('os')
 const axios = require('axios')

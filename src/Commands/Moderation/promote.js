@@ -12,7 +12,7 @@ module.exports = {
         if (!M.mentions.length) return M.reply('You must tag the user before using!')
         const groupMetadata = await client.groupMetadata(M.from)
         const groupMembers = groupMetadata?.participants || []
-        const groupAdmins = groupMembers.filter((v) => v.isAdmin).map((v) => v.id)
+        const groupAdmins = groupMembers.filter((v) => v.admin).map((v) => v.id)
 
         const usersToPromote = M.mentions.filter((user) => !groupAdmins.includes(user))
         if (usersToPromote.length === 0) {

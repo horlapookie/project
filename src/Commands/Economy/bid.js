@@ -9,8 +9,7 @@ module.exports = {
   description: 'Bid an amount on an ongoing auction',
   async execute(client, arg, M) {
     try {
-      const userId = M.sender;
-      const eco =  await client.econ.findOne({ userId });
+      const eco = await client.getEcon(M);
       if (!eco) {
         return M.reply('You do not have an economy account yet. Use :bonus to get started.');
       }
@@ -32,11 +31,11 @@ module.exports = {
         if (amount <= currentBid) {
           return M.reply("Your bid must be higher than the current highest bid.");
         } else if (amount > credits) {
-          return M.reply('You do not have enough credits for this bid.');
+          return M.reply('You do not have enough gems for this bid.');
         } else {
           await client.DB.set(`${M.from}.currentBid`, amount);
           await client.DB.set(`${M.from}.auctionWinner`, M.sender);
-          const responseText = `You have successfully placed a bid of ${amount} credits.`;
+          const responseText = `You have successfully placed a bid of ${amount} gems.`;
           return M.reply(responseText);
         }
       }

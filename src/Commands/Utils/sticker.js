@@ -1,4 +1,4 @@
-// const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+const sharp = require('sharp');
 
 module.exports = {
     name: 'sticker',
@@ -17,40 +17,22 @@ module.exports = {
                 (M.type === 'extendedTextMessage' && content.includes('videoMessage'));
 
             if (isMedia || isQuotedMedia) {
-                // Split pack and author from the argument
-                const [packAuthor, ...flagParts] = arg.split(' ');
-                const [packName, authorName] = packAuthor.split('|').map(part => part.trim());
-                const flags = flagParts.join(' ');
-
-                // Determine sticker type from flags
-                let stickerType = StickerTypes.FULL;
-                if (flags.includes('--c') || flags.includes('--crop') || flags.includes('--cropped')) {
-                    stickerType = StickerTypes.CROPPED;
-                } else if (flags.includes('--s') || flags.includes('--stretch') || flags.includes('--stretched')) {
-                    stickerType = StickerTypes.DEFAULT;
-                } else if (flags.includes('--circle') || flags.includes('--r') || flags.includes('--round') || flags.includes('--rounded')) {
-                    stickerType = StickerTypes.CIRCLE;
+                const buffer = isQuotedMedia ? await M.quoted.download() : await M.download();
+                // Simple image-to-sticker without ffmpeg.
+                // (Animated video/gif stickers require ffmpeg, which may not exist on your server.)
+                if (content.includes('videoMessage') || M.type === 'videoMessage') {
+                    return M.reply('Video/GIF stickers require ffmpeg on the server. Send an image to make a sticker.')
                 }
 
-                // Download the media
-                const buffer = isQuotedMedia ? await M.quoted.download() : await M.download();
+                const webp = await sharp(buffer)
+                    .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .webp()
+                    .toBuffer();
 
-                M.reply('✨⚡🔥❤️🥳');
-
-                // Create a new sticker instance
-                const sticker = new Sticker(buffer, {
-                    pack: packName || '𓆩『 ʜᴀɴᴅᴄʀᴀғᴛᴇᴅ ғᴏʀ ʏᴏᴜ 』𓆪',
-                    author: authorName || '𓆩『 🅱🆄🅽🅽🆈 🅱🅾🆃 』𓆪',
-                    type: stickerType,
-                    categories: ['🤩', '🎉'],
-                    quality: 70
-                });
-
-                // Build and send the sticker
                 await client.sendMessage(
                     M.from,
                     {
-                        sticker: await sticker.build()
+                        sticker: webp
                     },
                     {
                         quoted: M
@@ -61,7 +43,7 @@ module.exports = {
             }
         } catch (error) {
             console.error('Error while executing sticker command:', error);
-            await M.reply('An error occurred while processing the command.');
+            await M.reply('Sticker failed. If you tried a GIF/video, ffmpeg may be required on the server.');
         }
     }
 };

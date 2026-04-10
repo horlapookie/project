@@ -13,7 +13,7 @@ module.exports = {
 
         const groupMetadata = await client.groupMetadata(M.from)
         const groupMembers = groupMetadata?.participants || []
-        const groupAdmins = groupMembers.filter((v) => v.isAdmin).map((v) => v.id)
+        const groupAdmins = groupMembers.filter((v) => v.admin).map((v) => v.id)
 
         const usersToRemove = M.mentions.filter((user) => !groupAdmins.includes(user))
         if (usersToRemove.length === 0) {

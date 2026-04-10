@@ -2,7 +2,6 @@
 const items = {
     luckpotion: 15000,
     pepperspray: 10000,
-    pokeball: 12000,
 };
 
 module.exports = {
@@ -22,9 +21,7 @@ module.exports = {
         if (!items[itemName]) return M.reply('Please provide a valid item name.');
 
         const totalPrice = items[itemName] * quantity;
-        const userId = M.sender;
-
-        const user = await client.econ.findOne({ userId });
+        const user = await client.getEcon(M);
 
         if (!user) return M.reply('You need to set up your economy first.');
 

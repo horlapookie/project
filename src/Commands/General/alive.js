@@ -41,7 +41,16 @@ module.exports = {
     description: 'Displays the command list or specific command info',
     async execute(client, arg, M) {
         try {
-            const user = await client.DB.get(`data`);
+            // This command was originally an interactive "alive/list" UI, but it can fail in some hosts.
+            // Delegate to the normal help command for reliability.
+            if (!arg) {
+                const help = client.cmd.get('help')
+                if (help?.execute) {
+                    return help.execute(client, '', M)
+                }
+            }
+
+            const user = (await client.DB.get(`data`)) || [];
             const m = M.sender;
             // If user is not in data, push the user
             if (!user.includes(m)) {
@@ -164,4 +173,3 @@ module.exports = {
         }
     }
 };
-

@@ -7,6 +7,8 @@ const { load } = require('cheerio')
 const { exec } = require('child_process')
 const Canvas = require('canvas')
 const { createCanvas ,loadImage } = require('canvas')
+const gifFrames = require('gif-frames')
+const sharp = require('sharp')
 const { sizeFormatter } = require('human-readable')
 const { readFile, unlink, writeFile } = require('fs-extra')
 const { removeBackgroundFromImageBase64 } = require('remove.bg')
@@ -354,10 +356,17 @@ const fetch = async (url) => (await axios.get(url)).data
 const webpToPng = async (webp) => {
     const filename = `${tmpdir()}/${Math.random().toString(36)}`
     await writeFile(`${filename}.webp`, webp)
-    await execute(`dwebp "${filename}.webp" -o "${filename}.png"`)
-    const buffer = await readFile(`${filename}.png`)
-    Promise.all([unlink(`${filename}.png`), unlink(`${filename}.webp`)])
-    return buffer
+    try {
+        await execute(`dwebp "${filename}.webp" -o "${filename}.png"`)
+        const buffer = await readFile(`${filename}.png`)
+        Promise.all([unlink(`${filename}.png`), unlink(`${filename}.webp`)])
+        return buffer
+    } catch (error) {
+        // dwebp isn't always installed. Use sharp as a fallback.
+        const buffer = await sharp(webp).png().toBuffer()
+        Promise.all([unlink(`${filename}.webp`).catch(() => null), unlink(`${filename}.png`).catch(() => null)])
+        return buffer
+    }
 }
 
 /**
@@ -504,11 +513,51 @@ const convertMs = (ms, to = 'seconds') => {
 const gifToPng = async (gif) => {
     const filename = `${tmpdir()}/${Math.random().toString(36)}`;
     await writeFile(`${filename}.gif`, gif);
-    await execute(`ffmpeg -i "${filename}.gif" -vframes 1 "${filename}.png"`);
-    const buffer = await readFile(`${filename}.png`);
-    await Promise.all([unlink(`${filename}.gif`), unlink(`${filename}.png`)]);
-    return buffer;
+    try {
+        await execute(`ffmpeg -i "${filename}.gif" -vframes 1 "${filename}.png"`);
+        const buffer = await readFile(`${filename}.png`);
+        await Promise.all([unlink(`${filename}.gif`), unlink(`${filename}.png`)]);
+        return buffer;
+    } catch (error) {
+        // No ffmpeg available in some deploy targets. Fall back to a JS decoder.
+        try {
+            const frames = await gifFrames({
+                url: `${filename}.gif`,
+                frames: 0,
+                outputType: 'png',
+                cumulative: false
+            })
+            const stream = frames?.[0]?.getImage?.()
+            if (!stream) throw new Error('gif-frames returned no image stream')
+
+            const chunks = []
+            await new Promise((resolve, reject) => {
+                stream.on('data', (chunk) => chunks.push(chunk))
+                stream.on('end', resolve)
+                stream.on('error', reject)
+            })
+
+            const buffer = Buffer.concat(chunks)
+            await Promise.all([unlink(`${filename}.gif`).catch(() => null), unlink(`${filename}.png`).catch(() => null)])
+            return buffer
+        } catch (_) {
+            await Promise.all([unlink(`${filename}.gif`).catch(() => null), unlink(`${filename}.png`).catch(() => null)])
+            // Last resort: 1x1 PNG so callers don't crash on undefined buffers.
+            const canvas = createCanvas(1, 1)
+            return canvas.toBuffer('image/png')
+        }
+    }
 };
+
+const isLikelyMp4 = (buffer) =>
+    Buffer.isBuffer(buffer) &&
+    buffer.length > 12 &&
+    buffer.slice(4, 8).toString('ascii') === 'ftyp'
+
+const isLikelyGif = (buffer) =>
+    Buffer.isBuffer(buffer) &&
+    buffer.length > 6 &&
+    buffer.slice(0, 3).toString('ascii') === 'GIF'
 
   /**
      * @param {string | number} pokemon - The name or ID of the Pokémon.
@@ -1280,6 +1329,8 @@ module.exports = {
     convertMs,
     extractUrls,
     gifToPng,
+    isLikelyMp4,
+    isLikelyGif,
     getPokemonStats,
     getPokemonEvolutionChain,
     getStarterPokemonMoves,

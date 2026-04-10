@@ -1,4 +1,5 @@
-// const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+// Use a no-ffmpeg path by default: if user quotes a sticker, we can re-send it without conversion.
+// (Animated sticker re-encoding requires ffmpeg in most environments.)
 
 module.exports = {
     name: 'steal',
@@ -15,26 +16,13 @@ module.exports = {
             const isQuotedSticker = M.type === 'extendedTextMessage' && content.includes('stickerMessage');
 
             if (isQuotedSticker) {
-                // Split pack and author from the argument
-                const [packName, authorName] = arg.split('|').map(part => part.trim());
-                
                 // Download the quoted sticker
                 const buffer = await M.quoted.download();
-
-                // Create a new sticker instance
-                const sticker = new Sticker(buffer, {
-                    pack: packName || '𓆩『 ʜᴀɴᴅᴄʀᴀғᴛᴇᴅ ғᴏʀ ʏᴏᴜ 』𓆪',
-                    author: authorName || '𓆩『 🅱🆄🅽🅽🆈 🅱🅾🆃 』𓆪',
-                    type: StickerTypes.FULL,
-                    categories: ['🤩', '🎉'],
-                    quality: 70
-                });
-
-                // Build and send the sticker
+                // Re-send the sticker as-is.
                 await client.sendMessage(
                     M.from,
                     {
-                        sticker: await sticker.build()
+                        sticker: buffer
                     },
                     {
                         quoted: M
@@ -45,7 +33,7 @@ module.exports = {
             }
         } catch (error) {
             console.error('Error while executing steal command:', error);
-            await M.reply('An error occurred while processing the command.');
+            await M.reply('Steal failed. If this is an animated sticker, ffmpeg may be required on the server.');
         }
     }
 };

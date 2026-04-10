@@ -8,7 +8,7 @@ module.exports = {
   usage: 'Use :mods',
   description: 'Get information about moderators',
   async execute(client, arg, M) {
-    const mods = client.mods || [];
+    const mods = (client.mods || []).filter((n) => String(n) !== String(client.owner));
     const lines = [];
 
     for (let i = 0; i < mods.length; i++) {
@@ -29,7 +29,7 @@ module.exports = {
     }
 
     const caption = [
-      '*Moderator List*',
+      `*${client.name || 'VEN domain'} moderators*`,
       '',
       `Total Mods: ${mods.length}`,
       '',

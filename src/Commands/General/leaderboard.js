@@ -30,7 +30,8 @@ module.exports = {
                 order: 'desc'
             });
 
-            const myPosition = lb.findIndex((x) => x.user === M.sender);
+            const myKey = client.getUserNumber(M) || M.sender;
+            const myPosition = lb.findIndex((x) => x.user === myKey);
             const topUsers = lb.slice(0, 10);
 
             let text = `☆☆💥 GLOBAL LEADERBOARD 💥☆☆\n\nYour Position: ${myPosition + 1}\n`;
@@ -38,7 +39,10 @@ module.exports = {
             for (let i = 0; i < topUsers.length; i++) {
                 const level = getLevelFromXp(topUsers[i].xp);
                 const { requiredXpToLevelUp, rank } = getStats(level);
-                const username = (await client.contact.getContact(topUsers[i].user, client)).username ?? 'Unknown';
+                const jid = String(topUsers[i].user).includes('@')
+                    ? topUsers[i].user
+                    : `${topUsers[i].user}@s.whatsapp.net`
+                const username = (await client.contact.getContact(jid, client)).username ?? 'Unknown';
                 
                 text += `\n\n*(${i + 1})*\n`;
                 text += `⛩ Username: ${username}\n`;

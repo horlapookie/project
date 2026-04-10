@@ -1,6 +1,4 @@
 // Bonus Command
-const ms = require('parse-ms');
-
 module.exports = {
     name: 'bonus',
     aliases: ['bonus'],
@@ -11,14 +9,16 @@ module.exports = {
     usage: 'Use :bonus',
     description: 'Claims your bonus',
     async execute(client, arg, M) {
-        const userId = M.sender;
-        const economy = await client.econ.findOne({ userId });
+        const userId = client.getUserNumber(M) || M.sender;
+        const economy = await client.getEcon(M);
         const bonusTimeout = 31536000000; 
         const bonusAmount = 100000;
         let text = '';
 
-        if (economy && economy.lastBonus !== null && bonusTimeout - (Date.now() - economy.lastBonus) > 0) {
-            const bonusTime = ms(bonusTimeout - (Date.now() - economy.lastBonus));
+        const lastBonusAt = economy?.lastBonus ? new Date(economy.lastBonus).getTime() : 0;
+        const remaining = lastBonusAt ? bonusTimeout - (Date.now() - lastBonusAt) : 0;
+
+        if (economy && economy.lastBonus !== null && remaining > 0) {
             text += `*┏─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*\n*╏ʏᴏᴜ ʜᴀᴠᴇ ᴀʟʀᴇᴀᴅʏ ᴄʟᴀɪᴍᴇᴅ ʏᴏᴜʀ ʙᴏɴᴜꜱ*\n*╏ʀᴇᴡᴀʀᴅ ʏᴏᴜ ᴄᴀɴɴᴏᴛ ᴄʟᴀɪᴍ ɪᴛ ᴀɢᴀɪɴ.!*\n*┗─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*`;
         } else {
             text += `*┏─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*\n*╏ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ғᴀᴍɪʟʏ*\n*╏ᴄʟᴀɪᴍᴇᴅ ʏᴏᴜʀ ʙᴏɴᴜꜱ ʀᴇᴡᴀʀᴅ*\n*╏『 ${bonusAmount} 』🎐*\n*┗─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*`;

@@ -61,7 +61,7 @@ const clearQueuedMoves = (battle) => {
 
 const buildBattleOptionsText = (client, battle, currentUser) => {
     if (battle.mode === 'wild') {
-        return `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\n- To fight use *${client.prefix}battle fight*\n\n- To browse the items in your bag use *${client.prefix}battle items*\n\n- To switch pokemon use *${client.prefix}battle switch*\n\n- To check the pokeballs in your bag use *${client.prefix}battle pokeballs*\n\n- To run away from this battle use *${client.prefix}battle run*`;
+        return `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\n- To fight use *${client.prefix}battle fight*\n\n- To switch pokemon use *${client.prefix}battle switch*\n\n- To check the pokeballs in your bag use *${client.prefix}battle pokeballs*\n\n- To run away from this battle use *${client.prefix}battle run*`;
     }
 
     return `Use one of the options given below ${formatBattleTrainer(currentUser.user)}\n\nTo fight, use *${client.prefix}battle fight*\n\nTo switch Pokemon, use *${client.prefix}battle switch*\n\nTo forfeit this battle, use *${client.prefix}battle forfeit*`;
@@ -84,13 +84,14 @@ const sendBattleState = async (client, M, battle, extra = {}) => {
 };
 
 const tryCatchWildPokemon = async (client, M, battle, ball) => {
-    const inventory = await getInventory(client, M.sender);
+    const userKey = client.getUserNumber(M) || M.sender
+    const inventory = await getInventory(client, userKey);
     const ownedBall = inventory.find((item) => item.key === ball.key);
     if (!ownedBall || ownedBall.quantity < 1) {
         return M.reply(`You do not have any ${ball.name}s left.`)
     }
 
-    await setInventoryQuantity(client, M.sender, ball.key, ownedBall.quantity - 1);
+    await setInventoryQuantity(client, userKey, ball.key, ownedBall.quantity - 1);
 
     const wildPokemon = battle.player2.activePokemon;
     const hpPercent = wildPokemon.maxHp > 0 ? (wildPokemon.hp / wildPokemon.maxHp) * 100 : 100;
@@ -246,7 +247,7 @@ module.exports = {
             if (data.mode !== 'wild') {
                 return M.reply('Items can only be browsed in wild battles right now.')
             }
-            return M.reply(`Use *${client.prefix}battle pokeballs* to check the pokeballs in your bag.`)
+            return M.reply('Items are not available right now. Use *battle pokeballs* to throw pokeballs.')
         }
 
         if (action === 'pokeballs') {
@@ -254,7 +255,8 @@ module.exports = {
                 return M.reply('Pokeballs can only be used in wild battles.')
             }
 
-            const inventory = (await getInventory(client, M.sender)).filter((item) => item.quantity > 0);
+            const userKey = client.getUserNumber(M) || M.sender
+            const inventory = (await getInventory(client, userKey)).filter((item) => item.quantity > 0);
             if (!inventory.length) {
                 return M.reply(`You do not have any pokeballs. Use *${client.prefix}mart* and *${client.prefix}mart-buy* to buy some.`)
             }
@@ -313,8 +315,9 @@ module.exports = {
             const user = data.player1.user === M.sender ? data.player1.user : data.player2.user;
             const winner = data.player1.user === M.sender ? data.player2.user : data.player1.user;
 
-            const economy = await client.econ.findOne({ userId: M.sender });
-            const economy1 = await client.econ.findOne({ userId: data.player1.user === M.sender ? data.player2.user : data.player1.user });
+            const economy = await client.getEcon(M);
+            const opponentId = data.player1.user === M.sender ? data.player2.user : data.player1.user
+            const economy1 = await client.getEcon(opponentId);
 
             const econA = economy || await client.econ.create({ userId: M.sender });
             const econB = economy1 || await client.econ.create({ userId: data.player1.user === M.sender ? data.player2.user : data.player1.user });
@@ -332,7 +335,7 @@ module.exports = {
             client.pokemonBattleResponse.delete(M.from);
 
             return client.sendMessage(M.from, {
-                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and got *${gold}* gold from *@${user.split('@')[0]}* as they forfeited the battle.`,
+                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and got *${gold}* gems from *@${user.split('@')[0]}* as they forfeited the battle.`,
                 mentions: [user, winner]
             });
         }
@@ -360,27 +363,50 @@ module.exports = {
                 return M.reply(`*${client.utils.capitalize(battle[battle.turn].activePokemon.name)}* is already out here.`);
             }
 
-            const text = `*@${M.sender.split('@')[0]}* ${battle[battle.turn].activePokemon.hp > 0 ? `withdrew *${client.utils.capitalize(battle[battle.turn].activePokemon.name)}* from the battle and` : ''} sent out *${client.utils.capitalize(party[number].name)}* for the battle.`;
+            const switcherKey = battle.turn;
+            const otherKey = switcherKey === 'player1' ? 'player2' : 'player1';
+            const wasFainted = battle[switcherKey].activePokemon.hp <= 0;
 
-            if (battle[battle.turn].activePokemon.hp > 0) {
-                battle.turn = battle.turn === 'player1' ? 'player2' : 'player1';
-                battle[battle.turn].move = 'skipped';
+            const text = `*@${M.sender.split('@')[0]}* ${
+                !wasFainted
+                    ? `withdrew *${client.utils.capitalize(battle[switcherKey].activePokemon.name)}* from the battle and`
+                    : ''
+            } sent out *${client.utils.capitalize(party[number].name)}* for the battle.`;
+
+            // Apply the switch to the correct player (this was the main bug).
+            battle[switcherKey].activePokemon = party[number];
+            await updateActivePokemonInParty(client, battle[switcherKey].user, battle[switcherKey].activePokemon);
+
+            if (wasFainted) {
+                // Forced switch: the switching player moves first next (your requested behavior).
+                battle.turn = switcherKey;
             } else {
-                battle.turn = 'player1';
+                // Voluntary switch consumes turn.
+                battle[switcherKey].move = 'skipped';
+                battle.turn = otherKey;
             }
 
-            battle[battle.turn].activePokemon = party[number];
             setBattleData(client, M.from, battle);
 
             await client.sendMessage(M.from, {
                 mentions: [M.sender],
                 text
             });
+            await sendBattleState(client, M, battle);
 
-            if (battle.mode === 'wild' && battle.turn === 'player2') {
-                if (battle.player2.move !== 'skipped') {
+            if (battle.mode === 'wild') {
+                if (!wasFainted) {
+                    // After a voluntary switch, wild attacks immediately.
                     battle.player2.move = pickWildMove(battle);
+                    battle.turn = 'player1';
+                    setBattleData(client, M.from, battle);
+                    return handleBattles(client, M);
                 }
+                return continueSelection(client, M);
+            }
+
+            // PvP: if opponent already selected a move, resolve now so it hits the switched Pokemon.
+            if (!wasFainted && battle[otherKey].move && battle[otherKey].move !== '') {
                 battle.turn = 'player1';
                 setBattleData(client, M.from, battle);
                 return handleBattles(client, M);
@@ -592,6 +618,7 @@ const handleBattles = async (client, M) => {
                     mentions: isWildUser(opponent.user) ? [] : [opponent.user]
                 });
                 await delay(5000);
+                await sendBattleState(client, M, battle);
                 battle.turn = current.user === battle.player1.user ? 'player2' : 'player1';
                 await savePartyForUser(client, opponent.user, party2);
                 setBattleData(client, M.from, battle);
@@ -607,6 +634,10 @@ const handleBattles = async (client, M) => {
                     );
                 }
             }
+
+            // Always show the battlefield after a move so both players see the updated HP.
+            await sendBattleState(client, M, battle);
+            await delay(2500);
         }
 
         clearQueuedMoves(battle);
@@ -761,7 +792,7 @@ const endBattle = async (client, M, winner, loser) => {
             }
 
             const updateEconomy = async (userId, change) => {
-                const economy = await client.econ.findOne({ userId });
+                const economy = await client.getEcon(userId);
                 let wallet = economy ? (economy.gem || 0) : 0;
                 wallet += change;
 
@@ -769,7 +800,7 @@ const endBattle = async (client, M, winner, loser) => {
                     economy.gem = wallet;
                     await economy.save();
                 } else if (change !== 0) {
-                    await client.econ.create({ userId, gem: wallet });
+                    await client.econ.create({ userId: client.getUserNumber(userId) || userId, gem: wallet });
                 }
 
                 return wallet;
@@ -787,7 +818,7 @@ const endBattle = async (client, M, winner, loser) => {
             client.pokemonBattlePlayerMap.delete(winner);
 
             await client.sendMessage(M.from, {
-                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and received *${gold}* gold from *@${loser.split('@')[0]}* as they ran out of Pokemon for battle.`,
+                text: `🎉 Congrats! *@${winner.split('@')[0]}*, you won this battle and received *${gold}* gems from *@${loser.split('@')[0]}* as they ran out of Pokemon for battle.`,
                 mentions: [winner, loser]
             });
         }, 5000);

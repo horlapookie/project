@@ -10,6 +10,11 @@ module.exports = {
     usage: 'Use :mart',
     description: 'View pokeballs available in the Pokemon Mart',
     async execute(client, arg, M) {
+        const battle = client.pokemonBattleResponse.get(M.from)
+        if (battle && (battle.players?.includes(M.sender) || battle.player1?.user === M.sender)) {
+            return M.reply('You cannot use the mart while you are battling. Finish the battle first.')
+        }
+
         const lines = [
             '🛒 *Pokemon Mart* 🛒',
             '',

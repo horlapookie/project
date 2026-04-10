@@ -46,33 +46,43 @@ module.exports = {
         }
 
         const imageUrl = cardData.url;
-        const text = `💎 *Card on Auction* 💎\n\n🌊 *Name:* ${cardData.title}\n\n🌟 *Tier:* ${cardData.tier}\n\n📝 *Price:* ${startingPrice}\n\n🎉 *Highest bidder gets the card* 🎉\n\n🔰 Use :bid <amount> to bid`;
+        const text = `💎 *Card on Auction* 💎\n\n🌊 *Name:* ${cardData.title}\n\n🌟 *Tier:* ${cardData.tier}\n\n📝 *Starting Price:* ${startingPrice} gems\n\n🎉 *Highest bidder gets the card* 🎉\n\n🔰 Use :bid <amount> to bid`;
 
         const file = await client.utils.getBuffer(imageUrl);
         const isGif = imageUrl.endsWith('.gif');
 
         if (isGif) {
           const giffed = await client.utils.gifToMp4(file);
-          await client.sendMessage(M.from, { video: giffed, gifPlayback: true, caption: text, quoted: M });
+          if (client.utils.isLikelyMp4(giffed)) {
+            await client.sendMessage(M.from, { video: giffed, gifPlayback: true, caption: text, quoted: M });
+          } else {
+            await client.sendMessage(M.from, { document: file, mimetype: 'image/gif', fileName: `${cardData.title}.gif`, caption: text, quoted: M });
+          }
         } else {
           await client.sendMessage(M.from, { image: file, caption: text, quoted: M });
         }
 
-        await client.credit.set(`${M.from}.bid`, startingPrice);
         await client.DB.set(`${M.from}.auctionInProgress`, true);
+        await client.DB.set(`${M.from}.currentBid`, startingPrice);
+        await client.DB.delete(`${M.from}.auctionWinner`);
         await client.DB.set(`${M.from}.auctionCardIndex`, cardIndex);
+        await client.DB.set(`${M.from}.auctionSeller`, M.sender);
         return;
       }
 
       if (arg === 'end') {
-        const bid = await client.credit.get(`${M.from}.bid`);
+        const bid = Number((await client.DB.get(`${M.from}.currentBid`)) || 0);
         const winner = await client.DB.get(`${M.from}.auctionWinner`);
+        const seller = await client.DB.get(`${M.from}.auctionSeller`);
         if (!winner) {
           return M.reply('No one bid, so the auction is won by mods.');
         } else {
           const cardIndex = await client.DB.get(`${M.from}.auctionCardIndex`);
-          const deck = await client.DB.get(`${M.sender}_Deck`) || [];
-          const cardToSell = deck[cardIndex].split('-');
+          const deck = await client.DB.get(`${seller}_Deck`) || [];
+          const cardToSell = deck?.[cardIndex]?.split('-');
+          if (!cardToSell) {
+            return M.reply('Auction card was not found in the seller deck anymore.');
+          }
           const filePath = path.join(__dirname, '../../Helpers/card.json');
           const cardDataJson = require(filePath);
           const cardsInTier = cardDataJson.filter((card) => card.tier === cardToSell[1]);
@@ -87,14 +97,35 @@ module.exports = {
             // Store the won card in the winner's collection
             await client.DB.push(`${winner}_Collection`, `${cardData.title}-${cardData.tier}`);
           }
+          // Remove the card from the seller's deck
+          deck.splice(cardIndex, 1)
+          await client.DB.set(`${seller}_Deck`, deck)
 
-          await client.credit.sub(`${winner}.wallet`, bid);
+          const winnerEco = await client.getEcon(winner);
+          const sellerEco = await client.getEcon(seller);
+          const winnerWallet = Number(winnerEco?.gem || 0);
+          if (winnerWallet < bid) {
+            return M.reply(`Auction winner does not have enough gems anymore to pay *${bid}*.`)
+          }
+          if (winnerEco) {
+            winnerEco.gem = winnerWallet - bid;
+            await winnerEco.save();
+          } else {
+            await client.econ.create({ userId: winner, gem: winnerWallet - bid });
+          }
+          if (sellerEco) {
+            sellerEco.gem = Number(sellerEco.gem || 0) + bid;
+            await sellerEco.save();
+          } else {
+            await client.econ.create({ userId: seller, gem: bid });
+          }
           await client.DB.delete(`${M.from}.auctionWinner`);
-          await client.credit.delete(`${M.from}.bid`);
           await client.DB.delete(`${M.from}.auctionInProgress`);
           await client.DB.delete(`${M.from}.auctionCardIndex`);
+          await client.DB.delete(`${M.from}.auctionSeller`);
+          await client.DB.delete(`${M.from}.currentBid`);
 
-          M.reply(`*The auction for ${cardData.title} of tier ${cardData.tier} is won by @${winner.split('@')[0]} with a bid of ${bid}. It has been added to the winner's ${winnerDeck.length < 12 ? 'deck' : 'collection'}.*`);
+          M.reply(`*The auction for ${cardData.title} (Tier ${cardData.tier}) is won by @${winner.split('@')[0]} with a bid of ${bid} gems. It has been added to the winner's ${winnerDeck.length < 12 ? 'deck' : 'collection'}.*`);
         }
       }
     } catch (err) {

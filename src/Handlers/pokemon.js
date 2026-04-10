@@ -18,7 +18,11 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
     const level = Math.floor(Math.random() * (28 - 15 + 1)) + 15;
 
     const exp = client.utils.getExpByLevel(level);
-    const image = data.sprites.other['official-artwork'].front_default;
+    const image =
+        data.sprites?.other?.['official-artwork']?.front_default ||
+        data.sprites?.front_default ||
+        data.sprites?.other?.dream_world?.front_default ||
+        '';
     const { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, level);
     const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(data.name, level);
     const server = new PokemonClient();

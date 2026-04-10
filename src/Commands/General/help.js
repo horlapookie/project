@@ -73,7 +73,8 @@ module.exports = {
                     commands += `*𓊈𒆜 ${client.utils.capitalize(category, true)} 𒆜𓊉* \n\`\`\`${categories[category].join(', ')}\`\`\`\n\n`;
                 }
 
-                const message = `*BUNNY GIRL BOT HELP*\n\nHello ${pushName}\n${wish()}\n\n*User:* @${M.sender.split('@')[0]}\n*Uptime:* ${uptime}\n*Users:* ${usersCounts}\n*Mods:* ${modCount}\n\n${commands}`.trim();
+                const botName = client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗'
+                const message = `*${botName} HELP*\n\nHello ${pushName}\n${wish()}\n\n*User:* @${M.sender.split('@')[0]}\n*Uptime:* ${uptime}\n*Users:* ${usersCounts}\n*Mods:* ${modCount}\n\n${commands}\n*Support:*\n- https://chat.whatsapp.com/Lw7G2TE1rtyJo6fG3skbNl?mode=gi_t\n- https://chat.whatsapp.com/IBpLw9pGu5X0fiIxY2zHJI?mode=gi_t\n- https://chat.whatsapp.com/IPHkNCUD12TE4mppKZlJB0`.trim();
                 return client.sendMessage(
                     M.from,
                     {

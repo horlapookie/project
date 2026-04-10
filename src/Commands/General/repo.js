@@ -26,17 +26,10 @@ module.exports = {
         const modCount = client.mods.length;
         const website = 'Coming soon...';
         
-       let text = `*┌──────────────❀̥˚─┈ ⳹*\n`;
-        text += `*│ɪ ᴛ ᴧ ᴄ ʜ ɪ 🧧*\n`;
-        text += `*│🏮 ʀᴇᴘᴏ ꜱɪᴢᴇ:-* *• 305MB*\n`;
-        text += `*│👥 ᴜꜱᴇʀ:-* ${usersCounts || 0}\n`;
-        text += `*│🗃️ ʟᴀꜱᴛ ᴜᴘᴅᴀᴛᴇᴅ:-* *June 29TH*\n`;
-        text += `*│💽 ᴛʜᴀɴᴋ ʏᴏᴜ ᴀʟʟ ғᴏʀ ᴜꜱɪɴɢ*\n`;
-        text += `*│ᴍʏ ʙᴏᴛ ᴀɴᴅ ꜱᴜᴘᴘᴏʀᴛɪɴɢ ᴍᴇ...*\n`;
-        text += `*│❤️ ɪɴꜱᴛᴀ:-* *@ꜱᴀʏ.ꜱᴄᴏᴛᴄʜ*\n`;
-        text += `*└❀̥˚───────────────┈ ⳹*`;
+        const botName = client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗'
+        let text = `*${botName}*\n\n*Support Groups:*\n1. https://chat.whatsapp.com/Lw7G2TE1rtyJo6fG3skbNl?mode=gi_t\n2. https://chat.whatsapp.com/IBpLw9pGu5X0fiIxY2zHJI?mode=gi_t\n3. https://chat.whatsapp.com/IPHkNCUD12TE4mppKZlJB0`
 
-        return shizobtn1img(client, M.from, text, "https://telegra.ph/file/fe7d26d07ca4a88657159.jpg", "Creator 💟", "-owner", "𒉢 ꜱᴀʏ.ꜱᴄ֟፝ᴏᴛᴄʜ ⚡𐇻")
+        return shizobtn1img(client, M.from, text, "https://telegra.ph/file/fe7d26d07ca4a88657159.jpg", "Help", "-help", botName)
        
     }
 }; 

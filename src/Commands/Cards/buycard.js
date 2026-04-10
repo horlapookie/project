@@ -20,7 +20,7 @@ module.exports = {
       }
 
       const seller = saleData.seller;
-      const price = saleData.price;
+      const price = Number(saleData.price || 0);
       const index = saleData.cardIndex;
 
       const buyer = M.sender;
@@ -34,14 +34,29 @@ module.exports = {
       const cardData = sellerDeck[index].split('-');
       const cardName = cardData[0];
       const cardTier = cardData[1];
-      const wallet = await client.credit.get(`${buyer}.wallet`) || 0;
+      const buyerEco = await client.getEcon(buyer);
+      const sellerEco = await client.getEcon(seller);
+      const buyerWallet = Number(buyerEco?.gem || 0);
 
-      if (wallet < price) {
-        return M.reply("Not enough funds to make the purchase.");
+      if (!price || price <= 0) {
+        return M.reply('Invalid sale price.');
+      }
+      if (buyerWallet < price) {
+        return M.reply(`Not enough gems to make the purchase. Your balance: ${buyerWallet}`);
       }
 
-      await client.credit.add(`${seller}.wallet`, price);
-      await client.credit.sub(`${buyer}.wallet`, price);
+      if (buyerEco) {
+        buyerEco.gem = buyerWallet - price;
+        await buyerEco.save();
+      } else {
+        await client.econ.create({ userId: buyer, gem: buyerWallet - price });
+      }
+      if (sellerEco) {
+        sellerEco.gem = Number(sellerEco.gem || 0) + price;
+        await sellerEco.save();
+      } else {
+        await client.econ.create({ userId: seller, gem: price });
+      }
 
       buyerDeck.push(`${cardName}-${cardTier}`);
 
@@ -60,7 +75,7 @@ module.exports = {
       await client.DB.delete(`${M.from}.sell`);
       await client.DB.set(`${M.from}.sellInProgress`, false);
 
-      M.reply(`Sale is done. User ${buyer} paid ${price} to ${seller} and bought the card.`);
+      M.reply(`Sale is done. *@${buyer.split('@')[0]}* paid *${price} gems* to *@${seller.split('@')[0]}* and bought the card.`);
     } catch (err) {
       console.error(err);
       await client.sendMessage(M.from, {

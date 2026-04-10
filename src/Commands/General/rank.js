@@ -11,7 +11,10 @@ module.exports = {
     usage: 'Use :rank',
     description: 'Gives you your rank card',
     async execute(client, arg, M) {
-        const user = M.quoted?.participant ? M.quoted.participant : M.mentions[0] ? M.mentions[0] : M.sender;
+        const rawUser = M.quoted?.participant ? M.quoted.participant : M.mentions[0] ? M.mentions[0] : M.sender;
+        const number = client.getUserNumber(rawUser) || String(rawUser).split('@')[0].replace(/\D/g, '')
+        const user = number ? `${number}@s.whatsapp.net` : rawUser
+        const xpKey = number || rawUser
 
         let pfp;
         try {
@@ -20,7 +23,12 @@ module.exports = {
             pfp = 'https://i.ibb.co/Ycg1s7q/Picsart-24-05-18-15-10-43-623.jpg';
         }
 
-        const experience = (await client.exp.get(user)) || 0;
+        const existingLegacy = (await client.exp.get(rawUser)) || 0;
+        let experience = (await client.exp.get(xpKey)) || 0;
+        if (!experience && existingLegacy) {
+            experience = existingLegacy
+            await client.exp.set(xpKey, existingLegacy).catch(() => null)
+        }
         const level = getLevelFromXp(experience);
         const { requiredXpToLevelUp, rank } = getStats(level);
         await client.DB.set(`${user}_LEVEL`, level);
@@ -33,7 +41,7 @@ module.exports = {
             currentXP: experience,
             requiredXP: requiredXpToLevelUp,
             rank,
-            discriminator: `@${user.split('@')[0]}`
+            discriminator: `@${number || user.split('@')[0]}`
         })
 
         client.sendMessage(

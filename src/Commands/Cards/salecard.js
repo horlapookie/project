@@ -46,11 +46,20 @@ module.exports = {
 
       if (isGif) {
         const giffed = await client.utils.gifToMp4(file);
-        await client.sendMessage(M.from, {
-          video: giffed,
-          gifPlayback: true,
-          caption: text
-        }, { quoted: M });
+        if (client.utils.isLikelyMp4(giffed)) {
+          await client.sendMessage(M.from, {
+            video: giffed,
+            gifPlayback: true,
+            caption: text
+          }, { quoted: M });
+        } else {
+          await client.sendMessage(M.from, {
+            document: file,
+            mimetype: 'image/gif',
+            fileName: `${cardName}.gif`,
+            caption: text
+          }, { quoted: M });
+        }
       } else {
         await client.sendMessage(M.from, {
           image: file,

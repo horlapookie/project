@@ -12,11 +12,11 @@ module.exports = {
     async execute(client, arg, M) {
         const groupMetadata = await client.groupMetadata(M.from);
         const groupMembers = groupMetadata?.participants || [];
-        const groupAdmins = groupMembers.filter((v) => v.isAdmin).map((v) => v.id);
+        const groupAdmins = groupMembers.filter((v) => v.admin).map((v) => v.id);
         const user = M.quoted?.participant || M.mentions[0] || M.sender;
          const deck = await client.DB.get(`${user}_Deck`) || [];
         const userId = M.quoted?.participant || M.mentions[0] || M.sender;
-        const economy = await client.econ.findOne({ userId });
+        const economy = await client.getEcon(userId);
 
         let wallet = economy ? economy.gem : 0;
         

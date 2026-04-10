@@ -1,4 +1,4 @@
-const { getBinaryNodeChild } = require('@whiskeysockets/baileys');
+const { getBinaryNodeChild, areJidsSameUser } = require('@whiskeysockets/baileys');
 const { serialize } = require('../Structures/WAclient');
 const { getStats } = require('../Helpers/Stats');
 const chalk = require('chalk');
@@ -7,6 +7,8 @@ const cron = require("node-cron");
 const { Collection } = require('discord.js');
 const { join } = require('path');
 const cool = new Collection();
+const normalizeNumber = (value = '') => String(value).replace(/\D/g, '');
+const stripDevice = (jid = '') => String(jid || '').replace(/:\d+(?=@)/, '');
 
 module.exports = MessageHandler = async (messages, client) => {
     try {
@@ -20,34 +22,94 @@ module.exports = MessageHandler = async (messages, client) => {
         // Persist a best-effort mapping between LID ids and phone numbers so mod commands
         // can target users via reply/tag even when WhatsApp uses @lid addressing.
         try {
-            const isLid = typeof M.sender === 'string' && M.sender.endsWith('@lid')
-            const lidDigits = String(M.sender || '').split('@')[0].replace(/\D/g, '')
-            const pnDigits = String(M.senderNumber || '').replace(/\D/g, '')
-            if (isLid && lidDigits && pnDigits) {
-                await client.DB.set(`lid-map-${lidDigits}`, pnDigits)
+            const senderDigits = normalizeNumber(M.senderNumber || '');
+            const senderLidDigits = normalizeNumber(String(M.senderLid || '').split('@')[0]);
+            const senderPnDigits = normalizeNumber(String(M.senderPn || '').split('@')[0]);
+
+            // If we have both a LID and a phone-number identity, store both directions.
+            // This is important because mentions often come as @lid even when a user previously
+            // talked as @s.whatsapp.net (or vice-versa).
+            const pnDigits = senderPnDigits || senderDigits;
+            const lidDigits =
+                senderLidDigits ||
+                (typeof M.sender === 'string' && M.sender.endsWith('@lid')
+                    ? normalizeNumber(String(M.sender).split('@')[0])
+                    : '');
+
+            if (lidDigits && pnDigits) {
+                await client.DB.set(`lid-map-${lidDigits}`, pnDigits);
+                await client.DB.set(`pn-map-${pnDigits}`, lidDigits);
             }
         } catch (_) {
             // ignore mapping failures
         }
 
-        const { isGroup, sender, from, body } = M;
-        const gcMeta = isGroup ? await client.groupMetadata(from) : null;
-        const gcName = isGroup ? gcMeta.subject : '';
+    const { isGroup, sender, from, body } = M;
+    const gcMeta = isGroup ? await client.groupMetadata(from) : null;
+    const gcName = isGroup ? gcMeta.subject : '';
         const args = body.trim().split(/\s+/).slice(1);
         const isCmd = body.startsWith(client.prefix);
         const cmdName = body.slice(client.prefix.length).trim().split(/\s+/).shift().toLowerCase();
         const arg = body.replace(cmdName, '').slice(client.prefix.length).trim();
-        const groupMembers = gcMeta?.participants || [];
-        const groupAdmins = groupMembers.filter(member => member.admin).map(member => member.id);
+    const groupMembers = gcMeta?.participants || [];
+    const getParticipantJid = (p) => stripDevice(p?.id || p?.jid || '');
+
+    const groupAdmins = groupMembers
+        .filter((p) => Boolean(p?.admin))
+        .map((p) => getParticipantJid(p))
+        .filter(Boolean);
+
+    const botBase = normalizeNumber(String(client.user?.id || '').split('@')[0]);
+    const botCandidates = Array.from(
+        new Set(
+            [
+                client.user?.id,
+                stripDevice(client.user?.id),
+                client.meLid,
+                stripDevice(client.meLid),
+                client.user?.lid,
+                stripDevice(client.user?.lid),
+                botBase ? `${botBase}@s.whatsapp.net` : null,
+                botBase ? `${botBase}@lid` : null,
+                botBase || null
+            ].filter(Boolean)
+        )
+    );
+
+    const sameDigits = (a, b) => {
+        const da = normalizeNumber(stripDevice(a).split('@')[0]);
+        const db = normalizeNumber(stripDevice(b).split('@')[0]);
+        return Boolean(da) && da === db;
+    };
+
+    const findParticipant = (jid) =>
+        groupMembers.find((p) => {
+            const pid = getParticipantJid(p);
+            const candidate = stripDevice(jid);
+            return (
+                (pid && candidate && areJidsSameUser(pid, candidate)) ||
+                (pid && candidate && pid === candidate) ||
+                (pid && candidate && sameDigits(pid, candidate))
+            );
+        });
+
+    const botParticipant = isGroup ? botCandidates.map(findParticipant).find(Boolean) : null;
+    const botIsAdmin = isGroup ? Boolean(botParticipant?.admin) : false;
+
+    const senderCandidates = Array.from(new Set([M.sender, ...(M.senderAltIds || [])].filter(Boolean)));
+    const senderParticipant = isGroup
+        ? senderCandidates.map(findParticipant).find(Boolean)
+        : null;
+    const senderIsGroupAdmin = isGroup ? Boolean(senderParticipant?.admin) : false;
         const ActivateMod = (await client.DB.get('mod')) || [];
         const ActivateChatBot = (await client.DB.get('chatbot')) || [];
         const banned = (await client.DB.get('banned')) || [];
         const companion = await client.poke.get(`${sender}_Companion`);
-        const economy = await client.econ.findOne({ userId: sender });
+        const economy = await client.getEcon(M);
         const senderIsMod = client.isMod(M);
 
         // Antilink system
-        if (isGroup && ActivateMod.includes(from) && groupAdmins.includes(client.user.id.split(':')[0] + '@s.whatsapp.net') && body) {
+    if (isGroup && ActivateMod.includes(from) && botIsAdmin && body) {
             const groupCodeMatch = body.match(/chat\.whatsapp\.com\/(?:invite\/)?([\w\d]*)/);
             if (groupCodeMatch && groupCodeMatch.length === 2 && !groupAdmins.includes(sender)) {
                 const groupCode = groupCodeMatch[1];
@@ -72,7 +134,11 @@ module.exports = MessageHandler = async (messages, client) => {
 
         // Auto chat bot
         if (M.quoted?.participant) M.mentions.push(M.quoted.participant);
-        if (M.mentions.includes(client.user.id.split(':')[0] + '@s.whatsapp.net') && !isCmd && isGroup) {
+	    if (
+	        M.mentions.some((jid) => botCandidates.some((candidate) => areJidsSameUser(candidate, jid))) &&
+	        !isCmd &&
+	        isGroup
+	    ) {
             const response = await axios.get(`https://hercai.onrender.com/beta/hercai?question=${encodeURIComponent(body)}`, {
                 headers: {
                     'content-type': 'application/json'
@@ -86,8 +152,10 @@ module.exports = MessageHandler = async (messages, client) => {
             const senderInfo = M.pushName || sender;
             const messageToMods = `WhatsApp link sent by: ${senderInfo}\nLink: ${body}`;
             await client.sendMessage(from, { text: 'Your request has been sent.' });
-            const modsGroupJid = client.groups.adminsGroup;
-            await client.sendMessage(modsGroupJid, { text: messageToMods, mentions: [M.sender] });
+            const modsGroupJid = client.groups?.adminsGroup;
+            if (modsGroupJid) {
+                await client.sendMessage(modsGroupJid, { text: messageToMods, mentions: [M.sender] });
+            }
         }
 
         // Group responses
@@ -147,8 +215,8 @@ module.exports = MessageHandler = async (messages, client) => {
         }
 
         const commandExecutionChecks = [
-            { condition: !groupAdmins.includes(sender) && command.category === 'moderation', message: 'This command can only be used by group or community admins.' },
-            { condition: !groupAdmins.includes(client.user.id.split(':')[0] + '@s.whatsapp.net') && command.category === 'moderation', message: 'This command can only be used when the bot is an admin.' },
+            { condition: !senderIsGroupAdmin && command.category === 'moderation', message: 'This command can only be used by group or community admins.' },
+            { condition: !botIsAdmin && command.category === 'moderation', message: 'This command can only be used when the bot is an admin.' },
             { condition: !isGroup && command.category === 'moderation', message: 'This command is meant to be used in groups.' },
             { condition: !isGroup && !senderIsMod, message: 'Bot can only be accessed in groups.' },
             { condition: !senderIsMod && command.category === 'dev', message: 'This command can only be accessed by the mods.' },
@@ -159,7 +227,7 @@ module.exports = MessageHandler = async (messages, client) => {
                     !['start-journey', 'spawnpokemon'].includes(command.name),
                 message: 'You haven\'t started your journey yet.'
             },
-            { condition: command.category === 'economy' && !economy && command.name !== 'bonus', message: 'Use :bonus to get started.' }
+            { condition: command.category === 'economy' && !economy && command.name !== 'bonus', message: `Use ${client.prefix}bonus to get started.` }
         ];
 
         for (const check of commandExecutionChecks) {
@@ -167,7 +235,8 @@ module.exports = MessageHandler = async (messages, client) => {
         }
 
         await command.execute(client, arg, M);
-        await client.exp.add(sender, command.exp ?? 0);
+        const xpKey = client.getUserNumber(M) || sender;
+        await client.exp.add(xpKey, command.exp ?? 0);
 
         if (Math.floor(Math.random() * 500) < 10) {
             const surpriseImages = [

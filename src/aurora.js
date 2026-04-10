@@ -28,6 +28,7 @@ const { imageSync } = require('qr-image')
 const mongoose = require('mongoose')
 const P = require('pino')
 const qrcode = require('qrcode-terminal')
+const { Readable } = require('stream')
 
 const driver = new MongoDriver(process.env.URL)
 const port = process.env.PORT || 3000
@@ -82,6 +83,27 @@ const start = async () => {
     //Config
     client.name = process.env.NAME || 'Mai_Sakurajima'
     client.prefix = process.env.PREFIX || '-'
+    client.meLid = state?.creds?.me?.lid || null
+    client.mePn = state?.creds?.me?.id || null
+
+    // Baileys expects media as { url: ... } or a stream. If we pass a raw Buffer,
+    // Baileys currently treats it as a file path and crashes. Wrap buffers as streams.
+    const rawSendMessage = client.sendMessage.bind(client)
+    client.sendMessage = async (jid, content, options) => {
+        if (content && typeof content === 'object') {
+            const fixed = { ...content }
+            for (const key of ['image', 'video', 'audio', 'document', 'sticker']) {
+                if (Buffer.isBuffer(fixed[key])) {
+                    fixed[key] = Readable.from(fixed[key])
+                }
+                if (fixed[key] && typeof fixed[key] === 'object' && Buffer.isBuffer(fixed[key].url)) {
+                    fixed[key] = { ...fixed[key], url: Readable.from(fixed[key].url) }
+                }
+            }
+            return rawSendMessage(jid, fixed, options)
+        }
+        return rawSendMessage(jid, content, options)
+    }
 
     //Database
     client.DB = new QuickDB({
@@ -139,11 +161,50 @@ const start = async () => {
         const identities = client.getIdentityNumbers(value)
         return identities.some((identity) => client.mods.includes(identity))
     }
+    client.getUserNumber = (value = '') => {
+        if (value && typeof value === 'object') {
+            const digits = normalizeNumber(value.senderNumber || value.sender || value.userId || '')
+            return digits || normalizeNumber(String(value).split('@')[0])
+        }
+        return normalizeNumber(String(value).split('@')[0])
+    }
+    client.resolveNumber = async (value = '') => {
+        const raw = value && typeof value === 'object' ? (value.sender || value.userId || '') : String(value || '')
+        const jid = String(raw).trim()
+        const digits = normalizeNumber(jid.split('@')[0])
+        if (!digits) return ''
+        if (jid.endsWith('@lid')) {
+            const mapped = normalizeNumber((await client.DB.get(`lid-map-${digits}`)) || '')
+            return mapped || digits
+        }
+        return digits
+    }
+    client.getEcon = async (value = '', { createIfMissing = false } = {}) => {
+        const number = client.getUserNumber(value)
+        const rawSender = value && typeof value === 'object' ? value.sender : value
+        const candidates = Array.from(
+            new Set(
+                [number, `${number}@s.whatsapp.net`, `${number}@lid`, rawSender]
+                    .filter(Boolean)
+                    .map((x) => String(x))
+            )
+        )
+        let doc = await client.econ.findOne({ userId: { $in: candidates } })
+        if (!doc && createIfMissing) {
+            doc = await client.econ.create({ userId: number || String(rawSender || '') })
+        }
+        // Best-effort migrate to stable numeric id.
+        if (doc && number && doc.userId !== number) {
+            doc.userId = number
+            await doc.save().catch(() => null)
+        }
+        return doc
+    }
     client.refreshMods = async () => {
         const owner = normalizeNumber((await client.DB.get('owner')) || client.owner || OWNER_NUMBER)
         const mods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
         client.owner = owner
-        client.mods = Array.from(new Set([owner, ...mods]))
+        client.mods = Array.from(new Set([owner, ...DEFAULT_MODS, ...mods]))
         return client.mods
     }
 

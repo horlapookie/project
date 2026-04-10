@@ -1,4 +1,6 @@
 // Inventory Command
+const { getInventory } = require('../../Helpers/pokeballs');
+
 module.exports = {
     name: 'inventory',
     aliases: ['inv'],
@@ -10,19 +12,21 @@ module.exports = {
     description: 'Gives you details about your inventory',
     async execute(client, arg, M) {
         try {
-            const userId = M.sender;
-            const economy = await client.econ.findOne({ userId });
+            const economy = await client.getEcon(M);
+            const party = (await client.poke.get(`${M.sender}_Party`)) || [];
+            const pss = (await client.poke.get(`${M.sender}_PSS`)) || [];
+            const deck = (await client.DB.get(`${M.sender}_Deck`)) || [];
+            const collection = (await client.DB.get(`${M.sender}_Collection`)) || [];
+            const pokeballs = (await getInventory(client, M.sender)).reduce((sum, item) => sum + (item.quantity || 0), 0);
 
             let pepper = 0;
             let luck = 0;
-            let pokeballs = 0;
             let wallet = 0;
             let bank = 0;
 
             if (economy) {
                 pepper = economy.pepperSpray || 0;
                 luck = economy.luckPotion || 0;
-                pokeballs = economy.pokeball || 0;
                 wallet = economy.gem || 0;
                 bank = economy.treasury || 0;
             }
@@ -36,6 +40,8 @@ module.exports = {
             text += `*╏🪩 ᴘᴏᴋᴇʙᴀʟʟꜱ:* ${pokeballs}\n`;
             text += `*╏💎 ᴛᴏᴛᴀʟ ɢᴇᴍꜱ:* ${totalGems}\n`;
             text += `*╏💰 ᴛᴏᴛᴀʟ ᴛʀᴇᴀꜱᴜʀʏ:* ${totalTreasuryValue}\n`;
+            text += `*╏🧿 ᴘᴏᴋᴇᴍᴏɴ:* ${party.length} (party) / ${pss.length} (pc)\n`;
+            text += `*╏🃏 ᴄᴀʀᴅꜱ:* ${deck.length} (deck) / ${collection.length} (collection)\n`;
             text += `*┗─═─━══─| ɪɴᴠᴇɴᴛᴏʀʏ |─══━─═─∘⦿ꕹ᛫*\n`;
             
             await client.sendMessage(

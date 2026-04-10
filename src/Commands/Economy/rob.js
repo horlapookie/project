@@ -14,7 +14,14 @@ module.exports = {
         if (!robTarget) return M.reply('*You must mention someone to attempt the robbery*');
 
         const currentTime = Date.now();
-        const lastRobTime = await client.econ.findOne({ userId: M.sender }).lastRob || 0;
+        const senderEconomy = await client.getEcon(M);
+        if (!senderEconomy) {
+            return M.reply(`You need an economy account first. Use ${client.prefix}bonus to get started.`)
+        }
+        const targetNumber = await client.resolveNumber(robTarget);
+        const targetKey = targetNumber ? `${targetNumber}@s.whatsapp.net` : robTarget;
+        const targetEconomy = await client.getEcon(targetKey);
+        const lastRobTime = senderEconomy.lastRob || 0;
         const cooldown = 300000; // 5 minutes in milliseconds
 
         // Check if the user is on cooldown
@@ -24,28 +31,29 @@ module.exports = {
             return M.reply(`*You are on cooldown! You can attempt to rob again in ${remainingMinutes} minutes.*`);
         }
 
-        const senderEconomy = await client.econ.findOne({ userId: M.sender });
-        const targetEconomy = await client.econ.findOne({ userId: robTarget });
-
         // Minimum credits required to attempt a robbery
         const minimumCreditsRequired = 500;
 
-        if (senderEconomy.gem < minimumCreditsRequired) return M.reply(`*You need to have ${minimumCreditsRequired} gold or more to attempt to rob someone*`);
-        if (!targetEconomy || targetEconomy.gem < minimumCreditsRequired) return M.reply('*The user doesn\'t have much money in their wallet*');
+        if ((senderEconomy.gem || 0) < minimumCreditsRequired) {
+            return M.reply(`*You need to have ${minimumCreditsRequired} gems or more to attempt to rob someone*`);
+        }
+        if (!targetEconomy || (targetEconomy.gem || 0) < minimumCreditsRequired) {
+            return M.reply('*The user does not have much money in their wallet*');
+        }
 
         // Check if the user has pepper spray
-        const hasPepperSpray = senderEconomy.pepperSpray > 0;
+        const hasPepperSpray = (targetEconomy.pepperSpray || 0) > 0;
 
         // Adjust success probability based on whether the user has pepper spray
         const successProbability = hasPepperSpray ? 0.3 : 0.1;
         const result = Math.random() < successProbability ? 'success' : 'caught';
 
         // Calculate the amount to be robbed
-        let amountRobbed = Math.floor(Math.random() * (senderEconomy.gem - minimumCreditsRequired) + minimumCreditsRequired);
-        if (senderEconomy.gem >= 10000) amountRobbed = Math.floor(Math.random() * 10000);
+        let amountRobbed = Math.floor(Math.random() * ((targetEconomy.gem || 0) - minimumCreditsRequired) + minimumCreditsRequired);
+        if ((targetEconomy.gem || 0) >= 10000) amountRobbed = Math.floor(Math.random() * 10000);
 
-        let targetLost = Math.floor(Math.random() * (targetEconomy.gem - minimumCreditsRequired) + minimumCreditsRequired);
-        if (targetEconomy.gem >= 10000) targetLost = Math.floor(Math.random() * 10000);
+        let targetLost = Math.floor(Math.random() * ((senderEconomy.gem || 0) - minimumCreditsRequired) + minimumCreditsRequired);
+        if ((senderEconomy.gem || 0) >= 10000) targetLost = Math.floor(Math.random() * 10000);
 
         // Update wallet balances based on the result
         senderEconomy.gem += result === 'success' ? amountRobbed : -targetLost;
@@ -56,14 +64,15 @@ module.exports = {
 
         // Construct response text based on the result
         let text;
+        const targetMentionDigits = (targetNumber || String(robTarget || '').split('@')[0]).replace(/\D/g, '');
         if (result === 'caught') {
             if (hasPepperSpray) {
-                text = `*┏─══─━══─| ʀᴏʙʙᴇʀʏ  |─══━─══─∘⦿ꕹ᛫*\n*╏ʏᴏᴜ ɢᴏᴛ ᴄᴀᴜɢʜᴛ, ʙᴜᴛ ᴛʜᴇ ᴜꜱᴇʀ*\n*╏ʏᴏᴜ ᴀᴛᴛᴇᴍᴘᴛᴇᴅ ᴛᴏ ʀᴏʙ ʜᴀᴅ ᴘᴇᴘᴘᴇʀ*\n*╏ꜱᴘʀᴀʏ ᴀɴᴅ ꜱᴘʀᴀʏᴇᴅ ɪᴛ ᴏɴ*\n*╏ʏᴏᴜʀ ᴇʏᴇꜱ! ʏᴏᴜ ᴘᴀɪᴅ*\n*╏${targetLost} ɢᴏʟᴅ* *ᴛᴏ* *@${robTarget.split('@')[0]}*\n*┗─══─━══─| ʀᴏʙʙᴇʀʏ |─══━─══─∘⦿ꕹ᛫*`;
+                text = `*┏─══─━══─| ʀᴏʙʙᴇʀʏ  |─══━─══─∘⦿ꕹ᛫*\n*╏You got caught!*\n*╏The target used pepper spray.\n*╏You paid ${targetLost} gems to* *@${targetMentionDigits}*\n*┗─══─━══─| ʀᴏʙʙᴇʀʏ |─══━─══─∘⦿ꕹ᛫*`;
             } else {
-                text = `*┏─══─━══─| ʀᴏʙʙᴇʀʏ  |─══━─══─∘⦿ꕹ᛫*\n*╏ʏᴏᴜ ɢᴏᴛ ᴄᴀᴜɢʜᴛ ᴀɴᴅ ᴘᴀɪᴅ*\n*╏${targetLost} ɢᴏʟᴅ* *ᴛᴏ* *@${robTarget.split('@')[0]}*\n*┗─══─━══─| ʀᴏʙʙᴇʀʏ |─══━─══─∘⦿ꕹ᛫*`;
+                text = `*┏─══─━══─| ʀᴏʙʙᴇʀʏ  |─══━─══─∘⦿ꕹ᛫*\n*╏You got caught and paid*\n*╏${targetLost} gems to* *@${targetMentionDigits}*\n*┗─══─━══─| ʀᴏʙʙᴇʀʏ |─══━─══─∘⦿ꕹ᛫*`;
             }
         } else {
-            text = `*┏─══─━══─| ʀᴏʙʙᴇʀʏ  |─══━─══─∘⦿ꕹ᛫*\n*╏@${M.sender.split('@')[0]}*\n*╏ꜱᴜᴄᴄᴇꜱꜱғᴜʟʟʏ ʀᴏʙʙᴇᴅ*\n*╏@${robTarget.split('@')[0]}*\n*╏ᴀɴᴅ ɢᴏᴛ ᴀᴡᴀʏ ᴡɪᴛʜ*\n*╏${amountRobbed} ᴄʀᴇᴅɪᴛꜱ!*\n*┗─══─━══─| ʀᴏʙʙᴇʀʏ |─══━─══─∘⦿ꕹ᛫*`;
+            text = `*┏─══─━══─| ʀᴏʙʙᴇʀʏ  |─══━─══─∘⦿ꕹ᛫*\n*╏@${M.sender.split('@')[0]}*\n*╏successfully robbed*\n*╏@${targetMentionDigits}*\n*╏and got away with*\n*╏${amountRobbed} gems!*\n*┗─══─━══─| ʀᴏʙʙᴇʀʏ |─══━─══─∘⦿ꕹ᛫*`;
         }
         
         await client.sendMessage(
