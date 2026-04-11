@@ -36,8 +36,8 @@ module.exports = {
                 isMythical = Boolean(speciesResp.data?.is_mythical)
             } catch (_) {}
 
-            const party = await client.poke.get(`${M.sender}_Party`) || [];
-            const pc = await client.poke.get(`${M.sender}_Pss`) || [];
+            const party = (await client.poke.get(`${M.sender}_Party`)) || [];
+            const pc = client.getPc ? await client.getPc(M.sender) : ((await client.poke.get(`${M.sender}_PSS`)) || []);
             const pokemons = [...pc, ...party];
             const ownedAtParty = party.flatMap((x, y) => (x.name === res.name ? y : []));
             const ownedAtPc = pc.flatMap((x, y) => (x.name === res.name ? y : []));
@@ -54,7 +54,7 @@ module.exports = {
                 '',
                 `🎐 *Owned:* ${owned.length}`,
                 `⚗ *Party:* ${ownedAtParty.length < 1 ? 'None' : ownedAtParty.map((x) => x + 1).join(', ')}`,
-                `💻 *Pc:* ${ownedAtPc.length < 1 ? 'None' : ownedAtPc.map((index) => index + 1).join(', ')}`
+                `💻 *PC:* ${ownedAtPc.length < 1 ? 'None' : ownedAtPc.map((index) => index + 1).join(', ')}`
             ]
 
             // Pricing

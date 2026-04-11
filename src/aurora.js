@@ -266,6 +266,38 @@ const start = async () => {
         }
         return doc
     }
+
+    // Pokemon storage naming:
+    // Historically this repo used PSS keys with inconsistent casing (`_PSS` vs `_Pss`).
+    // We standardize on `_PC` but still read/migrate old keys automatically.
+    client.getPc = async (user) => {
+        const u = String(user || '').trim()
+        if (!u) return []
+        const pc =
+            (await client.poke.get(`${u}_PC`).catch(() => null)) ||
+            (await client.poke.get(`${u}_PSS`).catch(() => null)) ||
+            (await client.poke.get(`${u}_Pss`).catch(() => null)) ||
+            []
+
+        // Best-effort migrate to the canonical key.
+        if (Array.isArray(pc)) {
+            await client.poke.set(`${u}_PC`, pc).catch(() => null)
+            await client.poke.set(`${u}_PSS`, pc).catch(() => null) // keep backwards compatibility
+            if (await client.poke.get(`${u}_Pss`).catch(() => null)) {
+                await client.poke.delete(`${u}_Pss`).catch(() => null)
+            }
+            return pc
+        }
+        return []
+    }
+    client.setPc = async (user, pc) => {
+        const u = String(user || '').trim()
+        if (!u) return
+        const value = Array.isArray(pc) ? pc : []
+        await client.poke.set(`${u}_PC`, value).catch(() => null)
+        await client.poke.set(`${u}_PSS`, value).catch(() => null) // backwards compatibility
+        await client.poke.delete(`${u}_Pss`).catch(() => null)
+    }
     client.refreshRoles = async () => {
         const owner = normalizeNumber((await client.DB.get('owner')) || client.owner || OWNER_NUMBER)
         const mods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
