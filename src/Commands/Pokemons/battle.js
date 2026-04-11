@@ -26,6 +26,23 @@ const cleanupWildBattle = async (client, battle) => {
 
 const ensureBattleNotExpired = async (client, M, battle) => {
     if (!battle || !battle.expiresAt) return false;
+    if (battle.isDungeon && battle.dungeonExpiresAt && Date.now() > Number(battle.dungeonExpiresAt)) {
+        const jid = M.from;
+        const players = Array.isArray(battle.players)
+            ? battle.players
+            : [battle.player1?.user, battle.player2?.user].filter(Boolean);
+        for (const p of players) {
+            if (!p || isWildUser(p)) continue;
+            client.pokemonBattlePlayerMap.delete(p);
+        }
+        await cleanupWildBattle(client, battle);
+        if (client.unpersistBattleSync) client.unpersistBattleSync(jid);
+        else client.pokemonBattleResponse.delete(jid);
+        await client.DB.delete(`ashen-active-${jid}`).catch(() => null);
+        await client.DB.set(`ashen-last-${jid}`, Date.now()).catch(() => null);
+        await client.sendMessage(jid, { text: '🔥 Ashen Sanctum closed after 40 minutes.' }).catch(() => null);
+        return true;
+    }
     if (Date.now() <= Number(battle.expiresAt)) return false;
 
     const jid = M.from;
@@ -93,7 +110,9 @@ const buildBattleOptionsText = (client, battle, currentUser) => {
             '',
             `- To switch pokemon use *${client.prefix}battle switch*`
         ];
-        if (!battle.noCapture && !battle.isDungeon) {
+        if (battle.isDungeon) {
+            lines.push('', `- To quit the dungeon use *${client.prefix}ashen quit*`);
+        } else if (!battle.noCapture) {
             lines.push('', `- To check the pokeballs in your bag use *${client.prefix}battle pokeballs*`);
             lines.push('', `- To run away from this battle use *${client.prefix}battle run*`);
         } else {
@@ -152,13 +171,14 @@ const tryCatchWildPokemon = async (client, M, battle, ball) => {
 
         const capturedPokemon = { ...wildPokemon, hp: Math.max(1, wildPokemon.hp) };
         const party = await getPartyForUser(client, M.sender);
-        const pc = await client.poke.get(`${M.sender}_PSS`) || [];
+        const pc = client.getPc ? await client.getPc(M.sender) : (await client.poke.get(`${M.sender}_PSS`)) || [];
 
         if (party.length >= 6) pc.push(capturedPokemon);
         else party.push(capturedPokemon);
 
         await savePartyForUser(client, M.sender, party);
-        await client.poke.set(`${M.sender}_PSS`, pc);
+        if (client.setPc) await client.setPc(M.sender, pc);
+        else await client.poke.set(`${M.sender}_PSS`, pc);
         await cleanupWildBattle(client, battle);
         client.pokemonBattleResponse.delete(M.from);
         client.pokemonBattlePlayerMap.delete(M.sender);
@@ -195,6 +215,16 @@ module.exports = {
         const data = client.pokemonBattleResponse.get(M.from);
 
         if (await ensureBattleNotExpired(client, M, data)) return;
+        if (data?.isDungeon && data?.dungeonClosesAt && Date.now() > Number(data.dungeonClosesAt)) {
+            if (client.unpersistBattleSync) client.unpersistBattleSync(M.from);
+            else client.pokemonBattleResponse.delete(M.from);
+            client.pokemonBattlePlayerMap.delete(M.sender);
+            await cleanupWildBattle(client, data);
+            await client.sendMessage(M.from, {
+                text: '🔥 Ashen Sanctum has closed due to the 40-minute time limit.'
+            });
+            return;
+        }
 
         const canControlBattle =
             data &&
@@ -229,8 +259,8 @@ module.exports = {
 
         // If we're waiting for the dungeon challenger to confirm the next encounter,
         // block other battle actions until they use "battle continue".
-        if (data?.isDungeon && data?.awaitingContinue && action !== 'forfeit') {
-            return M.reply(`Use *${client.prefix}battle continue* to face the next guardian, or *${client.altPrefix || '#'}ashen quit* to quit.`)
+        if (data?.isDungeon && data?.awaitingContinue && action !== 'continue') {
+            return M.reply(`Use *${client.prefix}battle continue* to face the next guardian, or *${client.prefix}ashen quit* to quit.`)
         }
 
         // Allow quitting actions even when it's not the user's turn.
@@ -239,7 +269,10 @@ module.exports = {
                 // PvP doesn't support "run"; treat as forfeit guidance.
                 return M.reply(`Use *${client.prefix}battle forfeit* for trainer battles.`)
             }
-            if (data.isDungeon || data.noCapture) {
+            if (data.isDungeon) {
+                return M.reply(`You can't run from a dungeon. Use *${client.prefix}ashen quit*.`)
+            }
+            if (data.noCapture) {
                 return M.reply(`You can't run from this battle. Use *${client.prefix}battle forfeit*.`)
             }
             touchBattleExpiry(client, data);
@@ -254,6 +287,9 @@ module.exports = {
         }
 
         if (action === 'forfeit') {
+            if (data.isDungeon) {
+                return M.reply(`You can't forfeit a dungeon battle. Use *${client.prefix}ashen quit*.`)
+            }
             // Works even when it's not the user's turn.
             if (data.mode === 'wild') {
                 touchBattleExpiry(client, data);
@@ -806,12 +842,11 @@ const continueSelection = async (client, M) => {
                     touchWildExpiry(battle);
                     setBattleData(client, M.from, battle);
 
-                    const alt = client.altPrefix || '#'
                     await sendBattleState(client, M, battle, {
                         text:
                             `🔥 *ASHEN SANCTUM* 🔥\n\n` +
                             `You encountered a new wild guardian: *${client.utils.capitalize(alivePokemon[0].name)}* (Lv. ${alivePokemon[0].level}).\n\n` +
-                            `Use *${client.prefix}battle continue* to continue, or *${alt}ashen quit* to quit.`
+                            `Use *${client.prefix}battle continue* to continue, or *${client.prefix}ashen quit* to quit.`
                     });
                     return null;
                 }
@@ -929,16 +964,18 @@ const endBattle = async (client, M, winner, loser) => {
                             const level = 50;
                             const { hp, attack, defense, speed } = await client.utils.getPokemonStats(pdata.id, level);
                             const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(pdata.name, level);
+                            const tier = (await client.utils.getPokemonTier?.(pdata.name)) || 'normal';
                             const rewardPokemon = {
                                 name: pdata.name,
                                 level,
-                                exp: client.utils.getExpByLevel(level),
+                                exp: client.utils.getExpByLevel(level, tier),
                                 image:
                                     pdata.sprites?.other?.['official-artwork']?.front_default ||
                                     pdata.sprites?.front_default ||
                                     '',
                                 id: pdata.id,
                                 displayExp: 0,
+                                tier,
                                 hp,
                                 attack,
                                 defense,
@@ -956,11 +993,12 @@ const endBattle = async (client, M, winner, loser) => {
                             };
 
                             const party = await getPartyForUser(client, winner);
-                            const pc = (await client.poke.get(`${winner}_PSS`)) || [];
+                            const pc = client.getPc ? await client.getPc(winner) : (await client.poke.get(`${winner}_PSS`)) || [];
                             if (party.length >= 6) pc.push(rewardPokemon);
                             else party.push(rewardPokemon);
                             await savePartyForUser(client, winner, party);
-                            await client.poke.set(`${winner}_PSS`, pc);
+                            if (client.setPc) await client.setPc(winner, pc);
+                            else await client.poke.set(`${winner}_PSS`, pc);
 
                             bonusText = `\n\n🎁 Bonus reward: *${client.utils.capitalize(rewardPokemon.name)}* joined your ${party.length >= 6 ? 'PC' : 'party'}!`;
                         }
@@ -1021,7 +1059,12 @@ const endBattle = async (client, M, winner, loser) => {
 
 const handleStats = async (client, M, exp, user, pokemon, player) => {
     try {
-        const resultExp = Math.round(exp / 5);
+        const tier = pokemon.tier || (await client.utils.getPokemonTier?.(pokemon.name)) || 'normal';
+        pokemon.tier = tier;
+        const gainMultiplier = client.utils.getTierXpGainMultiplier
+            ? client.utils.getTierXpGainMultiplier(tier)
+            : 1;
+        const resultExp = Math.max(1, Math.round((exp / 50) * gainMultiplier));
 
         await client.sendMessage(M.from, {
             text: `${formatBattleActor(client, user, pokemon.name)} gained *${resultExp} XP*`,
@@ -1032,10 +1075,11 @@ const handleStats = async (client, M, exp, user, pokemon, player) => {
         pokemon.exp += resultExp;
         pokemon.displayExp += resultExp;
 
-        const nextLevel = client.utils.getLevelByExp(pokemon.exp);
+        const computedLevel = client.utils.getLevelByExp(pokemon.exp, tier);
+        const nextLevel = Math.max(pokemon.level, computedLevel);
         if (pokemon.level < nextLevel) {
             pokemon.level = nextLevel;
-            pokemon.displayExp = pokemon.exp - client.utils.getExpByLevel(nextLevel);
+            pokemon.displayExp = pokemon.exp - client.utils.getExpByLevel(nextLevel, tier);
             await client.utils.handlePokemonStats(client, M, pokemon, true, player, user);
         }
 

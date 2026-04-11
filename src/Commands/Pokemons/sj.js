@@ -87,7 +87,8 @@ module.exports = {
                     female = genders[Math.floor(Math.random() * genders.length)] === 'female';
                 }
                 
-                const exp = client.utils.getExpByLevel(5);
+                const tier = (await client.utils.getPokemonTier?.(data.name)) || 'normal';
+                const exp = client.utils.getExpByLevel(5, tier);
 
                 const party = await client.poke.get(`${M.sender}_Party`) || [];
 
@@ -98,6 +99,7 @@ module.exports = {
                     image,
                     id: data.id,
                     displayExp: 0,
+                    tier,
                     hp,
                     attack,
                     defense,

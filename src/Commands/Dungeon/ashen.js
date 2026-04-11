@@ -79,7 +79,7 @@ const specialRewards = [
   'necrozma-ultra'
 ]
 
-const buildInfo = (prefix = '#') =>
+const buildInfo = (prefix = '-') =>
   [
     '🔥 *ASHEN SANCTUM* 🔥',
     '',
@@ -110,13 +110,15 @@ const buildInfo = (prefix = '#') =>
 
 const markActive = async (client, jid) => {
   const key = `ashen-active-${jid}`
-  const expiresAt = Date.now() + 3 * 60 * 60 * 1000
-  await client.DB.set(key, { spawnedAt: Date.now(), expiresAt }).catch(() => null)
+  const now = Date.now()
+  const expiresAt = now + 40 * 60 * 1000
+  await client.DB.set(key, { spawnedAt: now, expiresAt }).catch(() => null)
+  await client.DB.set(`ashen-last-${jid}`, now).catch(() => null)
   return { expiresAt }
 }
 
 const sendAnnouncement = async (client, M) => {
-  const prefix = client.altPrefix || '#'
+  const prefix = client.prefix || '-'
   await markActive(client, M.from)
   // Tag all participants without adding extra "tagall" text.
   const meta = await client.groupMetadata(M.from).catch(() => null)
@@ -207,14 +209,20 @@ const buildPokemonFromName = async (client, name, level) => {
   const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${idOrName}`)
   const data = response.data
 
-  const exp = client.utils.getExpByLevel(level)
+  const tier = (await client.utils.getPokemonTier?.(data.name)) || 'normal'
+  const exp = client.utils.getExpByLevel(level, tier)
   const image =
     data.sprites?.other?.['official-artwork']?.front_default ||
     data.sprites?.front_default ||
     data.sprites?.other?.dream_world?.front_default ||
     ''
 
-  const { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, level)
+  let { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, level)
+  const statBoost = tier === 'mythical' ? 1.35 : tier === 'legendary' ? 1.25 : tier === 'mega' ? 1.2 : 1
+  hp = Math.floor(hp * statBoost)
+  attack = Math.floor(attack * statBoost)
+  defense = Math.floor(defense * statBoost)
+  speed = Math.floor(speed * statBoost)
   const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(data.name, level)
   const server = new PokemonClient()
   const genders = ['female', 'male']
@@ -246,6 +254,7 @@ const buildPokemonFromName = async (client, name, level) => {
     image,
     id: data.id,
     displayExp: 0,
+    tier,
     hp,
     attack,
     defense,
@@ -270,10 +279,10 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '🔥',
-  usage: 'Use #ashen enter/status/quit',
+  usage: 'Use :ashen enter/status/quit',
   description: 'Ashen Sanctum dungeon (PvE boss rush)',
   async execute(client, arg, M) {
-    const prefix = client.altPrefix || '#'
+    const prefix = client.prefix || '-'
     const sub = String(arg || '').trim().toLowerCase()
 
     if (!M.isGroup) return M.reply('Use this in a group.')
@@ -282,16 +291,21 @@ module.exports = {
     const active = await client.DB.get(`ashen-active-${M.from}`).catch(() => null)
     const isActive = Boolean(active?.expiresAt && Date.now() <= Number(active.expiresAt))
 
-    const nextAppearInMinutes = () => {
-      const now = new Date()
+    const nextAppearInMinutes = async () => {
+      const now = Date.now()
+      const last = Number((await client.DB.get(`ashen-last-${M.from}`).catch(() => null)) || 0)
+      if (last) {
+        const next = last + 3 * 60 * 60 * 1000
+        if (now >= next) return 0
+        return Math.max(0, Math.ceil((next - now) / 60000))
+      }
       const d = new Date(now)
       const hour = d.getUTCHours()
       const rem = hour % 3
       let add = (3 - rem) % 3
       if (add === 0 && (d.getUTCMinutes() > 0 || d.getUTCSeconds() > 0)) add = 3
       d.setUTCHours(hour + add, 0, 0, 0)
-      const diffMs = d.getTime() - now.getTime()
-      return Math.max(0, Math.ceil(diffMs / 60000))
+      return Math.max(0, Math.ceil((d.getTime() - now) / 60000))
     }
 
     // If user just types `ashen`, show status and the available subcommands (no spam announcement).
@@ -303,8 +317,8 @@ module.exports = {
         const minsLeft = Math.max(0, Math.ceil((Number(active.expiresAt) - Date.now()) / 60000))
         return M.reply(`Ruins is open now.\nRemaining: *${minsLeft} min*.\n\nSubcommands: spawn, enter, status, quit`)
       }
-      const mins = nextAppearInMinutes()
-      return M.reply(`Ruins is closed for now.\nRemaining: *${mins} min* for it to appear in this group.\n\nSubcommands: spawn, enter, status, quit`)
+      const mins = await nextAppearInMinutes()
+      return M.reply(`Ruins is closed for now.\nRuins will appear in *${mins} min* for this group.\n\nSubcommands: spawn, enter, status, quit`)
     }
 
     if (sub === 'spawn' || sub === 'appear' || sub === 'announce') {
@@ -324,15 +338,19 @@ module.exports = {
     }
 
     if (sub === 'quit') {
+      await client.DB.delete(`ashen-active-${M.from}`).catch(() => null)
+      await client.DB.set(`ashen-last-${M.from}`, Date.now()).catch(() => null)
       const battle = client.pokemonBattleResponse.get(M.from)
       if (!battle || !battle.isDungeon || battle.player1?.user !== M.sender) {
-        return M.reply(`You are not in an Ashen Sanctum run.`)
+        await client.sendMessage(M.from, { text: '🔥 Ashen Sanctum has closed.' })
+        return null
       }
-      client.pokemonBattleResponse.delete(M.from)
+      if (client.unpersistBattleSync) client.unpersistBattleSync(M.from)
+      else client.pokemonBattleResponse.delete(M.from)
       client.pokemonBattlePlayerMap.delete(M.sender)
       await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
       return client.sendMessage(M.from, {
-        text: `*@${M.sender.split('@')[0]}* abandoned the Ashen Sanctum run.`,
+        text: `🔥 Ashen Sanctum has closed. *@${M.sender.split('@')[0]}* abandoned the run.`,
         mentions: [M.sender]
       })
     }
@@ -346,8 +364,8 @@ module.exports = {
     }
 
     if (!isActive) {
-      const mins = nextAppearInMinutes()
-      return M.reply(`Ruins is closed for now.\nRemaining: *${mins} min* for it to appear in this group.`)
+      const mins = await nextAppearInMinutes()
+      return M.reply(`Ruins is closed for now.\nRuins will appear in *${mins} min* for this group.`)
     }
 
     if (client.pokemonBattleResponse.has(M.from)) {
@@ -381,7 +399,9 @@ module.exports = {
       dungeonId: 'ashen_sanctum',
       noCapture: true,
       wildUser,
+      dungeonClosesAt: active?.expiresAt || (Date.now() + 40 * 60 * 1000),
       wildPokemon: { ...dungeonParty[0] },
+      dungeonExpiresAt: active?.expiresAt || (Date.now() + 40 * 60 * 1000),
       expiryToken: `${Date.now()}-${Math.random()}`,
       player1: {
         user: M.sender,
@@ -430,7 +450,7 @@ module.exports = {
         `Use one of the options below:\n\n` +
         `- *${client.prefix}battle fight* to attack\n` +
         `- *${client.prefix}battle switch* to switch Pokemon\n` +
-        `- *${client.prefix}battle forfeit* to give up\n\n` +
+        `- *${client.prefix}ashen quit* to give up\n\n` +
         `No pokeballs can be used in dungeons.`,
       mentions: [M.sender]
     })

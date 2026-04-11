@@ -17,7 +17,8 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
     }
     const level = Math.floor(Math.random() * (28 - 15 + 1)) + 15;
 
-    const exp = client.utils.getExpByLevel(level);
+    const tier = (await client.utils.getPokemonTier?.(data.name)) || 'normal';
+    const exp = client.utils.getExpByLevel(level, tier);
     const image =
         data.sprites?.other?.['official-artwork']?.front_default ||
         data.sprites?.front_default ||
@@ -58,6 +59,7 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
         image,
         id: data.id,
         displayExp: 0,
+        tier,
         hp,
         attack,
         defense,

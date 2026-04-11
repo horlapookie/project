@@ -138,7 +138,9 @@ module.exports = MessageHandler = async (messages, client) => {
 
         // Auto chat bot
         if (M.quoted?.participant) M.mentions.push(M.quoted.participant);
+        const chatEnabled = !isGroup || ActivateChatBot.includes(from);
 	    if (
+	        chatEnabled &&
 	        M.mentions.some((jid) => botCandidates.some((candidate) => areJidsSameUser(candidate, jid))) &&
 	        !isCmd &&
 	        isGroup
@@ -210,12 +212,13 @@ module.exports = MessageHandler = async (messages, client) => {
         }
 
         const cooldownAmount = (command.cool ?? 5) * 1000;
-        const cooldownKey = `${sender}${command.name}`;
+        const cooldownUser = client.getUserNumber ? client.getUserNumber(M) : sender;
+        const cooldownKey = `${cooldownUser}${command.name}`;
 
-        if (!senderIsStaff && cool.has(cooldownKey)) {
+        if (cool.has(cooldownKey)) {
             const remainingTime = client.utils.convertMs(cool.get(cooldownKey) - Date.now());
             return M.reply(`You are on a cooldown. Wait *${remainingTime}* before using this command again.`);
-        } else if (!senderIsStaff) {
+        } else {
             cool.set(cooldownKey, Date.now() + cooldownAmount);
             setTimeout(() => cool.delete(cooldownKey), cooldownAmount);
         }
@@ -225,7 +228,7 @@ module.exports = MessageHandler = async (messages, client) => {
         }
 
         const commandExecutionChecks = [
-            { condition: !senderIsGroupAdmin && command.category === 'moderation', message: 'This command can only be used by group or community admins.' },
+            { condition: !senderIsGroupAdmin && !senderIsStaff && command.category === 'moderation', message: 'This command can only be used by group or community admins.' },
             { condition: !botIsAdmin && command.category === 'moderation', message: 'This command can only be used when the bot is an admin.' },
             { condition: !isGroup && command.category === 'moderation', message: 'This command is meant to be used in groups.' },
             { condition: !isGroup && !senderIsStaff, message: 'Bot can only be accessed in groups.' },

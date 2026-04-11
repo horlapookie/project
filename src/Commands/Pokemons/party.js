@@ -22,6 +22,7 @@ module.exports = {
             if (party.length === 0 && companion) {
                 const { data } = await axios.get(`https://pokeapi.co/api/v2/pokemon/${companion}`)
                 const { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, 5)
+                const tier = (await client.utils.getPokemonTier?.(data.name)) || 'normal'
                 const moves = await client.utils.getStarterPokemonMoves(data.name)
                 const server = new PokemonClient()
                 const { gender_rate } = await server.getPokemonSpeciesByName(data.name)
@@ -36,10 +37,11 @@ module.exports = {
                     {
                         name: data.name,
                         level: 5,
-                        exp: client.utils.getExpByLevel(5),
+                        exp: client.utils.getExpByLevel(5, tier),
                         image: data.sprites.other['official-artwork'].front_default,
                         id: data.id,
                         displayExp: 0,
+                        tier,
                         hp,
                         attack,
                         defense,
@@ -69,7 +71,7 @@ module.exports = {
                 }
                 const pokemon = party[index - 1];
                 const k = pokemon.level + 1;
-                const required = await client.utils.getExpByLevel(k);
+                const required = await client.utils.getExpByLevel(k, pokemon.tier || 'normal');
                 const detailCard = await renderPokemonDetailCard({
                     pokemon: {
                         ...pokemon,

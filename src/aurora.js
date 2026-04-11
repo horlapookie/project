@@ -401,6 +401,43 @@ const start = async () => {
                 client.unpersistBattleSync(jid)
                 continue
             }
+            if (battle.isDungeon && battle.dungeonExpiresAt && Date.now() > Number(battle.dungeonExpiresAt)) {
+                const players = Array.isArray(battle.players)
+                    ? battle.players
+                    : [battle.player1?.user, battle.player2?.user].filter(Boolean)
+                for (const p of players) {
+                    if (!p || String(p).endsWith('@pokemon')) continue
+                    client.pokemonBattlePlayerMap.delete(p)
+                }
+                if (battle.wildUser) {
+                    await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
+                }
+                client.unpersistBattleSync(jid)
+                await client.DB.delete(`ashen-active-${jid}`).catch(() => null)
+                await client.DB.set(`ashen-last-${jid}`, Date.now()).catch(() => null)
+                if (client.state === 'open') {
+                    await client.sendMessage(jid, { text: '🔥 Ashen Sanctum closed after 40 minutes.' }).catch(() => null)
+                }
+                continue
+            }
+            if (battle.isDungeon && battle.dungeonClosesAt && Date.now() > Number(battle.dungeonClosesAt)) {
+                const players = Array.isArray(battle.players)
+                    ? battle.players
+                    : [battle.player1?.user, battle.player2?.user].filter(Boolean)
+                for (const p of players) {
+                    if (!p || String(p).endsWith('@pokemon')) continue
+                    client.pokemonBattlePlayerMap.delete(p)
+                }
+                if (battle.wildUser) {
+                    await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
+                }
+                client.unpersistBattleSync(jid)
+                if (client.state === 'open') {
+                    await client.sendMessage(jid, { text: '🔥 Ashen Sanctum has closed due to the 40-minute time limit.' }).catch(() => null)
+                }
+                continue
+            }
+
             if (battle.expiresAt && Date.now() <= Number(battle.expiresAt)) continue
 
             // Cleanup maps

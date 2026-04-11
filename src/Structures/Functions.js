@@ -18,6 +18,19 @@ const searchUrl = 'https://www.myinstants.com/search/?name=';
 const { MoveClient } = require('pokenode-ts')
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const maxLevel = 100; // Maximum level for a Pokémon
+const pokemonTierCache = new Map();
+const TIER_MULTIPLIERS = {
+    normal: 1,
+    mega: 1.35,
+    legendary: 1.6,
+    mythical: 2.0
+};
+const TIER_XP_GAIN = {
+    normal: 1,
+    mega: 0.85,
+    legendary: 0.7,
+    mythical: 0.6
+};
 const path = require('path');
 const { join } = require('path');
 const TYPE_CHART_FALLBACK = {
@@ -863,14 +876,47 @@ const generateRandomUniqueTag = (n = 4) => {
  * @param {number} level - The current level of the Pokémon.
  * @returns {number} The experience needed for the given level. Returns Infinity for invalid levels.
  */
-const calculatePokeExp = (level) => {
+const normalizeTier = (tier = 'normal') => {
+    const t = String(tier || 'normal').toLowerCase();
+    return TIER_MULTIPLIERS[t] ? t : 'normal';
+};
+
+const getTierMultiplier = (tier = 'normal') => TIER_MULTIPLIERS[normalizeTier(tier)] || 1;
+const getTierXpGainMultiplier = (tier = 'normal') => TIER_XP_GAIN[normalizeTier(tier)] || 1;
+
+const getPokemonTier = async (pokemon) => {
+    const key = String(pokemon || '').trim().toLowerCase();
+    if (!key) return 'normal';
+    if (pokemonTierCache.has(key)) return pokemonTierCache.get(key);
+
+    const isMega = /-mega(-x|-y)?$/.test(key) || /-primal$/.test(key);
+    const speciesName = key
+        .replace(/-mega(-x|-y)?$/i, '')
+        .replace(/-primal$/i, '')
+        .replace(/-ultra$/i, '')
+        .trim();
+
+    let tier = 'normal';
+    try {
+        const species = await axios.get(`https://pokeapi.co/api/v2/pokemon-species/${speciesName}`);
+        const data = species.data || {};
+        if (data.is_mythical) tier = 'mythical';
+        else if (data.is_legendary) tier = 'legendary';
+    } catch (_) {
+        tier = 'normal';
+    }
+    if (isMega) tier = 'mega';
+    pokemonTierCache.set(key, tier);
+    return tier;
+};
+
+const calculatePokeExp = (level, tier = 'normal') => {
     if (level <= 0 || level > maxLevel) {
         return Infinity; // or any other appropriate value to indicate an invalid level
     }
 
-    return level <= 10 ? 100 + (level - 1) * 100 :
-           level <= 50 ? 1000 + (level - 10) * 200 :
-           9000 + (level - 50) * 300;
+    const base = Math.floor(8 * Math.pow(level, 3) + 100);
+    return Math.floor(base * getTierMultiplier(tier));
 };
 
 /**
@@ -878,16 +924,13 @@ const calculatePokeExp = (level) => {
  * @param {number} exp - The experience points.
  * @returns {number} The level corresponding to the given experience.
  */
-const getLevelByExp = (exp) => {
-    if (exp < 100) {
-        return 0; // No level for experience below 100
-    } else if (exp < 1000) {
-        return Math.floor((exp - 100) / 100) + 1;
-    } else if (exp < 9000) {
-        return Math.floor((exp - 1000) / 200) + 10;
-    } else {
-        return Math.min(Math.floor((exp - 9000) / 300) + 50, maxLevel);
+const getLevelByExp = (exp, tier = 'normal') => {
+    const total = Math.max(0, Number(exp) || 0);
+    let level = 1;
+    while (level < maxLevel && total >= calculatePokeExp(level + 1, tier)) {
+        level += 1;
     }
+    return level;
 };
 
 /**
@@ -895,8 +938,8 @@ const getLevelByExp = (exp) => {
  * @param {number} level - The level of the Pokémon.
  * @returns {number} The experience needed for the given level.
  */
-const getExpByLevel = (level) => {
-    return calculatePokeExp(level);
+const getExpByLevel = (level, tier = 'normal') => {
+    return calculatePokeExp(level, tier);
 };
 
 /**
@@ -904,9 +947,9 @@ const getExpByLevel = (level) => {
  * @param {number} currentExp - The current experience points.
  * @returns {number} The experience points needed to reach the next level.
  */
-const getRequiredExp = (currentExp) => {
-    const currentLevel = getLevelByExp(currentExp);
-    const nextLevelExp = calculatePokeExp(currentLevel + 1);
+const getRequiredExp = (currentExp, tier = 'normal') => {
+    const currentLevel = getLevelByExp(currentExp, tier);
+    const nextLevelExp = calculatePokeExp(currentLevel + 1, tier);
     return nextLevelExp - currentExp;
 };
 
@@ -1456,6 +1499,9 @@ module.exports = {
     assignPokemonMoves,
     generateRandomUniqueTag,
     calculatePokeExp,
+    getPokemonTier,
+    getTierMultiplier,
+    getTierXpGainMultiplier,
     getLevelByExp,
     getExpByLevel,
     getRequiredExp,

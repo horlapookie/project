@@ -5,7 +5,8 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
   const resp = await axios.get(`https://pokeapi.co/api/v2/pokemon/${idOrName}`)
   const data = resp.data
 
-  const exp = client.utils.getExpByLevel(level)
+  const tier = (await client.utils.getPokemonTier?.(data.name)) || 'normal'
+  const exp = client.utils.getExpByLevel(level, tier)
   const image =
     data.sprites?.other?.['official-artwork']?.front_default ||
     data.sprites?.front_default ||
@@ -20,6 +21,7 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
     image,
     id: data.id,
     displayExp: 0,
+    tier,
     hp,
     attack,
     defense,

@@ -14,6 +14,9 @@ module.exports = {
             // Use the full quoted key when available so Baileys can delete reliably in groups.
             const quotedKey = M.quoted?.key || null
             const quotedParticipant = M.quoted?.participant || quotedKey?.participant || null
+            if (quotedKey && quotedParticipant && !quotedKey.participant) {
+                quotedKey.participant = quotedParticipant
+            }
             await client.deleteMessage(M.from, quotedKey || M.quoted.id, quotedParticipant)
             M.reply('Message deleted successfully!')
         } catch (error) {

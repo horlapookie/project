@@ -1,7 +1,7 @@
 const cron = require('node-cron')
 const { join } = require('path')
 
-const buildAshenText = (prefix = '#') => {
+const buildAshenText = (prefix = '-') => {
   return [
     '🔥 *ASHEN SANCTUM* 🔥',
     '',
@@ -43,8 +43,10 @@ const buildAshenText = (prefix = '#') => {
 
 const markAshenActive = async (client, jid) => {
   const key = `ashen-active-${jid}`
-  const expiresAt = Date.now() + 3 * 60 * 60 * 1000
-  await client.DB.set(key, { spawnedAt: Date.now(), expiresAt }).catch(() => null)
+  const now = Date.now()
+  const expiresAt = now + 40 * 60 * 1000
+  await client.DB.set(key, { spawnedAt: now, expiresAt }).catch(() => null)
+  await client.DB.set(`ashen-last-${jid}`, now).catch(() => null)
 }
 
 module.exports = async function DungeonHandler(client) {
@@ -59,7 +61,7 @@ module.exports = async function DungeonHandler(client) {
         if (!groups.length) return
 
         const imagePath = join(process.cwd(), 'assets', 'Images', 'dungeon.jpg')
-        const text = buildAshenText(client.altPrefix || '#')
+        const text = buildAshenText(client.prefix || '-')
 
         for (const jid of groups) {
           try {
