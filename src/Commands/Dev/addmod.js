@@ -26,8 +26,8 @@ module.exports = {
     usage: 'Use :addmod @user or :addmod 234xxxxxxxxx',
     description: 'Adds a moderator by tag, reply, or number',
     async execute(client, arg, M) {
-        if (!client.isOwner(M)) {
-            return M.reply('Only the owner can add moderators.')
+        if (!client.isOwner(M) && !client.isOfficer(M)) {
+            return M.reply('Only officers can add moderators.')
         }
 
         const target = await resolveTarget(client, arg, M)
@@ -44,7 +44,7 @@ module.exports = {
         mods.add(target.number)
         await client.DB.set('mods', Array.from(mods))
         await client.DB.set(`mod-name-${target.number}`, target.name || 'Unknown User')
-        await client.refreshMods()
+        await client.refreshRoles?.()
         return M.reply(`Added *${target.name || target.number}* as a moderator.`)
     }
 }

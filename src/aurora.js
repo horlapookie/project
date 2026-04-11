@@ -176,10 +176,14 @@ const start = async () => {
 
     const storedOwner = normalizeNumber((await client.DB.get('owner')) || OWNER_NUMBER)
     const storedMods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
+    const storedOfficers = ((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
     client.owner = storedOwner
+    // `mods` remain the "mods" role. Officers are a separate role with limited privileges.
     client.mods = Array.from(new Set([client.owner, ...DEFAULT_MODS, ...storedMods]))
+    client.officers = Array.from(new Set(storedOfficers.filter((x) => x && x !== client.owner)))
     await client.DB.set('owner', client.owner)
     await client.DB.set('mods', client.mods)
+    await client.DB.set('sudo', client.officers)
     client.normalizeNumber = normalizeNumber
     client.getIdentityNumbers = (value = '') => {
         const candidates = Array.isArray(value)
@@ -198,10 +202,15 @@ const start = async () => {
         )
     }
     client.isOwner = (value = '') => client.getIdentityNumbers(value).includes(client.owner)
+    client.isOfficer = (value = '') => {
+        const identities = client.getIdentityNumbers(value)
+        return identities.some((identity) => (client.officers || []).includes(identity))
+    }
     client.isMod = (value = '') => {
         const identities = client.getIdentityNumbers(value)
         return identities.some((identity) => client.mods.includes(identity))
     }
+    client.isStaff = (value = '') => client.isOwner(value) || client.isMod(value) || client.isOfficer(value)
     client.getUserNumber = (value = '') => {
         if (value && typeof value === 'object') {
             const digits = normalizeNumber(value.senderNumber || value.sender || value.userId || '')
@@ -257,12 +266,14 @@ const start = async () => {
         }
         return doc
     }
-    client.refreshMods = async () => {
+    client.refreshRoles = async () => {
         const owner = normalizeNumber((await client.DB.get('owner')) || client.owner || OWNER_NUMBER)
         const mods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
+        const sudo = ((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
         client.owner = owner
         client.mods = Array.from(new Set([owner, ...DEFAULT_MODS, ...mods]))
-        return client.mods
+        client.officers = Array.from(new Set(sudo.filter((x) => x && x !== owner)))
+        return { owner: client.owner, mods: client.mods, officers: client.officers }
     }
 
     //Utils

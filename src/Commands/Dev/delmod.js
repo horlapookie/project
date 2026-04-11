@@ -23,8 +23,8 @@ module.exports = {
     usage: 'Use :delmod @user or :delmod 234xxxxxxxxx',
     description: 'Removes a moderator by tag, reply, or number',
     async execute(client, arg, M) {
-        if (!client.isOwner(M)) {
-            return M.reply('Only the owner can remove moderators.')
+        if (!client.isOwner(M) && !client.isOfficer(M)) {
+            return M.reply('Only officers can remove moderators.')
         }
 
         const target = await resolveTarget(client, arg, M)
@@ -43,7 +43,7 @@ module.exports = {
         mods.delete(target)
         await client.DB.set('mods', Array.from(mods))
         await client.DB.delete(`mod-name-${target}`)
-        await client.refreshMods()
+        await client.refreshRoles?.()
         return M.reply(`Removed *${target}* from moderators.`)
     }
 }

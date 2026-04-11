@@ -110,7 +110,7 @@ module.exports = MessageHandler = async (messages, client) => {
         const banned = (await client.DB.get('banned')) || [];
         const companion = await client.poke.get(`${sender}_Companion`);
         const economy = await client.getEcon(M);
-        const senderIsMod = client.isMod(M);
+        const senderIsStaff = client.isStaff ? client.isStaff(M) : client.isMod(M);
 
         // Antilink system
     if (isGroup && ActivateMod.includes(from) && botIsAdmin && body) {
@@ -212,10 +212,10 @@ module.exports = MessageHandler = async (messages, client) => {
         const cooldownAmount = (command.cool ?? 5) * 1000;
         const cooldownKey = `${sender}${command.name}`;
 
-        if (!senderIsMod && cool.has(cooldownKey)) {
+        if (!senderIsStaff && cool.has(cooldownKey)) {
             const remainingTime = client.utils.convertMs(cool.get(cooldownKey) - Date.now());
             return M.reply(`You are on a cooldown. Wait *${remainingTime}* before using this command again.`);
-        } else if (!senderIsMod) {
+        } else if (!senderIsStaff) {
             cool.set(cooldownKey, Date.now() + cooldownAmount);
             setTimeout(() => cool.delete(cooldownKey), cooldownAmount);
         }
@@ -228,8 +228,8 @@ module.exports = MessageHandler = async (messages, client) => {
             { condition: !senderIsGroupAdmin && command.category === 'moderation', message: 'This command can only be used by group or community admins.' },
             { condition: !botIsAdmin && command.category === 'moderation', message: 'This command can only be used when the bot is an admin.' },
             { condition: !isGroup && command.category === 'moderation', message: 'This command is meant to be used in groups.' },
-            { condition: !isGroup && !senderIsMod, message: 'Bot can only be accessed in groups.' },
-            { condition: !senderIsMod && command.category === 'dev', message: 'This command can only be accessed by the mods.' },
+            { condition: !isGroup && !senderIsStaff, message: 'Bot can only be accessed in groups.' },
+            { condition: !senderIsStaff && command.category === 'dev', message: 'This command can only be accessed by staff.' },
             {
                 condition:
                     command.category === 'pokemon' &&
