@@ -1251,7 +1251,12 @@ const drawPokemonBattle = async (data) => {
 
         const pokeballGap = Math.max(2, Math.round(base * 0.004));
         const pokeballSize = Math.max(7, Math.round(base * 0.014));
-        const pokeballPos = { x: boxPadding, y: boxPadding };
+        // Place the pokeball dots under the HP line to avoid overlapping the title.
+        const pokeballY = Math.min(
+            boxCanvas.height - pokeballSize - boxPadding,
+            hpPos.y + Math.round(style.box.font * 0.55)
+        );
+        const pokeballPos = { x: boxPadding, y: pokeballY };
         const length = player.party.length <= 6 ? player.party.length : 6;
 
         for (let i = 0; i < length; i++) {
@@ -1339,7 +1344,8 @@ const getPokemonStyles = async ({ W, H, base }) => {
     // Slightly larger sprites for better readability on the new battlefield.
     const p1Size = clamp(Math.round(base * 0.42), 240, 420);
     const p2Size = clamp(Math.round(base * 0.36), 210, 380);
-    const p1Clip = Math.round(p1Size * 0.35);
+    // Clip a bit less so the bottom sprite doesn't look "missing" on some Pokemon.
+    const p1Clip = Math.round(p1Size * 0.28);
 
     const boxW = clamp(Math.round(base * 0.44), 300, 460);
     const boxH = clamp(Math.round(base * 0.18), 110, 170);
@@ -1351,7 +1357,8 @@ const getPokemonStyles = async ({ W, H, base }) => {
                 // bottom-left, facing away (back sprite)
                 x: Math.round(W * 0.26 - p1Size / 2),
                 // Tuned for the current battlefield image: keep the back sprite inside the left grass arena.
-                y: Math.round(H * 0.60),
+                // Raise a bit more so the sprite doesn't get cut off at the bottom.
+                y: Math.round(H * 0.54),
                 size: p1Size,
                 showBack: true,
                 clipY: p1Clip
@@ -1365,7 +1372,8 @@ const getPokemonStyles = async ({ W, H, base }) => {
                 // upper-right, facing player (front sprite)
                 x: Math.round(W * 0.76 - p2Size / 2),
                 // Tuned for the current battlefield image: center on the right grass arena.
-                y: Math.round(H * 0.30),
+                // Raise slightly so it sits better in the top arena.
+                y: Math.round(H * 0.26),
                 size: p2Size,
                 showBack: false,
                 clipY: 0
