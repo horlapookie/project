@@ -5,7 +5,8 @@ module.exports = {
     aliases: ['gb'],
     category: 'economy',
     exp: 5,
-    cool: 15,
+    // Casino cooldown
+    cool: 30,
     react: "✅",
     usage: 'Use :gamble <amount> <direction>',
     description: 'Gambles your credits to increase or decrease',

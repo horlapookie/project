@@ -184,7 +184,8 @@ module.exports = {
     name: 'battle',
     aliases: ['bt'],
     exp: 5,
-    cool: 5,
+    // Applies to all `battle ...` sub-actions because they are handled within this command.
+    cool: 6,
     react: '🟩',
     category: 'pokemon',
     usage: 'Use :battle fight / switch / forfeit',

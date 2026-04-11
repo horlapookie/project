@@ -2,7 +2,8 @@ module.exports = {
     name: "heal",
     aliases: ["heal"],
     exp: 5,
-    cool: 5,
+    // Requested: 800 seconds cooldown.
+    cool: 800,
     react: "🟩",
     category: "pokemon",
     usage: 'Use :party',
@@ -12,7 +13,7 @@ module.exports = {
             const cd = await client.DB.get(`${M.sender}_heal_cd`) || 0
 
             // Check if heal cooldown is active
-            const cooldownTime = 45 * 6 * 10000; // 45 minutes in milliseconds
+            const cooldownTime = 800 * 1000; // 800 seconds
             if (cd && Date.now() - cd < cooldownTime) {
                 const timeLeft = client.utils.convertMs(cooldownTime - (Date.now() - cd), 'minutes');
                 return M.reply(`You have healed your Pokémon recently. Come back again in *${timeLeft}* ${timeLeft >= 2 ? 'minutes' : 'minute'}.`);

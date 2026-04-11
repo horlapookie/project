@@ -6,7 +6,8 @@ module.exports = {
     aliases: ['bet'],
     category: 'economy',
     exp: 5,
-    cool: 8,
+    // Casino cooldown
+    cool: 30,
     react: "🤑",
     usage: 'Use: !slot <amount>',
     description: 'Bets the given amount of credits in a slot machine',
