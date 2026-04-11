@@ -53,32 +53,24 @@ module.exports = {
     const level = 100
 
     const party = (await client.poke.get(`${target}_Party`)) || []
+    if (!party.length) return M.reply("That user doesn't have any Pokemon in their party.")
     const updated = []
 
     for (const p of party) {
       const fresh = await buildPokemon(client, p.name, level, p.tag)
       updated.push(fresh)
     }
-
-    const fillers = ['tyranitar', 'metagross', 'dragonite', 'garchomp', 'hydreigon', 'salamence']
-    let i = 0
-    while (updated.length < 6 && i < fillers.length) {
-      updated.push(await buildPokemon(client, fillers[i], level))
-      i += 1
-    }
-
-    // keep at most 6
-    const finalParty = updated.slice(0, 6)
+    // Keep the party size unchanged (only max what exists).
+    const finalParty = updated
     await client.poke.set(`${target}_Party`, finalParty)
 
     return client.sendMessage(
       M.from,
       {
-        text: `✅ Party maxed for *@${target.split('@')[0]}*.\n\nAll Pokemon set to Level 100 with full HP. Party size: ${finalParty.length}/6`,
+        text: `✅ Party maxed for *@${target.split('@')[0]}*.\n\nAll Pokemon set to Level 100 with full HP. Party size: ${finalParty.length}`,
         mentions: [target]
       },
       { quoted: M }
     )
   }
 }
-

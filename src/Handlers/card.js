@@ -93,18 +93,18 @@ module.exports = CardHandler = async (client, M) => {
               if (String(obj.url || '').toLowerCase().endsWith('.gif')) {
                 const mp4 = await client.utils.gifToMp4(mediaBuffer);
                 if (client.utils.isLikelyMp4(mp4)) {
-                  return shizobtn1gif(client, jid, shizoshona, mp4, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+                  return shizobtn1gif(client, jid, shizoshona, mp4, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
                 }
                 const png = await client.utils.gifToPng(mediaBuffer);
-                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
               }
 
               if (String(obj.url || '').toLowerCase().endsWith('.webp')) {
                 const png = await client.utils.webpToPng(mediaBuffer);
-                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
               }
 
-              return shizobtn1img(client, jid, shizoshona, mediaBuffer, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+              return shizobtn1img(client, jid, shizoshona, mediaBuffer, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
             } else {
  let shizocutie = `*┌─🄱🄾🅃────────❀̥˚─┈ ⳹*
 *└──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
@@ -124,7 +124,7 @@ module.exports = CardHandler = async (client, M) => {
    *│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
    *┌──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
    *└❀̥˚───────────🄱🄾🅃─┈ ⳹*`
-	              return shizobtn1img(client, jid, shizocutie, obj.url, ' Collect 🔖', `${client.prefix}collect`, client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗')
+	              return shizobtn1img(client, jid, shizocutie, obj.url, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
             }
 
           } catch (err) {

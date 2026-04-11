@@ -24,7 +24,7 @@ function wish() {
 
 module.exports = {
     name: 'help',
-    aliases: ['help','list','bot','Bot'],
+    aliases: ['help', 'list'],
     category: 'general',
     exp: 50,
     cool: 5,
@@ -73,12 +73,25 @@ module.exports = {
                     commands += `*𓊈𒆜 ${client.utils.capitalize(category, true)} 𒆜𓊉* \n\`\`\`${categories[category].join(', ')}\`\`\`\n\n`;
                 }
 
-                const botName = client.name || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗'
-                const message = `*${botName} HELP*\n\nHello ${pushName}\n${wish()}\n\n*User:* @${M.sender.split('@')[0]}\n*Uptime:* ${uptime}\n*Users:* ${usersCounts}\n*Mods:* ${modCount}\n\n${commands}\n*Support:*\n- https://chat.whatsapp.com/Lw7G2TE1rtyJo6fG3skbNl?mode=gi_t\n- https://chat.whatsapp.com/IBpLw9pGu5X0fiIxY2zHJI?mode=gi_t\n- https://chat.whatsapp.com/IPHkNCUD12TE4mppKZlJB0`.trim();
+                const brand = client.brand || `${client.name || 'Eternal'} ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ`
+                const message = [
+                    `*${client.name || 'Eternal'} HELP*`,
+                    '',
+                    `Hi @${M.sender.split('@')[0]}, I am ${brand}`,
+                    `${wish()}`,
+                    '',
+                    `*Uptime:* ${uptime}`,
+                    `*Users:* ${usersCounts}`,
+                    `*Mods:* ${modCount}`,
+                    '',
+                    commands.trim(),
+                    '',
+                    '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗𝚜'
+                ].join('\n').trim();
                 return client.sendMessage(
                     M.from,
                     {
-                        image: { url: `${process.cwd()}/assets/Images/battle.png` },
+                        image: { url: `${process.cwd()}/assets/Images/help.jpeg` },
                         caption: message,
                         mentions: [M.sender]
                     },

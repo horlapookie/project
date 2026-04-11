@@ -83,7 +83,8 @@ const start = async () => {
     })
 
     //Config
-    client.name = process.env.NAME || 'Mai_Sakurajima'
+    client.name = process.env.NAME || 'Eternal'
+    client.brand = process.env.BRAND || 'Eternal ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ'
     client.prefix = process.env.PREFIX || '-'
     client.altPrefix = process.env.ALT_PREFIX || '#'
     client.meLid = state?.creds?.me?.lid || null

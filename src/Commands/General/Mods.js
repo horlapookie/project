@@ -29,7 +29,7 @@ module.exports = {
     }
 
     const caption = [
-      `*${client.name || 'VEN domain'} moderators*`,
+      `*${client.name || 'Eternal'} moderators*`,
       '',
       `Total Mods: ${mods.length}`,
       '',

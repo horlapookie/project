@@ -278,7 +278,34 @@ module.exports = {
 
     if (!M.isGroup) return M.reply('Use this in a group.')
 
-    if (!sub) return sendAnnouncement(client, M)
+    const enabled = ((await client.DB.get('dungeon')) || []).includes(M.from)
+    const active = await client.DB.get(`ashen-active-${M.from}`).catch(() => null)
+    const isActive = Boolean(active?.expiresAt && Date.now() <= Number(active.expiresAt))
+
+    const nextAppearInMinutes = () => {
+      const now = new Date()
+      const d = new Date(now)
+      const hour = d.getUTCHours()
+      const rem = hour % 3
+      let add = (3 - rem) % 3
+      if (add === 0 && (d.getUTCMinutes() > 0 || d.getUTCSeconds() > 0)) add = 3
+      d.setUTCHours(hour + add, 0, 0, 0)
+      const diffMs = d.getTime() - now.getTime()
+      return Math.max(0, Math.ceil(diffMs / 60000))
+    }
+
+    // If user just types `ashen`, show status and the available subcommands (no spam announcement).
+    if (!sub) {
+      if (!enabled) {
+        return M.reply(`Ruins is closed for now.\n\nEnable Ashen Sanctum in this group with *${client.prefix}set --dungeon=enable*.\n\nSubcommands: spawn, enter, status, quit`)
+      }
+      if (isActive) {
+        const minsLeft = Math.max(0, Math.ceil((Number(active.expiresAt) - Date.now()) / 60000))
+        return M.reply(`Ruins is open now.\nRemaining: *${minsLeft} min*.\n\nSubcommands: spawn, enter, status, quit`)
+      }
+      const mins = nextAppearInMinutes()
+      return M.reply(`Ruins is closed for now.\nRemaining: *${mins} min* for it to appear in this group.\n\nSubcommands: spawn, enter, status, quit`)
+    }
 
     if (sub === 'spawn' || sub === 'appear' || sub === 'announce') {
       if (!client.isOwner(M)) return M.reply('Only the owner can force a dungeon announcement.')
@@ -314,14 +341,13 @@ module.exports = {
       return M.reply(`Invalid usage. Use *${prefix}ashen enter*, *${prefix}ashen status*, or *${prefix}ashen quit*.`)
     }
 
-    const enabled = ((await client.DB.get('dungeon')) || []).includes(M.from)
     if (!enabled) {
       return M.reply(`Dungeon is not enabled in this group. Use *${client.prefix}set --dungeon=enable*.`)
     }
 
-    const active = await client.DB.get(`ashen-active-${M.from}`).catch(() => null)
-    if (!active || !active.expiresAt || Date.now() > Number(active.expiresAt)) {
-      return M.reply(`No active Ashen Sanctum right now. Wait for it to appear, or the owner can use *${prefix}ashen spawn*.`)
+    if (!isActive) {
+      const mins = nextAppearInMinutes()
+      return M.reply(`Ruins is closed for now.\nRemaining: *${mins} min* for it to appear in this group.`)
     }
 
     if (client.pokemonBattleResponse.has(M.from)) {

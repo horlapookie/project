@@ -6,9 +6,21 @@ module.exports = {
     exp: 0,
     cool: 4,
     react: "📢",
-    usage: 'Use :info',
-    description: 'Get bot information',
+    usage: 'Use :info or :info <command>',
+    description: 'Get bot information or command info',
     async execute(client, arg, M) {
+        // If a command is provided, show command help (same idea as `help <cmd>`).
+        const query = String(arg || '').trim().toLowerCase()
+        if (query) {
+            const cmd =
+                client.cmd.get(query) ||
+                client.cmd.find((c) => c.aliases && c.aliases.map((a) => a.toLowerCase()).includes(query))
+            if (!cmd) return M.reply(`No command named *${arg.trim()}* was found.`)
+            const aliases = cmd.aliases && cmd.aliases.length ? cmd.aliases.join(', ') : 'None'
+            return M.reply(
+                `*Command:* ${cmd.name}\n*Aliases:* ${aliases}\n*Category:* ${cmd.category || 'Uncategorized'}\n*Usage:* ${cmd.usage || 'No usage provided'}\n*Description:* ${cmd.description || 'No description provided'}`
+            )
+        }
 
         const getGroups = await client.groupFetchAllParticipating();
         const groups = Object.entries(getGroups).map((entry) => entry[1]);
@@ -26,9 +38,10 @@ module.exports = {
         const modCount = client.mods.length;
         const website = 'coming soon...';
         
-        const botName = client.name || process.env.NAME || '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗'
+        const botName = client.name || process.env.NAME || 'Eternal'
+        const brand = client.brand || `${botName} ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ`
         let text = `*┌──────────────❀̥˚─┈ ⳹*\n`;
-        text += `*│🏮 BOT INFO:* ${botName}\n`;
+        text += `*│🏮 BOT INFO:* ${brand}\n`;
         text += `*│🕘 UPTIME:* ${uptime}\n`;
         text += `*│👥 USERS:* ${usersCounts || 0}\n`;
         text += `*│🎟️ COMMANDS:* ${client.cmd.size}\n`;
@@ -38,7 +51,7 @@ module.exports = {
         text += `*│🎭 WEBSITE:* ${website}\n`;
         text += `*└❀̥˚───────────────┈ ⳹*`;
 
-        return shizobtn1img(client, M.from, text, "https://telegra.ph/file/33b45c9dfd5c35998e704.jpg", "Help", "-help", botName)
+        return shizobtn1img(client, M.from, text, `${process.cwd()}/assets/Images/help.jpeg`, "Help", "-help", botName)
        
     }
 }; 
