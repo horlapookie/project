@@ -21,17 +21,20 @@ module.exports = {
       }
       const card = normalizeCard(raw)
 
-      const caption = [
+      const captionLines = [
         `🎍 *ID:* ${card.id}`,
         `🏮 *Name:* ${card.name}`,
         `🎃 *Type:* ${card.type}`,
-        `🎗 *Race:* ${card.race}`,
-        `📍 *ATK:* ${card.atk ?? 'N/A'}`,
-        `🛡 *DEF:* ${card.def ?? 'N/A'}`,
-        `✨ *Level:* ${card.level ?? 'N/A'}`,
-        `🧿 *Attribute:* ${card.attribute || 'N/A'}`,
-        `💰 *Price:* ${card.price}`
-      ].join('\n')
+        `🎗 *Race:* ${card.race || 'Unknown'}`
+      ]
+
+      if (card.atk !== null && card.atk !== undefined) captionLines.push(`📍 *ATK:* ${card.atk}`)
+      if (card.def !== null && card.def !== undefined) captionLines.push(`🛡 *DEF:* ${card.def}`)
+      if (card.level !== null && card.level !== undefined) captionLines.push(`✨ *Level:* ${card.level}`)
+      if (card.attribute && card.attribute !== 'N/A') captionLines.push(`🧿 *Attribute:* ${card.attribute}`)
+      captionLines.push(`💰 *Price:* ${card.price}`)
+
+      const caption = captionLines.join('\n')
 
       if (card.image) {
         const buffer = await client.utils.getBuffer(card.image)

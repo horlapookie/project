@@ -28,7 +28,7 @@ module.exports = {
     const econ = await client.getEcon(M, { createIfMissing: true })
     const balance = econ ? (econ.gem || 0) : 0
     if (balance < listing.price) {
-      return M.reply(`You need ${listing.price} gold to buy this card, but you only have ${balance}.`)
+      return M.reply(`You need ${listing.price} gems to buy this card, but you only have ${balance}.`)
     }
 
     econ.gem = balance - listing.price
@@ -45,7 +45,6 @@ module.exports = {
     market.splice(idx, 1)
     await client.DB.set('yu-market', market)
 
-    return M.reply(`Purchased *${listing.card.name}* for *${listing.price} gold*.`)
+    return M.reply(`Purchased *${listing.card.name}* for *${listing.price} gems*.`)
   }
 }
-

@@ -34,7 +34,6 @@ module.exports = {
     market.push(listing)
     await client.DB.set('yu-market', market)
 
-    return M.reply(`Listed *${card.name}* for *${price} gold*.\nListing ID: ${listing.id}`)
+    return M.reply(`Listed *${card.name}* for *${price} gems*.\nListing ID: ${listing.id}`)
   }
 }
-

@@ -6,22 +6,28 @@ const {
 } = require('../Helpers/yugioh')
 
 const formatSpawnText = (client, card) => {
-  return [
+  const lines = [
     'A YuGiOh Card Appeared!',
     '',
     `🎍 *ID:* ${card.id}`,
     `🏮 *Name:* ${card.name}`,
     `🎃 *Type:* ${card.type}`,
-    `🎗 *Race:* ${card.race || 'Unknown'}`,
-    `📍 *ATK:* ${card.atk ?? 'N/A'}`,
-    `🛡 *DEF:* ${card.def ?? 'N/A'}`,
-    '',
-    `✨ *Level:* ${card.level ?? 'N/A'}`,
-    `🧿 *Attribute:* ${card.attribute || 'N/A'}`,
+    `🎗 *Race:* ${card.race || 'Unknown'}`
+  ]
+
+  if (card.atk !== null && card.atk !== undefined) lines.push(`📍 *ATK:* ${card.atk}`)
+  if (card.def !== null && card.def !== undefined) lines.push(`🛡 *DEF:* ${card.def}`)
+
+  if (card.level !== null && card.level !== undefined) lines.push('', `✨ *Level:* ${card.level}`)
+  if (card.attribute && card.attribute !== 'N/A') lines.push(`🧿 *Attribute:* ${card.attribute}`)
+
+  lines.push(
     `💰 *Price:* ${card.price}`,
     '',
-    `*[Use ${client.prefix}yuget to get this card for ${card.price} gold]*`
-  ].join('\n')
+    `*[Use ${client.prefix}yuget to get this card for ${card.price} gems]*`
+  )
+
+  return lines.join('\n')
 }
 
 module.exports = async function YugiohHandler(client) {

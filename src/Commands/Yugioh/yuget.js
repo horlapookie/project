@@ -29,7 +29,7 @@ module.exports = {
       const econ = await client.getEcon(M, { createIfMissing: true })
       const balance = econ ? (econ.gem || 0) : 0
       if (balance < card.price) {
-        return M.reply(`You need ${card.price} gold to get this card, but you only have ${balance}.`)
+        return M.reply(`You need ${card.price} gems to get this card, but you only have ${balance}.`)
       }
 
       econ.gem = balance - card.price
@@ -44,7 +44,7 @@ module.exports = {
       client.yuMap?.delete(jid)
 
       return client.sendMessage(M.from, {
-        text: `✅ *@${M.sender.split('@')[0]}* got *${card.name}* for *${card.price} gold*.`,
+        text: `✅ *@${M.sender.split('@')[0]}* got *${card.name}* for *${card.price} gems*.`,
         mentions: [M.sender]
       })
     } catch (err) {
@@ -53,4 +53,3 @@ module.exports = {
     }
   }
 }
-
