@@ -39,7 +39,8 @@ const fetchById = async (id) => {
 }
 
 const fetchByName = async (name) => {
-  const resp = await axios.get(`${YU_API}?name=${encodeURIComponent(name)}`)
+  // Use fname for partial matches to avoid 400 on non-exact name.
+  const resp = await axios.get(`${YU_API}?fname=${encodeURIComponent(name)}`)
   return resp.data?.data?.[0] || null
 }
 
@@ -73,4 +74,3 @@ module.exports = {
   setDeck,
   findByUid
 }
-

@@ -16,7 +16,9 @@ module.exports = {
     try {
       const isId = /^\d+$/.test(query)
       const raw = isId ? await fetchById(query) : await fetchByName(query)
-      if (!raw) return M.reply('Card not found.')
+      if (!raw) {
+        return M.reply('No card matching that name was found. Try a more specific name.')
+      }
       const card = normalizeCard(raw)
 
       const caption = [
@@ -42,4 +44,3 @@ module.exports = {
     }
   }
 }
-

@@ -227,9 +227,16 @@ module.exports = MessageHandler = async (messages, client) => {
             await client.sendMessage(from, { react: { text: command.react, key: M.key } });
         }
 
+        const moderationNoAdminNeeded = new Set(['ping', 'delete', 'set'])
         const commandExecutionChecks = [
             { condition: !senderIsGroupAdmin && !senderIsStaff && command.category === 'moderation', message: 'This command can only be used by group or community admins.' },
-            { condition: !botIsAdmin && command.category === 'moderation', message: 'This command can only be used when the bot is an admin.' },
+            {
+                condition:
+                    !botIsAdmin &&
+                    command.category === 'moderation' &&
+                    !moderationNoAdminNeeded.has(command.name),
+                message: 'This command can only be used when the bot is an admin.'
+            },
             { condition: !isGroup && command.category === 'moderation', message: 'This command is meant to be used in groups.' },
             { condition: !isGroup && !senderIsStaff, message: 'Bot can only be accessed in groups.' },
             { condition: !senderIsStaff && command.category === 'dev', message: 'This command can only be accessed by staff.' },
