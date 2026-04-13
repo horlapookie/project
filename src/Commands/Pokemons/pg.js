@@ -69,13 +69,18 @@ async function handleConfirmationOrRejection(client, action, M) {
 
 async function initiatePokemonGive(client, args, M) {
     try {
-        const index = parseInt(args[0]);
-        const mentionedUser = M.mentions[0];
+        let index = parseInt(args[0]);
+        let mentionedUser = M.mentions[0] || M.quoted?.participant || null;
+
+        if (!index && args.length >= 2) {
+            index = parseInt(args[1]);
+            mentionedUser = mentionedUser || M.mentions[0] || M.quoted?.participant || null;
+        }
         const sender = M.sender;
         const senderParty = await client.poke.get(`${sender}_Party`) || [];
 
         if (!mentionedUser) {
-            return M.reply("Please mention a user to give the Pokémon to.");
+            return M.reply("Please mention or reply to the user you want to give the Pokémon to.");
         }
 
         const targetParty = await client.poke.get(`${mentionedUser}_Party`) || [];
