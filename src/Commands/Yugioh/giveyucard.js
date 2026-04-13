@@ -30,10 +30,11 @@ module.exports = {
     await setCollection(client, senderKey, senderCollection)
     await setCollection(client, targetKey, targetCollection)
 
-    return client.sendMessage(M.from, {
-      text: `✅ *@${M.sender.split('@')[0]}* gave *${card.name}* to *@${target.number}*.`,
-      mentions: [M.sender, target.jid]
-    })
+    const caption = `✅ *@${M.sender.split('@')[0]}* gave *${card.name}* to *@${target.number}*.`
+    if (card.image) {
+      const buffer = await client.utils.getBuffer(card.image)
+      return client.sendMessage(M.from, { image: buffer, caption, mentions: [M.sender, target.jid] })
+    }
+    return client.sendMessage(M.from, { text: caption, mentions: [M.sender, target.jid] })
   }
 }
-

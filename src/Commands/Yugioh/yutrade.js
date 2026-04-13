@@ -38,12 +38,30 @@ module.exports = {
       expiresAt: Date.now() + 10 * 60 * 1000
     }
     await client.DB.set(`yu-trade-${M.from}`, trade)
+    setTimeout(async () => {
+      try {
+        const latest = await client.DB.get(`yu-trade-${M.from}`)
+        if (!latest) return
+        if (latest.expiresAt && Date.now() > Number(latest.expiresAt)) {
+          await client.DB.delete(`yu-trade-${M.from}`)
+          await client.sendMessage(M.from, {
+            text: 'Yu-Gi-Oh trade expired due to inactivity.'
+          })
+        }
+      } catch (_) {
+        // ignore
+      }
+    }, 10 * 60 * 1000)
 
-    return client.sendMessage(M.from, {
-      text: `*@${M.sender.split('@')[0]}* wants to trade *${trade.give.name}* for *${trade.want.name}*.\n\n` +
-        `*@${target.number}* use *${client.prefix}yutrade-confirm* to accept or *${client.prefix}yutrade-delete* to cancel.`,
-      mentions: [M.sender, target.jid]
-    })
+    const caption =
+      `*@${M.sender.split('@')[0]}* wants to trade *${trade.give.name}* for *${trade.want.name}*.\n\n` +
+      `*@${target.number}* use *${client.prefix}yutrade-confirm* to accept or *${client.prefix}yutrade-delete* to cancel.`
+
+    if (trade.give?.image) {
+      const buffer = await client.utils.getBuffer(trade.give.image)
+      return client.sendMessage(M.from, { image: buffer, caption, mentions: [M.sender, target.jid] })
+    }
+
+    return client.sendMessage(M.from, { text: caption, mentions: [M.sender, target.jid] })
   }
 }
-
