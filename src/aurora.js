@@ -17,9 +17,11 @@ const MessageHandler = require('./Handlers/Message')
 const CardHandler = require('./Handlers/card')
 const PokeHandler = require('./Handlers/pokemon')
 const DungeonHandler = require('./Handlers/dungeon')
+const YugiohHandler = require('./Handlers/yugioh')
 const EventsHandler = require('./Handlers/Events')
 const econ = require("./Database/Models/economy")
 const cardMap = new Map()
+const yuMap = new Map()
 const contact = require('./Structures/Contact')
 const utils = require('./Structures/Functions')
 const YT = require('./lib/YT')
@@ -156,6 +158,7 @@ const start = async () => {
     //Contacts
     client.contact = contact
     client.cardMap = cardMap
+    client.yuMap = yuMap
     //Experience
     client.exp = client.DB.table('experience')
 
@@ -567,6 +570,8 @@ const start = async () => {
     await PokeHandler(client);
 
     await DungeonHandler(client);
+
+    await YugiohHandler(client);
 
     return client
 }

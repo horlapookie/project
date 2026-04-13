@@ -69,7 +69,30 @@ module.exports = {
                 const commandList = Object.keys(categories);
                 let commands = '';
 
+                const yugiohCategory = 'yu-gi-oh-cards'
+                const yugiohList = [
+                    'discard',
+                    'giveyucard',
+                    'purchase',
+                    'sale',
+                    'swapyu',
+                    't2yucollec',
+                    't2yudeck',
+                    'yuclaim',
+                    'yucollection',
+                    'yudeck',
+                    'yuget',
+                    'yutrade',
+                    'yutrade-confirm',
+                    'yutrade-delete',
+                    'yugioh'
+                ]
+
                 for (const category of commandList) {
+                    if (category === yugiohCategory) {
+                        commands += `▫▫▫--Yu-gi-oh-cards--▫▫▫\n\`\`\`${yugiohList.join(', ')}\`\`\`\n\n`
+                        continue
+                    }
                     commands += `*𓊈𒆜 ${client.utils.capitalize(category, true)} 𒆜𓊉* \n\`\`\`${categories[category].join(', ')}\`\`\`\n\n`;
                 }
 
