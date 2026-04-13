@@ -34,14 +34,24 @@ const fetchRandomCard = async () => {
 }
 
 const fetchById = async (id) => {
-  const resp = await axios.get(`${YU_API}?id=${id}`)
-  return resp.data?.data?.[0] || null
+  try {
+    const resp = await axios.get(`${YU_API}?id=${id}`)
+    return resp.data?.data?.[0] || null
+  } catch (err) {
+    if (err?.response?.status === 400) return null
+    throw err
+  }
 }
 
 const fetchByName = async (name) => {
   // Use fname for partial matches to avoid 400 on non-exact name.
-  const resp = await axios.get(`${YU_API}?fname=${encodeURIComponent(name)}`)
-  return resp.data?.data?.[0] || null
+  try {
+    const resp = await axios.get(`${YU_API}?fname=${encodeURIComponent(name)}`)
+    return resp.data?.data?.[0] || null
+  } catch (err) {
+    if (err?.response?.status === 400) return null
+    throw err
+  }
 }
 
 const getCollection = async (client, user) =>
