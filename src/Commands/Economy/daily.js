@@ -13,20 +13,17 @@ module.exports = {
         const userId = M.sender;
         let message = '';
 
-        const economy = await client.econ.findOne({ userId });
-        if (!economy) {
-            message = "*You haven't set up your economy yet.*";
+        const economy = await client.getEcon(M, { createIfMissing: true });
+        const daily = economy?.lastDaily || 0;
+
+        if (daily && dailyTimeout - (Date.now() - daily) > 0) {
+            const dailyTime = ms(dailyTimeout - (Date.now() - daily));
+            message = `*┏─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*\n*╏🏮 ᴀʟʀᴇᴀᴅʏ ᴄʟᴀɪᴍᴇᴅ ʏᴏᴜʀ ʀᴇᴡᴀʀᴅ*\n*╏🕒 ʏᴏᴜ ʜᴀᴠᴇ ᴛᴏ ᴡᴀɪᴛ*\n*╏⏳ ᴛɪᴍᴇ ʟᴇғᴛ =『 ${dailyTime.hours} : ${dailyTime.minutes} 』*\n*┗─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*`;
         } else {
-            const daily = economy.lastDaily;
-            if (daily !== null && dailyTimeout - (Date.now() - daily) > 0) {
-                const dailyTime = ms(dailyTimeout - (Date.now() - daily));
-                message = `*┏─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*\n*╏🏮 ᴀʟʀᴇᴀᴅʏ ᴄʟᴀɪᴍᴇᴅ ʏᴏᴜʀ ʀᴇᴡᴀʀᴅ*\n*╏🕒 ʏᴏᴜ ʜᴀᴠᴇ ᴛᴏ ᴡᴀɪᴛ*\n*╏⏳ ᴛɪᴍᴇ ʟᴇғᴛ =『 ${dailyTime.hours} : ${dailyTime.minutes} 』*\n*┗─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*`;
-            } else {
-                message = `*┏─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*\n*╏🏮 ʏᴏᴜ ʜᴀᴠᴇ ᴄʟᴀɪᴍᴇᴅ ʏᴏᴜʀ ᴅᴀɪʟʏ*\n*╏ʀᴇᴡᴀʀᴅ!!*\n*╏🎊『 ${dailyAmount} 』*\n*┗─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*`;
-                economy.gem += dailyAmount;
-                economy.lastDaily = Date.now();
-                await economy.save();
-            }
+            message = `*┏─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*\n*╏🏮 ʏᴏᴜ ʜᴀᴠᴇ ᴄʟᴀɪᴍᴇᴅ ʏᴏᴜʀ ᴅᴀɪʟʏ*\n*╏ʀᴇᴡᴀʀᴅ!!*\n*╏🎊『 ${dailyAmount} 』*\n*┗─═─━══─| ʀᴇᴡᴀʀᴅ |─══━─═─∘⦿ꕹ᛫*`;
+            economy.gem = (economy.gem || 0) + dailyAmount;
+            economy.lastDaily = Date.now();
+            await economy.save();
         }
        M.reply(message);
     },
