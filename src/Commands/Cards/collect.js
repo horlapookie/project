@@ -52,7 +52,14 @@ module.exports = {
 
       if (card.pack && Array.isArray(card.pack)) {
         const reveal = await client.utils.drawCardPackGallery(card.pack, { mode: 'front', title: 'PACK REVEAL' })
-        await client.sendMessage(M.from, { image: reveal, caption: `🎉 You have successfully claimed the pack for *${card.price} gems*.` }, { quoted: M })
+        const lines = card.pack.map((c, idx) => `*${idx + 1}.* ${c.title} [Tier ${c.tier}] - ${c.price} gems`)
+        const details = [
+          `🎉 You have successfully claimed the pack for *${card.price} gems*.`,
+          '',
+          '📜 *Pack Contents:*',
+          ...lines
+        ].join('\n')
+        await client.sendMessage(M.from, { image: reveal, caption: details }, { quoted: M })
       } else {
         await M.reply(
           `🎉 You have successfully claimed the card for *${card.price} gems*. ${text}`
