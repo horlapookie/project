@@ -11,17 +11,19 @@ module.exports = {
             const quotedText = M.quoted?.text || M.quoted?.caption || '';
             const link = String(arg || quotedText || '').trim();
 
-            if (!link || !link.includes('https://chat.whatsapp.com/')) {
+            const match = link.match(/https:\/\/chat\.whatsapp\.com\/([A-Za-z0-9]+)/);
+            const joinCode = match ? match[1] : null;
+
+            if (!joinCode) {
                 return M.reply('🚫 Oops! The provided link is not a valid group link.');
             }
 
-            const joinCode = link.split('https://chat.whatsapp.com/')[1];
             client
             .groupAcceptInvite(joinCode) // Fix: Use 'joinCode' instead of 'JoinCode'
             .then((res) => M.reply('🟩 *Joined*'))
             .catch((err) => {
                 console.error(err);
-                M.reply('🟨 *Something went wrong, please check the link.*');
+                M.reply('🟨 *Unable to join. The link may be invalid, expired, or the bot is already in the group.*');
             });
         } catch (err) {
             console.error(err);
