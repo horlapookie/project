@@ -1378,6 +1378,99 @@ const drawDungeonGallery = async (dungeonParty = [], options = {}) => {
 }
 
 /**
+ * Render a simple 5x2 card pack gallery.
+ * @param {Object[]} cards
+ * @param {Object} [options]
+ * @param {'back'|'front'} [options.mode]
+ * @param {string} [options.title]
+ * @returns {Promise<Buffer>}
+ */
+const drawCardPackGallery = async (cards = [], options = {}) => {
+    const mode = options.mode || 'back'
+    const title = options.title || (mode === 'back' ? 'CARD PACK' : 'PACK REVEAL')
+
+    const W = 1600
+    const H = 900
+    const canvas = Canvas.createCanvas(W, H)
+    const ctx = canvas.getContext('2d')
+
+    // Background
+    const grad = ctx.createLinearGradient(0, 0, W, H)
+    grad.addColorStop(0, '#12141a')
+    grad.addColorStop(1, '#1c2130')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'center'
+    ctx.font = 'bold 44px Sans-Serif'
+    ctx.fillText(title, W / 2, 64)
+
+    const cols = 5
+    const rows = 2
+    const pad = 50
+    const gap = 18
+    const cardW = Math.floor((W - pad * 2 - gap * (cols - 1)) / cols)
+    const cardH = Math.floor((H - 140 - pad - gap * (rows - 1)) / rows)
+    const startY = 120
+
+    const drawCardBack = (x, y) => {
+        const radius = 16
+        ctx.fillStyle = '#21283a'
+        ctx.strokeStyle = '#e4c887'
+        ctx.lineWidth = 4
+        ctx.beginPath()
+        ctx.moveTo(x + radius, y)
+        ctx.arcTo(x + cardW, y, x + cardW, y + cardH, radius)
+        ctx.arcTo(x + cardW, y + cardH, x, y + cardH, radius)
+        ctx.arcTo(x, y + cardH, x, y, radius)
+        ctx.arcTo(x, y, x + cardW, y, radius)
+        ctx.closePath()
+        ctx.fill()
+        ctx.stroke()
+
+        ctx.fillStyle = '#f5e6b0'
+        ctx.font = 'bold 28px Sans-Serif'
+        ctx.fillText('VEN', x + cardW / 2, y + cardH / 2 - 8)
+        ctx.font = '16px Sans-Serif'
+        ctx.fillText('DOMAIN', x + cardW / 2, y + cardH / 2 + 18)
+    }
+
+    const loadCardImage = async (url = '') => {
+        if (!url) return null
+        try {
+            const res = await axios.get(url, { responseType: 'arraybuffer' })
+            let buffer = Buffer.from(res.data)
+            if (String(url).toLowerCase().endsWith('.gif')) {
+                buffer = await gifToPng(buffer)
+            }
+            return await loadImage(buffer)
+        } catch (_) {
+            return null
+        }
+    }
+
+    for (let i = 0; i < cols * rows; i++) {
+        const card = cards[i]
+        const c = i % cols
+        const r = Math.floor(i / cols)
+        const x = pad + c * (cardW + gap)
+        const y = startY + r * (cardH + gap)
+
+        if (mode === 'front' && card && card.url) {
+            const img = await loadCardImage(card.url)
+            if (img) {
+                ctx.drawImage(img, x, y, cardW, cardH)
+                continue
+            }
+        }
+        drawCardBack(x, y)
+    }
+
+    return canvas.toBuffer('image/jpeg', { quality: 0.82 })
+}
+
+/**
      * @param {number} pokemonSize - The size of the Pokémon image.
      * @returns {Promise<Object>} - Promise resolving to an object containing styles for player Pokémon.
      */
@@ -1508,5 +1601,6 @@ module.exports = {
     handlePokemonStats,
     handlePokemonEvolution,
     drawPokemonBattle,
-    drawDungeonGallery
+    drawDungeonGallery,
+    drawCardPackGallery
 }

@@ -10,7 +10,7 @@ module.exports = {
   async execute(client, arg, M) {
     try {
       const card = await client.cardMap.get(M.from);
-     if (!card) {
+      if (!card) {
         return M.reply("🙅‍♀️ Sorry, there are currently no available cards to claim!");
       }
 
@@ -31,7 +31,16 @@ module.exports = {
 
       let text = `🃏 card has been safely stored in your deck!`;
 
-      if (deck.length < 12) {
+      if (card.pack && Array.isArray(card.pack)) {
+        for (const item of card.pack) {
+          if (deck.length < 12) {
+            deck.push(item.card);
+          } else {
+            collection.push(item.card);
+            text = `🃏card has been safely stored in your collection!`;
+          }
+        }
+      } else if (deck.length < 12) {
         deck.push(card.card);
       } else {
         text = `🃏card has been safely stored in your collection!`;
@@ -41,12 +50,17 @@ module.exports = {
       await client.DB.set(`${M.sender}_Deck`, deck);
       await client.DB.set(`${M.sender}_Collection`, collection);
 
-      await M.reply(
-        `🎉 You have successfully claimed the card for *${card.price} gems*. ${text}`
-      );
+      if (card.pack && Array.isArray(card.pack)) {
+        const reveal = await client.utils.drawCardPackGallery(card.pack, { mode: 'front', title: 'PACK REVEAL' })
+        await client.sendMessage(M.from, { image: reveal, caption: `🎉 You have successfully claimed the pack for *${card.price} gems*.` }, { quoted: M })
+      } else {
+        await M.reply(
+          `🎉 You have successfully claimed the card for *${card.price} gems*. ${text}`
+        );
+      }
 
       await client.cardMap.delete(M.from);
-       if (economy) {
+      if (economy) {
         economy.gem = wallet;
         await economy.save();
       }

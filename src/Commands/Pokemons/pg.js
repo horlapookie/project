@@ -95,7 +95,21 @@ async function initiatePokemonGive(client, args, M) {
 
         const pokemon = senderParty[index - 1];
         if (targetParty.length >= 6) {
-            return M.reply('Receiver does not have space in their party.');
+            const targetPc = client.getPc ? await client.getPc(mentionedUser) : (await client.poke.get(`${mentionedUser}_PSS`)) || [];
+            targetPc.push(pokemon);
+            if (client.setPc) await client.setPc(mentionedUser, targetPc);
+            else await client.poke.set(`${mentionedUser}_PSS`, targetPc);
+
+            senderParty.splice(index - 1, 1);
+            await client.poke.set(`${sender}_Party`, senderParty);
+
+            const text = `✔ @${sender.split('@')[0]} has transferred *${pokemon.name}* (Level: ${pokemon.level}) to @${mentionedUser.split('@')[0]}. It was sent to their PC.`;
+            await client.sendMessage(M.from, { text: text, mentions: [sender, mentionedUser] });
+
+            if (client.groups?.adminsGroup) {
+                await client.sendMessage(client.groups.adminsGroup, { text: `${text} in ${M.from}`, mentions: [sender, mentionedUser] });
+            }
+            return;
         }
 
         // Remove the Pokémon from sender's party
