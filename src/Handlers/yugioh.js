@@ -12,14 +12,13 @@ const formatSpawnText = (client, card) => {
     `🎍 *ID:* ${card.id}`,
     `🏮 *Name:* ${card.name}`,
     `🎃 *Type:* ${card.type}`,
-    `🎗 *Race:* ${card.race || 'Unknown'}`
+    `🎗 *Race:* ${card.race || 'Unknown'}`,
+    `📍 *ATK:* ${card.atk ?? 'N/A'}`,
+    `🛡 *DEF:* ${card.def ?? 'N/A'}`,
+    '',
+    `✨ *Level:* ${card.level ?? 'N/A'}`,
+    `🧿 *Attribute:* ${card.attribute || 'N/A'}`
   ]
-
-  if (card.atk !== null && card.atk !== undefined) lines.push(`📍 *ATK:* ${card.atk}`)
-  if (card.def !== null && card.def !== undefined) lines.push(`🛡 *DEF:* ${card.def}`)
-
-  if (card.level !== null && card.level !== undefined) lines.push('', `✨ *Level:* ${card.level}`)
-  if (card.attribute && card.attribute !== 'N/A') lines.push(`🧿 *Attribute:* ${card.attribute}`)
 
   lines.push(
     `💰 *Price:* ${card.price}`,
