@@ -65,14 +65,14 @@ module.exports = {
 
         if (amount > credits) return M.reply("You don't have sufficient funds.");
         
-        if (amount > 200000) return M.reply('You cannot bet more than 200000 credits in the slot machine.');
+        if (amount > 1000000) return M.reply('You cannot bet more than 1000000 credits in the slot machine.');
         
         if (amount < 300) return M.reply('You cannot bet less than 300 credits in the slot machine.');
 
         const machine = new SlotMachine(3, symbols).play();
         const points = machine.lines.reduce((total, line) => total + line.points, 0);
 
-        const winChance = Math.random() < 0.7;
+        const winChance = Math.random() < 0.8;
         let resultAmount = points <= 0 ? -amount : amount * points;
 
         const jackpotChance = Math.random();
