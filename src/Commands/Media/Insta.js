@@ -27,21 +27,23 @@ module.exports = {
 
     try {
       const { data } = await axios.get(
-        `https://weeb-api.vercel.app/insta?url=${url}`
+        `https://api.princetechn.com/api/download/instadl?apikey=prince&url=${encodeURIComponent(url)}`
       );
-      if (data.urls && data.urls.length > 0) {
-        for (const { url: mediaUrl, type } of data.urls) {
-          const buffer = await client.utils.getBuffer(mediaUrl);
-          const mediaType = type === 'image' ? 'image' : 'video';
-          client.sendMessage(M.from, {
-            type: mediaType,
-            [mediaType]: buffer,
-            caption: 'Here is your result', // Adjust the caption as needed
-          });
-        }
-      } else {
-        return M.reply('❌ No video/image data found for the provided URL.');
-      }
+      const downloadUrl =
+        data?.result?.download_url ||
+        data?.result?.url ||
+        data?.download_url ||
+        data?.url ||
+        data?.link ||
+        data?.data?.url ||
+        null;
+      if (!downloadUrl) return M.reply('❌ No media found for that Instagram URL.');
+
+      const buffer = await client.utils.getBuffer(downloadUrl);
+      await client.sendMessage(M.from, {
+        video: buffer,
+        caption: 'Here is your result'
+      });
     } catch (error) {
       return M.reply(`❌ Error while getting video/image data: ${error.message}`);
     }
