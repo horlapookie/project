@@ -829,6 +829,18 @@ const continueSelection = async (client, M) => {
             const alivePokemon = opponentData.filter((pokemon) => pokemon.hp > 0);
 
             if (!alivePokemon.length) {
+                if (isWildUser(opponent.user)) {
+                    const active = currentUser.activePokemon;
+                    if (active && active.level < 100 && battle.lastXpAwardTag !== active.tag) {
+                        try {
+                            await handleStats(client, M, opponent.activePokemon.exp, currentUser.user, active, battle.turn);
+                            battle.lastXpAwardTag = active.tag;
+                            setBattleData(client, M.from, battle);
+                        } catch (_) {
+                            // ignore xp errors
+                        }
+                    }
+                }
                 return endBattle(client, M, currentUser.user, opponent.user);
             }
 
@@ -1061,10 +1073,13 @@ const handleStats = async (client, M, exp, user, pokemon, player) => {
     try {
         const tier = pokemon.tier || (await client.utils.getPokemonTier?.(pokemon.name)) || 'normal';
         pokemon.tier = tier;
+        if (!Number.isFinite(pokemon.exp)) pokemon.exp = 0;
+        if (!Number.isFinite(pokemon.displayExp)) pokemon.displayExp = 0;
+        const expValue = Number.isFinite(exp) ? exp : 0;
         const gainMultiplier = client.utils.getTierXpGainMultiplier
             ? client.utils.getTierXpGainMultiplier(tier)
             : 1;
-        const resultExp = Math.max(1, Math.round((exp / 50) * gainMultiplier));
+        const resultExp = Math.max(1, Math.round((expValue / 50) * gainMultiplier));
 
         await client.sendMessage(M.from, {
             text: `${formatBattleActor(client, user, pokemon.name)} gained *${resultExp} XP*`,
