@@ -24,6 +24,8 @@ module.exports = {
         `https://api.princetechn.com/api/download/xvideosdl?apikey=prince&url=${encodeURIComponent(url)}`
       );
       const downloadUrl =
+        data?.result?.files?.high ||
+        data?.result?.files?.low ||
         data?.result?.download_url ||
         data?.result?.url ||
         data?.download_url ||

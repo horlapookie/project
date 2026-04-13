@@ -36,7 +36,12 @@ const fetchRandomCard = async () => {
       pragma: 'no-cache'
     }
   })
-  return resp.data?.data?.[0] || null
+  const first = resp.data?.data?.[0] || null
+  if (first) return first
+
+  const offset = Math.floor(Math.random() * 9000)
+  const fallback = await axios.get(`${YU_API}?num=1&offset=${offset}`)
+  return fallback.data?.data?.[0] || null
 }
 
 const fetchById = async (id) => {

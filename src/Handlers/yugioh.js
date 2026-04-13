@@ -36,7 +36,18 @@ module.exports = async function YugiohHandler(client) {
     client._yuCronStarted = true
 
     client.spawnYuCard = async (jid) => {
-      const raw = await fetchRandomCard()
+      const lastId = await client.DB.get(`yu-last-${jid}`).catch(() => null)
+      let raw = await fetchRandomCard()
+      if (raw && lastId && Number(raw.id) === Number(lastId)) {
+        // Try a few extra times to avoid repeats per group.
+        for (let i = 0; i < 3; i += 1) {
+          const retry = await fetchRandomCard()
+          if (retry && Number(retry.id) !== Number(lastId)) {
+            raw = retry
+            break
+          }
+        }
+      }
       if (!raw) throw new Error('No Yugioh card returned')
       const card = normalizeCard(raw)
       const expiresAt = Date.now() + 15 * 60 * 1000
@@ -44,6 +55,7 @@ module.exports = async function YugiohHandler(client) {
 
       client.yuMap.set(jid, payload)
       await client.DB.set(`yu-spawn-${jid}`, payload).catch(() => null)
+      await client.DB.set(`yu-last-${jid}`, card.id).catch(() => null)
 
       const image = card.image
       const caption = formatSpawnText(client, card)
