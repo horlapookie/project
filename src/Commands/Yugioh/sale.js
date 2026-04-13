@@ -34,6 +34,11 @@ module.exports = {
     market.push(listing)
     await client.DB.set('yu-market', market)
 
-    return M.reply(`Listed *${card.name}* for *${price} gems*.\nListing ID: ${listing.id}`)
+    const caption = `Listed *${card.name}* for *${price} gems*.\nListing ID: ${listing.id}`
+    if (card.image) {
+      const buffer = await client.utils.getBuffer(card.image)
+      return client.sendMessage(M.from, { image: buffer, caption }, { quoted: M })
+    }
+    return M.reply(caption)
   }
 }
