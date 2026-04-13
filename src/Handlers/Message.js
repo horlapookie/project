@@ -111,6 +111,7 @@ module.exports = MessageHandler = async (messages, client) => {
         const companion = await client.poke.get(`${sender}_Companion`);
         const economy = await client.getEcon(M);
         const senderIsStaff = client.isStaff ? client.isStaff(M) : client.isMod(M);
+        const nsfwGroups = (await client.DB.get('nsfw')) || [];
 
         // Antilink system
     if (isGroup && ActivateMod.includes(from) && botIsAdmin && body) {
@@ -240,6 +241,10 @@ module.exports = MessageHandler = async (messages, client) => {
             { condition: !isGroup && command.category === 'moderation', message: 'This command is meant to be used in groups.' },
             { condition: !isGroup && !senderIsStaff, message: 'Bot can only be accessed in groups.' },
             { condition: !senderIsStaff && command.category === 'dev', message: 'This command can only be accessed by staff.' },
+            {
+                condition: command.category === 'nsfw' && (!isGroup || !nsfwGroups.includes(from)),
+                message: `NSFW commands are disabled in this group. Use ${client.prefix}set --nsfw=enable`
+            },
             {
                 condition:
                     command.category === 'pokemon' &&

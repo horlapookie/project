@@ -14,7 +14,8 @@ module.exports = {
             'cards': 'This function enables card spawning in your group.',
             'wild': 'This feature enable wild pokemon encounters.',
             'dungeon': 'This feature enables dungeon announcements every 3 hours (PvE boss rush).',
-            'yugioh': 'This feature enables Yu-Gi-Oh card spawning in your group.'
+            'yugioh': 'This feature enables Yu-Gi-Oh card spawning in your group.',
+            'nsfw': 'This feature enables NSFW commands in your group.'
         };
 
         if (!arg) {

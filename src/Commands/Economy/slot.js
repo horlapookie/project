@@ -72,6 +72,7 @@ module.exports = {
         const machine = new SlotMachine(3, symbols).play();
         const points = machine.lines.reduce((total, line) => total + line.points, 0);
 
+        const winChance = Math.random() < 0.7;
         let resultAmount = points <= 0 ? -amount : amount * points;
 
         const jackpotChance = Math.random();
@@ -90,8 +91,11 @@ module.exports = {
 
             const luckFactor = 0.6 + (Math.random() * luck) / 10; // Reduce luck factor to 60%
 
-            if (points > 0 || Math.random() < luckFactor) { // Introduce luck probability here
-                resultAmount *= luckFactor; // Multiply result amount by luck factor
+            if (winChance) {
+                if (points <= 0) {
+                    resultAmount = amount * 1;
+                }
+                resultAmount *= luckFactor;
             }
             
             resultAmount = Math.round(resultAmount);
@@ -100,14 +104,14 @@ module.exports = {
             let text = '*☆::. 🎰𓊈 ꜱʟᴏᴛ ᴍᴀᴄʜɪɴᴇ 𓊉 🎰 .::.☆*\n\n';
             text += machine.visualize();
 
-            if (points <= 0 && luck > 0 && Math.random() < 0.5) { // Adjust the probability here
+            if (!winChance && points <= 0 && luck > 0 && Math.random() < 0.5) { // Adjust the probability here
                 resultAmount = 0;
                 economy.luckpotion -= 1;
                 await economy.save();
                 text += '\n\nYou have been saved by your luck potion!🙂';
             } else {
                 // Apply net change once.
-                if (points <= 0) {
+                if (!winChance) {
                     // Losing 100% of the bet feels too punishing, especially with low hit rates.
                     // Keep the game negative-EV, but soften misses.
                     const lossAmount = Math.max(1, Math.round(amount * 0.65));
