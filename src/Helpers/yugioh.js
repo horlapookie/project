@@ -29,7 +29,13 @@ const normalizeCard = (card) => {
 }
 
 const fetchRandomCard = async () => {
-  const resp = await axios.get(`${YU_API}?random=1`)
+  const cacheBust = Date.now()
+  const resp = await axios.get(`${YU_API}?random=1&cachebust=${cacheBust}`, {
+    headers: {
+      'cache-control': 'no-cache',
+      pragma: 'no-cache'
+    }
+  })
   return resp.data?.data?.[0] || null
 }
 
