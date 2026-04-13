@@ -1,6 +1,6 @@
 module.exports = {
     name: "pokemongive",
-    aliases: ["pg"],
+    aliases: ["pg", "gpm"],
     exp: 3,
     cool: 5,
     react: "🎁",
@@ -9,14 +9,6 @@ module.exports = {
     usage: 'pokemongive <index> <@user> | pokemongive confirm | pokemongive reject',
     async execute(client, arg, M) {
         const args = arg.split(' ');
-        const action = args[0].toLowerCase();
-
-        // Check if user is confirming or rejecting a pending operation
-        if (action === 'confirm' || action === 'reject') {
-            return handleConfirmationOrRejection(client, action, M);
-        }
-
-        // Otherwise, initiate the Pokémon give process
         return initiatePokemonGive(client, args, M);
     }
 };
@@ -76,11 +68,6 @@ async function handleConfirmationOrRejection(client, action, M) {
 }
 
 async function initiatePokemonGive(client, args, M) {
-    const pendingGive = await client.poke.get(`${M.sender}_Confirm`);
-    if (pendingGive) {
-        return M.reply('You already have a pending Pokémon give operation. Please confirm or reject it first.');
-    }
-
     try {
         const index = parseInt(args[0]);
         const mentionedUser = M.mentions[0];
@@ -106,16 +93,20 @@ async function initiatePokemonGive(client, args, M) {
             return M.reply('Receiver does not have space in their party.');
         }
 
-        // Ask for confirmation
-        const confirmText = `Do you want to give *${pokemon.name}* (Level: ${pokemon.level}) to @${mentionedUser.split('@')[0]}? Use :pg confirm to confirm or :pg reject to cancel.`;
-        await client.sendMessage(M.from, { text: confirmText, mentions: [sender, mentionedUser] });
+        // Remove the Pokémon from sender's party
+        senderParty.splice(index - 1, 1);
+        await client.poke.set(`${sender}_Party`, senderParty);
 
-        // Save the Pokémon give operation details for confirmation
-        await client.poke.set(`${M.sender}_Confirm`, {
-            pokemonIndex: index - 1,
-            mentionedUser,
-            from: M.from
-        });
+        // Add the Pokémon to the target user's party
+        targetParty.push(pokemon);
+        await client.poke.set(`${mentionedUser}_Party`, targetParty);
+
+        const text = `✔ @${sender.split('@')[0]} has transferred *${pokemon.name}* (Level: ${pokemon.level}) to @${mentionedUser.split('@')[0]}.`;
+        await client.sendMessage(M.from, { text: text, mentions: [sender, mentionedUser] });
+
+        if (client.groups?.adminsGroup) {
+            await client.sendMessage(client.groups.adminsGroup, { text: `${text} in ${M.from}`, mentions: [sender, mentionedUser] });
+        }
 
     } catch (err) {
         console.error(err);
