@@ -12,7 +12,8 @@ module.exports = {
     description: 'Gives you your rank card',
     async execute(client, arg, M) {
         const rawUser = M.quoted?.participant ? M.quoted.participant : M.mentions[0] ? M.mentions[0] : M.sender;
-        const number = client.getUserNumber(rawUser) || String(rawUser).split('@')[0].replace(/\D/g, '')
+        const resolved = await client.resolveNumber(rawUser)
+        const number = resolved || client.getUserNumber(rawUser) || String(rawUser).split('@')[0].replace(/\D/g, '')
         const user = number ? `${number}@s.whatsapp.net` : rawUser
         const xpKey = number || rawUser
 
