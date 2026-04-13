@@ -8,7 +8,8 @@ module.exports = {
     description: 'Join a group using the link. eg group join (gclink)',
     async execute(client, arg, M) {
         try {
-            const link = arg;
+            const quotedText = M.quoted?.text || M.quoted?.caption || '';
+            const link = String(arg || quotedText || '').trim();
 
             if (!link || !link.includes('https://chat.whatsapp.com/')) {
                 return M.reply('🚫 Oops! The provided link is not a valid group link.');

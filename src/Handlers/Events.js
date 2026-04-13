@@ -4,8 +4,22 @@ module.exports = EventsHandler = async (event, client) => {
     try {
         const activateEvents = (await client.DB.get('events')) || [];
         const groupMetadata = await client.groupMetadata(event.id);
+        const botJid = client.user?.id || client.user?.jid;
+        const botAdded =
+            event.action === 'add' &&
+            botJid &&
+            event.participants?.some((jid) => String(jid) === String(botJid));
         
-        if (!activateEvents.includes(event.id)) return;
+        if (!activateEvents.includes(event.id) && !botAdded) return;
+
+        if (botAdded) {
+            const mentions = (groupMetadata.participants || []).map((p) => p.id || p.jid).filter(Boolean);
+            await client.sendMessage(event.id, {
+                text: `Thanks for adding me here. Use *${client.prefix}help* to start.`,
+                mentions
+            });
+            return;
+        }
 
         const text =
             event.action === 'add'
