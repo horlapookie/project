@@ -39,7 +39,13 @@ module.exports = {
     await setCollection(client, trade.to, toCollection)
     await client.DB.delete(`yu-trade-${M.from}`)
 
-    return M.reply(`Trade complete! *${trade.give.name}* ↔ *${trade.want.name}*`)
+    const tradeImage = await client.utils.drawYuTrade(trade.give, trade.want, {
+      leftPrice: trade.give.price,
+      rightPrice: trade.want.price
+    })
+    return client.sendMessage(M.from, {
+      image: tradeImage,
+      caption: `Trade complete! *${trade.give.name}* ↔ *${trade.want.name}*`
+    })
   }
 }
-

@@ -1471,6 +1471,84 @@ const drawCardPackGallery = async (cards = [], options = {}) => {
 }
 
 /**
+ * Render a two-card trade image with "TRADE" in the middle.
+ * @param {Object} left
+ * @param {Object} right
+ * @param {Object} [options]
+ * @param {number} [options.leftPrice]
+ * @param {number} [options.rightPrice]
+ * @returns {Promise<Buffer>}
+ */
+const drawYuTrade = async (left, right, options = {}) => {
+    const W = 1200
+    const H = 700
+    const canvas = Canvas.createCanvas(W, H)
+    const ctx = canvas.getContext('2d')
+
+    const grad = ctx.createLinearGradient(0, 0, W, H)
+    grad.addColorStop(0, '#101219')
+    grad.addColorStop(1, '#1b2030')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, H)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'center'
+    ctx.font = 'bold 42px Sans-Serif'
+    ctx.fillText('TRADE', W / 2, 70)
+
+    const cardW = 360
+    const cardH = 520
+    const leftX = 120
+    const rightX = W - 120 - cardW
+    const topY = 120
+
+    const drawSlot = (x, y, label) => {
+        ctx.fillStyle = '#232a3c'
+        ctx.strokeStyle = '#e4c887'
+        ctx.lineWidth = 4
+        ctx.beginPath()
+        ctx.roundRect(x, y, cardW, cardH, 18)
+        ctx.fill()
+        ctx.stroke()
+        ctx.fillStyle = '#ffffff'
+        ctx.font = 'bold 18px Sans-Serif'
+        ctx.fillText(label, x + cardW / 2, y + cardH + 28)
+    }
+
+    const loadCardImage = async (url = '') => {
+        if (!url) return null
+        try {
+            const res = await axios.get(url, { responseType: 'arraybuffer' })
+            let buffer = Buffer.from(res.data)
+            if (String(url).toLowerCase().endsWith('.gif')) {
+                buffer = await gifToPng(buffer)
+            }
+            return await loadImage(buffer)
+        } catch (_) {
+            return null
+        }
+    }
+
+    const leftImg = await loadCardImage(left?.image || left?.url || '')
+    const rightImg = await loadCardImage(right?.image || right?.url || '')
+
+    if (leftImg) ctx.drawImage(leftImg, leftX, topY, cardW, cardH)
+    else drawSlot(leftX, topY, left?.name || 'Card A')
+
+    if (rightImg) ctx.drawImage(rightImg, rightX, topY, cardW, cardH)
+    else drawSlot(rightX, topY, right?.name || 'Card B')
+
+    ctx.fillStyle = '#ffd86b'
+    ctx.font = 'bold 22px Sans-Serif'
+    const leftPrice = options.leftPrice != null ? `${options.leftPrice} gems` : ''
+    const rightPrice = options.rightPrice != null ? `${options.rightPrice} gems` : ''
+    if (leftPrice) ctx.fillText(leftPrice, leftX + cardW / 2, topY + cardH + 60)
+    if (rightPrice) ctx.fillText(rightPrice, rightX + cardW / 2, topY + cardH + 60)
+
+    return canvas.toBuffer('image/jpeg', { quality: 0.82 })
+}
+
+/**
      * @param {number} pokemonSize - The size of the Pokémon image.
      * @returns {Promise<Object>} - Promise resolving to an object containing styles for player Pokémon.
      */
@@ -1602,5 +1680,6 @@ module.exports = {
     handlePokemonEvolution,
     drawPokemonBattle,
     drawDungeonGallery,
-    drawCardPackGallery
+    drawCardPackGallery,
+    drawYuTrade
 }
