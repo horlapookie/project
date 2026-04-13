@@ -1,4 +1,4 @@
-const { spotifydl } = require('../../lib/Spotify')
+const axios = require('axios')
 
 module.exports = {
     name: 'spotify',
@@ -8,47 +8,40 @@ module.exports = {
     cool: 5,
     react: "✅",
     usage: 'Use :spotify <Link>',
-    description: 'Downloads given Spotify track and sends it as audio with an image and caption',
+    description: 'Downloads given Spotify track and sends it as audio',
     async execute(client, arg, M) {
-        const link = arg
-        if (!link.includes('https://open.spotify.com/track/'))
+        const link = String(arg || '').trim()
+        if (!link.includes('open.spotify.com/track/'))
             return M.reply('Please use command with a valid open.spotify.com track link')
-        const audioSpotify = await spotifydl(link.trim()).catch((err) => {
-            M.reply(err.toString())
-            client.log(err, 'red')
-            return null
-        })
 
-        if (!audioSpotify) return
-        if (audioSpotify.error) return M.reply(`Error fetching: ${link.trim()}. Check if the URL is valid and try again.`)
+        try {
+            const apiUrl = `https://api.princetechn.com/api/download/spotifydl?apikey=prince&url=${encodeURIComponent(link)}`
+            const { data } = await axios.get(apiUrl)
+            const downloadUrl =
+                data?.result?.download_url ||
+                data?.result?.url ||
+                data?.download_url ||
+                data?.url ||
+                data?.link ||
+                data?.data?.url ||
+                null
+            if (!downloadUrl) return M.reply('Unable to fetch this Spotify track.')
 
-        const caption = `🎧 *Title:* ${audioSpotify.data.name || ''}\n🎤 *Artists:* ${(
-            audioSpotify.data.artists || []
-        ).join(', ')}\n💽 *Album:* ${audioSpotify.data.album_name}\n📆 *Release Date:* ${
-            audioSpotify.data.release_date || ''
-        }`
-
-        await client.sendMessage(
-            M.from,
-            {
-                image: audioSpotify.coverimage,
-                caption: caption
-            },
-            {
-                quoted: M
-            }
-        )
-
-        await client.sendMessage(
-            M.from,
-            {
-                audio: audioSpotify.audio,
-                mimetype: 'audio/mpeg',
-                fileName: audioSpotify.data.name + '.mp3'
-            },
-            {
-                quoted: M
-            }
-        )
+            const audioBuffer = await client.utils.getBuffer(downloadUrl)
+            await client.sendMessage(
+                M.from,
+                {
+                    audio: audioBuffer,
+                    mimetype: 'audio/mpeg',
+                    fileName: 'spotify.mp3'
+                },
+                {
+                    quoted: M
+                }
+            )
+        } catch (err) {
+            console.error(err)
+            return M.reply('An error occurred while downloading the Spotify audio.')
+        }
     }
 }

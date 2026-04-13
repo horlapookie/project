@@ -13,15 +13,15 @@ module.exports = {
         try {
             const quotedKey = M.quoted?.key || {}
             const quotedId = quotedKey.id || M.quoted?.id
-            const participant = M.quoted?.participant || quotedKey.participant
+            const participant = quotedKey.participant || M.quoted?.participant
             const key = {
-                remoteJid: M.from,
+                remoteJid: quotedKey.remoteJid || M.from,
                 id: String(quotedId),
-                fromMe: Boolean(M.quoted?.fromMe || quotedKey.fromMe),
+                fromMe: Boolean(quotedKey.fromMe || M.quoted?.fromMe),
                 ...(participant ? { participant } : {})
             }
 
-            await client.deleteMessage(M.from, key, participant)
+            await client.sendMessage(M.from, { delete: key })
             return M.reply('Message deleted successfully!')
         } catch (error) {
             console.error('Error deleting message:', error)
