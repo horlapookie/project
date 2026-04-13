@@ -29,19 +29,15 @@ const normalizeCard = (card) => {
 }
 
 const fetchRandomCard = async () => {
-  const cacheBust = Date.now()
-  const resp = await axios.get(`${YU_API}?random=1&cachebust=${cacheBust}`, {
+  // Use random offset instead of the API's random=1 to avoid cached repeats.
+  const offset = Math.floor(Math.random() * 12000)
+  const resp = await axios.get(`${YU_API}?num=1&offset=${offset}`, {
     headers: {
       'cache-control': 'no-cache',
       pragma: 'no-cache'
     }
   })
-  const first = resp.data?.data?.[0] || null
-  if (first) return first
-
-  const offset = Math.floor(Math.random() * 9000)
-  const fallback = await axios.get(`${YU_API}?num=1&offset=${offset}`)
-  return fallback.data?.data?.[0] || null
+  return resp.data?.data?.[0] || null
 }
 
 const fetchById = async (id) => {
