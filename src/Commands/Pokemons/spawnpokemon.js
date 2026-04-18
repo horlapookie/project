@@ -3,7 +3,7 @@ module.exports = {
     aliases: ['spawnpoke', 'spawnpkm'],
     exp: 3,
     // 900 seconds cooldown as requested.
-    cool: 900,
+    cool: 400,
     react: '🌟',
     category: 'pokemon',
     usage: 'Use :spawnpokemon',
