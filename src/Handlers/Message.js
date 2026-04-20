@@ -140,12 +140,12 @@ module.exports = MessageHandler = async (messages, client) => {
         // Auto chat bot
         if (M.quoted?.participant) M.mentions.push(M.quoted.participant);
         const chatEnabled = !isGroup || ActivateChatBot.includes(from);
-	    if (
-	        chatEnabled &&
-	        M.mentions.some((jid) => botCandidates.some((candidate) => areJidsSameUser(candidate, jid))) &&
-	        !isCmd &&
-	        isGroup
-	    ) {
+            if (
+                chatEnabled &&
+                M.mentions.some((jid) => botCandidates.some((candidate) => areJidsSameUser(candidate, jid))) &&
+                !isCmd &&
+                isGroup
+            ) {
             try {
                 const response = await axios.get(
                     `https://hercai.onrender.com/beta/hercai?question=${encodeURIComponent(body)}`,
@@ -189,9 +189,13 @@ module.exports = MessageHandler = async (messages, client) => {
 
         if (!isCmd) return;
 
-        const bannedUser = banned.find(b => b.user === sender);
-        if (isCmd && bannedUser) {
-            return M.reply(`You are banned from using the bot. Reason: ${bannedUser.reason}`);
+        const isBanned = banned.some(b => {
+            if (typeof b === 'string') return b === sender || sameDigits(b, sender);
+            if (b && typeof b === 'object' && b.user) return b.user === sender || sameDigits(b.user, sender);
+            return false;
+        });
+        if (isCmd && isBanned) {
+            return M.reply('You are banned from using bot commands.');
         }
 
         const command = client.cmd.get(cmdName) || client.cmd.find(cmd => cmd.aliases && cmd.aliases.includes(cmdName));

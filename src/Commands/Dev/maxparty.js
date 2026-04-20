@@ -12,7 +12,19 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
     data.sprites?.front_default ||
     ''
   const { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, level)
-  const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(data.name, level)
+
+  let moves = []
+  let rejectedMoves = []
+  try {
+    const moveResult = await client.utils.assignPokemonMoves(data.name, level)
+    moves = moveResult.moves || []
+    rejectedMoves = moveResult.rejectedMoves || []
+  } catch (_) {
+    moves = []
+    rejectedMoves = []
+  }
+
+  const maxPpMoves = moves.map((m) => ({ ...m, pp: m.maxPp || m.pp }))
 
   return {
     name: data.name,
@@ -20,7 +32,7 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
     exp,
     image,
     id: data.id,
-    displayExp: 0,
+    displayExp: exp,
     tier,
     hp,
     attack,
@@ -31,7 +43,7 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
     maxAttack: attack,
     maxSpeed: speed,
     types: data.types.map((t) => t.type.name),
-    moves,
+    moves: maxPpMoves,
     rejectedMoves,
     state: { status: '', movesUsed: 0 },
     female: false,
@@ -47,7 +59,7 @@ module.exports = {
   cool: 4,
   react: '⚡',
   usage: 'Use :maxparty (owner only)',
-  description: 'Maxes your party for testing (level 100, full HP, refreshed moves).',
+  description: 'Maxes your party for testing (level 100, full HP, refreshed moves, full PP).',
   async execute(client, arg, M) {
     if (!client.isOwner(M)) return M.reply('Only the owner can use this command.')
 
@@ -56,20 +68,43 @@ module.exports = {
 
     const party = (await client.poke.get(`${target}_Party`)) || []
     if (!party.length) return M.reply("That user doesn't have any Pokemon in their party.")
+
     const updated = []
+    const failed = []
 
     for (const p of party) {
-      const fresh = await buildPokemon(client, p.name, level, p.tag)
-      updated.push(fresh)
+      try {
+        const fresh = await buildPokemon(client, p.name, level, p.tag)
+        updated.push(fresh)
+      } catch (err) {
+        console.error(`maxparty: failed to rebuild ${p.name}:`, err?.message || err)
+        const healed = {
+          ...p,
+          level,
+          hp: p.maxHp || p.hp,
+          attack: p.maxAttack || p.attack,
+          defense: p.maxDefense || p.defense,
+          speed: p.maxSpeed || p.speed,
+          state: { status: '', movesUsed: 0 },
+          moves: (p.moves || []).map((m) => ({ ...m, pp: m.maxPp || m.pp }))
+        }
+        updated.push(healed)
+        failed.push(p.name)
+      }
     }
-    // Keep the party size unchanged (only max what exists).
-    const finalParty = updated
-    await client.poke.set(`${target}_Party`, finalParty)
+
+    await client.poke.set(`${target}_Party`, updated)
+
+    const failNote = failed.length ? `\n⚠️ Could not fully refresh: ${failed.join(', ')} (healed & PP restored instead).` : ''
 
     return client.sendMessage(
       M.from,
       {
-        text: `✅ Party maxed for *@${target.split('@')[0]}*.\n\nAll Pokemon set to Level 100 with full HP. Party size: ${finalParty.length}`,
+        text:
+          `✅ Party maxed for *@${target.split('@')[0]}*.\n\n` +
+          `All Pokemon set to Level 100 with full HP, full PP, and refreshed moves.\n` +
+          `Party size: ${updated.length}` +
+          failNote,
         mentions: [target]
       },
       { quoted: M }

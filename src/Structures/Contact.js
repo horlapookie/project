@@ -2,8 +2,8 @@ const getContact = async (jid, client) => {
     // Get contact information from the contact database using the JID
     const contact = await client.contactDB.get(jid)
 
-    // If the contact exists, return their name, otherwise return "User"
-    const username = contact ?? 'User'
+    // If the contact exists and is non-empty, return their name, otherwise return "User"
+    const username = (contact && String(contact).trim()) ? String(contact).trim() : 'User'
 
     return { username, jid }
 }

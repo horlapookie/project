@@ -847,18 +847,22 @@ const continueSelection = async (client, M) => {
             if (isWildUser(opponent.user)) {
                 // Dungeon: pause between guardians and require an explicit "battle continue".
                 if (battle.isDungeon) {
+                    const defeatedCount = opponentData.length - alivePokemon.length;
+                    const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
+                    const ordinal = ordinals[defeatedCount - 1] || `${defeatedCount}th`;
+
                     battle.player2.activePokemon = alivePokemon[0];
                     battle.player2.move = '';
                     battle.turn = 'player1';
                     battle.awaitingContinue = true;
-                    touchWildExpiry(battle);
+                    touchBattleExpiry(client, battle);
                     setBattleData(client, M.from, battle);
 
-                    await sendBattleState(client, M, battle, {
+                    await client.sendMessage(M.from, {
                         text:
                             `🔥 *ASHEN SANCTUM* 🔥\n\n` +
-                            `You encountered a new wild guardian: *${client.utils.capitalize(alivePokemon[0].name)}* (Lv. ${alivePokemon[0].level}).\n\n` +
-                            `Use *${client.prefix}battle continue* to continue, or *${client.prefix}ashen quit* to quit.`
+                            `💥 The *${ordinal} guardian* is down!\n\n` +
+                            `Type *${client.prefix}battle continue* for the next guardian to appear, or *${client.prefix}ashen quit* to quit.`
                     });
                     return null;
                 }

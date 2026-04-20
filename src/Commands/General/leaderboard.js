@@ -42,7 +42,10 @@ module.exports = {
                 const jid = String(topUsers[i].user).includes('@')
                     ? topUsers[i].user
                     : `${topUsers[i].user}@s.whatsapp.net`
-                const username = (await client.contact.getContact(jid, client)).username ?? 'Unknown';
+                const contactInfo = await client.contact.getContact(jid, client);
+                const rawUsername = contactInfo?.username;
+                const phoneNum = jid.split('@')[0];
+                const username = (rawUsername && rawUsername !== 'User') ? rawUsername : `+${phoneNum}`;
                 
                 text += `\n\n*(${i + 1})*\n`;
                 text += `⛩ Username: ${username}\n`;
