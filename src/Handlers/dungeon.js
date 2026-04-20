@@ -55,7 +55,7 @@ module.exports = async function DungeonHandler(client) {
     if (client._dungeonCronStarted) return
     client._dungeonCronStarted = true
 
-    cron.schedule('0 */3 * * *', async () => {
+    cron.schedule('0 */4 * * *', async () => {
       try {
         const groups = (await client.DB.get('dungeon')) || []
         if (!groups.length) return

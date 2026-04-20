@@ -947,6 +947,10 @@ const endBattle = async (client, M, winner, loser) => {
                     const winnerKey = (await client.resolveNumber(winner)) || client.getUserNumber(winner) || winner;
                     await addInventoryQuantity(client, winnerKey, 'master_ball', rewardBalls);
 
+                    // Track ashen sanctum wins
+                    const prevWins = Number((await client.DB.get(`ashen-wins-${winner}`)) || 0);
+                    await client.DB.set(`ashen-wins-${winner}`, prevWins + 1).catch(() => null);
+
                     // Huge XP reward: apply once to the active Pokemon to avoid spamming.
                     try {
                         const party = await getPartyForUser(client, winner);

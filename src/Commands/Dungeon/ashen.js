@@ -295,15 +295,15 @@ module.exports = {
       const now = Date.now()
       const last = Number((await client.DB.get(`ashen-last-${M.from}`).catch(() => null)) || 0)
       if (last) {
-        const next = last + 3 * 60 * 60 * 1000
+        const next = last + 4 * 60 * 60 * 1000
         if (now >= next) return 0
         return Math.max(0, Math.ceil((next - now) / 60000))
       }
       const d = new Date(now)
       const hour = d.getUTCHours()
-      const rem = hour % 3
-      let add = (3 - rem) % 3
-      if (add === 0 && (d.getUTCMinutes() > 0 || d.getUTCSeconds() > 0)) add = 3
+      const rem = hour % 4
+      let add = (4 - rem) % 4
+      if (add === 0 && (d.getUTCMinutes() > 0 || d.getUTCSeconds() > 0)) add = 4
       d.setUTCHours(hour + add, 0, 0, 0)
       return Math.max(0, Math.ceil((d.getTime() - now) / 60000))
     }
