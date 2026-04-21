@@ -1,130 +1,138 @@
 // Slot Command
-const { SlotMachine, SlotSymbol } = require('slot-machine');
+const SYMBOLS = [
+    { display: '🍒', weight: 14 },
+    { display: '🍋', weight: 12 },
+    { display: '🍊', weight: 11 },
+    { display: '🍉', weight: 10 },
+    { display: '🍇', weight: 9 },
+    { display: '🔔', weight: 6 },
+    { display: '⭐', weight: 4 },
+    { display: '💎', weight: 2 }
+];
+
+const totalWeight = SYMBOLS.reduce((s, x) => s + x.weight, 0);
+
+const spinSymbol = () => {
+    let r = Math.floor(Math.random() * totalWeight);
+    for (const sym of SYMBOLS) {
+        r -= sym.weight;
+        if (r < 0) return sym.display;
+    }
+    return SYMBOLS[0].display;
+};
+
+const spinReels = () => {
+    return [
+        [spinSymbol(), spinSymbol(), spinSymbol()],
+        [spinSymbol(), spinSymbol(), spinSymbol()],
+        [spinSymbol(), spinSymbol(), spinSymbol()]
+    ];
+};
+
+const visualize = (grid) =>
+    grid.map((row) => row.join(' ┃ ')).join('\n──────────────\n');
 
 module.exports = {
     name: 'slot',
     aliases: ['bet'],
     category: 'economy',
     exp: 5,
-    // Casino cooldown
     cool: 30,
-    react: "🤑",
+    react: '🤑',
     usage: 'Use: !slot <amount>',
-    description: 'Bets the given amount of credits in a slot machine',
+    description: 'Bets the given amount in the slot machine. 3-of-a-kind on the middle row pays out!',
     async execute(client, arg, M) {
-        const symbols = [
-            new SlotSymbol('a', {
-                display: '🍊',
-                points: 0,
-                weight: 3,
-            }),
-            new SlotSymbol('b', {
-                display: '🍉',
-                points: 1,
-                weight: 5,
-            }),
-            new SlotSymbol('c', {
-                display: '🥭',
-                points: 0,
-                weight: 10,
-            }),
-            new SlotSymbol('d', {
-                display: '🍎',
-                points: 0,
-                weight: 6,
-            }),
-            new SlotSymbol('e', {
-                display: '🍑',
-                points: 1,
-                weight: 8,
-            }),
-            new SlotSymbol('f', {
-                display: '🍓',
-                points: 1,
-                weight: 6,
-            }),
-            new SlotSymbol('g', {
-                display: '🍇',
-                points: 0,
-                weight: 4,
-            }),
-        ];
-        
         if (!arg) return M.reply('Please provide the amount.');
-        
-        const amount = parseInt(arg);
 
+        const amount = parseInt(arg);
         if (isNaN(amount) || amount <= 0) return M.reply('Please provide a valid positive amount.');
-        
-        if (arg.startsWith('-') || arg.startsWith('+')) return M.reply('Please provide a valid amount.');
+        if (String(arg).startsWith('-') || String(arg).startsWith('+'))
+            return M.reply('Please provide a valid amount.');
 
         const economy = await client.getEcon(M);
-        if (!economy) return M.reply(`Use ${client.prefix}bonus to get started.`)
+        if (!economy) return M.reply(`Use ${client.prefix}bonus to get started.`);
 
         const credits = economy.gem || 0;
-
         if (amount > credits) return M.reply("You don't have sufficient funds.");
-        
-        if (amount > 1000000) return M.reply('You cannot bet more than 1000000 credits in the slot machine.');
-        
+        if (amount > 1000000) return M.reply('You cannot bet more than 1,000,000 credits in the slot machine.');
         if (amount < 300) return M.reply('You cannot bet less than 300 credits in the slot machine.');
 
-        const machine = new SlotMachine(3, symbols).play();
-        const points = machine.lines.reduce((total, line) => total + line.points, 0);
+        const grid = spinReels();
+        const middle = grid[1];
 
-        const winChance = Math.random() < 0.8;
-        let resultAmount = points <= 0 ? -amount : amount * points;
+        // Determine outcome based on middle row
+        let multiplier = 0;
+        let outcomeText = '';
+        let isJackpot = false;
 
-        const jackpotChance = Math.random();
-        const isJackpotTriggered = jackpotChance < 0.05; // Define jackpot triggering probability
+        const allSame = middle[0] === middle[1] && middle[1] === middle[2];
+        const twoSame = middle[0] === middle[1] || middle[1] === middle[2] || middle[0] === middle[2];
 
-        if (isJackpotTriggered) {
-            const jackpotWin = 200000; // Update jackpot win amount
-            economy.gem += jackpotWin;
-            await economy.save();
-            return M.reply(`*☆::. 🎰𓊈 ꜱʟᴏᴛ ᴍᴀᴄʜɪɴᴇ 𓊉 🎰 .::.☆*\n🍓 🍓 🍓\n🍉 🍉 🍉\n🍑 🍑 🍑\nCongratulations! You hit the jackpot and won ${jackpotWin} credits!`);
-        } else {
-            let luck = 0; // Define luck variable
-            if (economy.luckpotion) {
-                luck = economy.luckpotion;
-            }
-
-            const luckFactor = 0.6 + (Math.random() * luck) / 10; // Reduce luck factor to 60%
-
-            if (winChance) {
-                if (points <= 0) {
-                    resultAmount = amount * 1;
-                }
-                resultAmount *= luckFactor;
-            }
-            
-            resultAmount = Math.round(resultAmount);
-            if (resultAmount > 150000) resultAmount = 150000;
-
-            let text = '*☆::. 🎰𓊈 ꜱʟᴏᴛ ᴍᴀᴄʜɪɴᴇ 𓊉 🎰 .::.☆*\n\n';
-            text += machine.visualize();
-
-            if (!winChance && points <= 0 && luck > 0 && Math.random() < 0.5) { // Adjust the probability here
-                resultAmount = 0;
-                economy.luckpotion -= 1;
-                await economy.save();
-                text += '\n\nYou have been saved by your luck potion!🙂';
+        if (allSame) {
+            // Jackpot for triple-diamond, otherwise scale by symbol rarity
+            const sym = middle[0];
+            if (sym === '💎') {
+                isJackpot = true;
+                multiplier = 25; // mega jackpot
+                outcomeText = '💎 MEGA JACKPOT! Triple Diamonds! 💎';
+            } else if (sym === '⭐') {
+                isJackpot = true;
+                multiplier = 15;
+                outcomeText = '⭐ JACKPOT! Triple Stars! ⭐';
+            } else if (sym === '🔔') {
+                multiplier = 9;
+                outcomeText = '🔔 Triple Bells! 9x payout!';
             } else {
-                // Apply net change once.
-                if (!winChance) {
-                    // Losing 100% of the bet feels too punishing, especially with low hit rates.
-                    // Keep the game negative-EV, but soften misses.
-                    const lossAmount = Math.max(1, Math.round(amount * 0.65));
-                    economy.gem -= lossAmount;
-                    text += `\n\n📉 You lost ${lossAmount} credits`;
-                } else {
-                    economy.gem += resultAmount;
-                    text += `\n\n📈 You won ${resultAmount} credits`;
-                }
-                await economy.save();
+                multiplier = 9;
+                outcomeText = `Triple ${sym}! 9x payout!`;
             }
-
-            M.reply(text);
+        } else if (twoSame) {
+            // Decide between 6x or 3x based on which symbols matched
+            // 6x for the two-of-a-kind being middle pair, 3x otherwise
+            const pairIsCenter = middle[0] === middle[1] && middle[1] === middle[2];
+            if (middle[0] === middle[2]) {
+                multiplier = 6;
+                outcomeText = `${middle[0]} ${middle[1]} ${middle[2]} - Matching outer pair! 6x payout!`;
+            } else {
+                multiplier = 3;
+                outcomeText = `${middle[0]} ${middle[1]} ${middle[2]} - Matching pair! 3x payout!`;
+            }
+        } else {
+            // No match — small chance for a jackpot anyway as a "bonus"
+            if (Math.random() < 0.01) {
+                isJackpot = true;
+                multiplier = 20;
+                outcomeText = '🎰 SURPRISE JACKPOT!';
+            } else {
+                multiplier = 0;
+            }
         }
-    },
+
+        let resultAmount;
+        if (multiplier > 0) {
+            resultAmount = amount * multiplier;
+            // Cap obscene wins to keep economy stable
+            if (!isJackpot && resultAmount > 1500000) resultAmount = 1500000;
+            if (isJackpot && resultAmount > 5000000) resultAmount = 5000000;
+            economy.gem = (economy.gem || 0) + resultAmount;
+        } else {
+            // Loss
+            resultAmount = -amount;
+            economy.gem = Math.max(0, (economy.gem || 0) - amount);
+        }
+
+        await economy.save();
+
+        let text = '*☆::. 🎰 ꜱʟᴏᴛ ᴍᴀᴄʜɪɴᴇ 🎰 .::.☆*\n\n';
+        text += visualize(grid);
+        text += '\n\n';
+        if (multiplier > 0) {
+            text += `${outcomeText}\n📈 You won *${resultAmount.toLocaleString()}* credits!`;
+        } else {
+            text += `📉 No match. You lost *${amount.toLocaleString()}* credits.`;
+        }
+        text += `\n\n💰 Wallet: *${(economy.gem || 0).toLocaleString()}*`;
+
+        return M.reply(text);
+    }
 };

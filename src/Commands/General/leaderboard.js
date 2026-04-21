@@ -9,17 +9,20 @@ module.exports = {
     cool: 4,
     react: "📢",
     usage: 'Use :lb or :lb --gems',
-    description: "Displays global leaderboard by XP or Gems",
+    description: "Displays global leaderboard by XP or Golds",
     async execute(client, arg, M) {
         try {
             const mode = String(arg || '').trim().toLowerCase();
-            const isGems = mode === '--gems' || mode === 'gems' || mode === '-gems';
+            const isGems =
+                mode === '--gems' || mode === 'gems' || mode === '-gems' ||
+                mode === '--golds' || mode === 'golds' || mode === '-golds' ||
+                mode === '--gold' || mode === 'gold' || mode === '-gold';
 
             if (isGems) {
-                // --- GEMS LEADERBOARD ---
+                // --- GOLDS LEADERBOARD (wallet + treasury) ---
                 const allEcon = await client.econ.find({}).catch(() => []);
                 if (!allEcon || !allEcon.length) {
-                    return M.reply('🟥 *There are no users with gems yet.*');
+                    return M.reply('🟥 *There are no users with golds yet.*');
                 }
 
                 const users = allEcon
@@ -42,7 +45,7 @@ module.exports = {
                 const topUsers = lb.slice(0, 10);
                 const mentions = [];
 
-                let text = `💎 *GEMS LEADERBOARD* 💎\n\nYour Position: ${myPosition >= 0 ? myPosition + 1 : 'Unranked'}\n`;
+                let text = `🪙 *GOLDS LEADERBOARD* 🪙\n\nYour Position: ${myPosition >= 0 ? myPosition + 1 : 'Unranked'}\n`;
 
                 for (let i = 0; i < topUsers.length; i++) {
                     const rawUser = String(topUsers[i].user || '');
@@ -51,7 +54,7 @@ module.exports = {
 
                     text += `\n\n*(${i + 1})*\n`;
                     text += `⛩ User: @${jid.split('@')[0]}\n`;
-                    text += `💎 Gems: ${topUsers[i].gems.toLocaleString()}\n`;
+                    text += `🪙 Golds: ${topUsers[i].gems.toLocaleString()}\n`;
                 }
 
                 return client.sendMessage(

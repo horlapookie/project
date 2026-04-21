@@ -79,6 +79,11 @@ const specialRewards = [
   'necrozma-ultra'
 ]
 
+const DIFFICULTY_MULTIPLIERS = { easy: 0.9, normal: 1.3, hard: 1.5, boss: 1.75 }
+const DIFFICULTY_REWARD_SCALE = { easy: 0.5, normal: 1, hard: 2, boss: 4 }
+
+const todayStr = () => new Date().toISOString().slice(0, 10)
+
 const buildInfo = (prefix = '-') =>
   [
     '🔥 *ASHEN SANCTUM* 🔥',
@@ -102,7 +107,8 @@ const buildInfo = (prefix = '-') =>
     '- Chance for special-form Pokemon',
     '',
     '📌 *Commands:*',
-    `- ${prefix}ashen spawn (owner only)`,
+    `- ${prefix}ashen spawn (owner / officer only — 1/day)`,
+    `- ${prefix}ashen spawn --challenge=easy|normal|hard|boss`,
     `- ${prefix}ashen enter`,
     `- ${prefix}ashen status`,
     `- ${prefix}ashen quit`
@@ -292,20 +298,15 @@ module.exports = {
     const isActive = Boolean(active?.expiresAt && Date.now() <= Number(active.expiresAt))
 
     const nextAppearInMinutes = async () => {
+      // Ashen now appears at most once per day per group.
       const now = Date.now()
-      const last = Number((await client.DB.get(`ashen-last-${M.from}`).catch(() => null)) || 0)
-      if (last) {
-        const next = last + 4 * 60 * 60 * 1000
-        if (now >= next) return 0
-        return Math.max(0, Math.ceil((next - now) / 60000))
-      }
-      const d = new Date(now)
-      const hour = d.getUTCHours()
-      const rem = hour % 4
-      let add = (4 - rem) % 4
-      if (add === 0 && (d.getUTCMinutes() > 0 || d.getUTCSeconds() > 0)) add = 4
-      d.setUTCHours(hour + add, 0, 0, 0)
-      return Math.max(0, Math.ceil((d.getTime() - now) / 60000))
+      const today = todayStr()
+      const lastDay = (await client.DB.get(`ashen-day-${M.from}`).catch(() => null)) || ''
+      const next = new Date()
+      next.setUTCHours(0, 0, 0, 0)
+      next.setUTCDate(next.getUTCDate() + 1) // tomorrow 00:00 UTC
+      if (lastDay !== today) return 0
+      return Math.max(0, Math.ceil((next.getTime() - now) / 60000))
     }
 
     // If user just types `ashen`, show status and the available subcommands (no spam announcement).
@@ -321,8 +322,126 @@ module.exports = {
       return M.reply(`Ruins is closed for now.\nRuins will appear in *${mins} min* for this group.\n\nSubcommands: spawn, enter, status, quit`)
     }
 
-    if (sub === 'spawn' || sub === 'appear' || sub === 'announce') {
-      if (!client.isOwner(M)) return M.reply('Only the owner can force a dungeon announcement.')
+    if (sub.startsWith('spawn') || sub.startsWith('appear') || sub.startsWith('announce')) {
+      if (!client.isOwner(M) && !client.isOfficer(M)) {
+        return M.reply('Only the owner or officers can spawn the Ashen Sanctum.')
+      }
+
+      const fullArg = String(arg || '').trim().toLowerCase()
+      const isChallenge = /--ch(allenge)?(=|\b)/.test(fullArg)
+      const today = todayStr()
+      const dayKey = isChallenge ? `ashen-ch-day-${M.from}` : `ashen-day-${M.from}`
+      const lastDay = (await client.DB.get(dayKey).catch(() => null)) || ''
+      if (lastDay === today) {
+        return M.reply(
+          isChallenge
+            ? '🔥 The Ashen Challenge can only be spawned *once per day* in this group. Try again tomorrow.'
+            : '🔥 The Ashen Sanctum can only be spawned *once per day* in this group. Try again tomorrow.'
+        )
+      }
+      if (isActive) {
+        return M.reply('🔥 An Ashen Sanctum is already open in this group.')
+      }
+
+      if (isChallenge) {
+        const m = fullArg.match(/--ch(?:allenge)?=([a-z]+)/)
+        if (!m) {
+          return M.reply(
+            `Pick a difficulty for this challenge:\n\n` +
+            `- *${prefix}ashen spawn --ch=easy* — guardians weakened by 10%\n` +
+            `- *${prefix}ashen spawn --ch=normal* — guardians +30%\n` +
+            `- *${prefix}ashen spawn --ch=hard* — guardians +50%\n` +
+            `- *${prefix}ashen spawn --ch=boss* — guardians +75%\n\n` +
+            `Rewards scale with difficulty. (Challenge can only be spawned once per day.)`
+          )
+        }
+        const diff = m[1]
+        const mult = DIFFICULTY_MULTIPLIERS[diff]
+        if (!mult) {
+          return M.reply('Invalid difficulty. Use *easy*, *normal*, *hard*, or *boss*.')
+        }
+
+        await M.reply(`🔥 Forging the *${diff.toUpperCase()}* Ashen Challenge guardians... this may take a moment.`)
+
+        // Build the team and apply difficulty multiplier to every stat.
+        const teamNames = pickDungeonTeam(client)
+        const teamPokemons = []
+        for (const name of teamNames) {
+          try {
+            teamPokemons.push(await buildPokemonFromName(client, name, 100))
+          } catch (e) {
+            // skip on failure but try to keep going
+          }
+        }
+        if (teamPokemons.length < 6) {
+          return M.reply('Failed to forge the challenge guardians (PokeAPI error). Try again.')
+        }
+
+        const diffPctText =
+          diff === 'easy' ? '-10%' : `+${Math.round((mult - 1) * 100)}%`
+
+        let detail =
+          `🔥 *ASHEN CHALLENGE — ${diff.toUpperCase()}* 🔥\n\n` +
+          `⚔️ Difficulty modifier: *${diffPctText}* on every guardian stat.\n\n`
+
+        teamPokemons.forEach((p, i) => {
+          const oldHp = p.hp
+          const oldAtk = p.attack
+          const oldDef = p.defense
+          const oldSpd = p.speed
+
+          p.hp = Math.floor(oldHp * mult); p.maxHp = p.hp
+          p.attack = Math.floor(oldAtk * mult); p.maxAttack = p.attack
+          p.defense = Math.floor(oldDef * mult); p.maxDefense = p.defense
+          p.speed = Math.floor(oldSpd * mult); p.maxSpeed = p.speed
+
+          detail +=
+            `*Guardian ${i + 1}/6 — ${client.utils.capitalize(p.name)}* (Lv. ${p.level})\n` +
+            `  HP: ${oldHp} ➡️ ${p.hp}\n` +
+            `  Attack: ${oldAtk} ➡️ ${p.attack}\n` +
+            `  Defense: ${oldDef} ➡️ ${p.defense}\n` +
+            `  Speed: ${oldSpd} ➡️ ${p.speed}\n\n`
+        })
+
+        const scale = DIFFICULTY_REWARD_SCALE[diff] || 1
+        const rewardGems = Math.round(500000 * scale)
+        const rewardBalls = Math.round(10 * scale)
+        const rewardXp = Math.round(5000000 * scale)
+
+        detail +=
+          `🎁 *Clear rewards:*\n` +
+          `- ${rewardGems.toLocaleString()} gems\n` +
+          `- ${rewardBalls} master balls\n` +
+          `- ${rewardXp.toLocaleString()} XP for the active Pokemon\n` +
+          `- Bonus: chance for a special-form Pokemon\n\n` +
+          `📌 Use *${prefix}ashen enter* to challenge them!`
+
+        await client.DB
+          .set(`ashen-prebuilt-${M.from}`, {
+            team: teamPokemons,
+            difficulty: diff,
+            multiplier: mult,
+            createdAt: Date.now()
+          })
+          .catch(() => null)
+        await client.DB.set(dayKey, today).catch(() => null)
+        await markActive(client, M.from)
+
+        const meta = await client.groupMetadata(M.from).catch(() => null)
+        const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)
+        return client.sendMessage(
+          M.from,
+          {
+            image: { url: `${process.cwd()}/assets/Images/dungeon.jpg` },
+            caption: detail,
+            mentions
+          },
+          { quoted: M }
+        )
+      }
+
+      // Normal spawn
+      await client.DB.set(dayKey, today).catch(() => null)
       return sendAnnouncement(client, M)
     }
 
@@ -385,10 +504,26 @@ module.exports = {
     }
 
     const wildUser = `dungeon-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`
-    const dungeonTeamNames = pickDungeonTeam(client)
-    const dungeonParty = []
-    for (const name of dungeonTeamNames) {
-      dungeonParty.push(await buildPokemonFromName(client, name, 100))
+
+    // If a challenge was pre-spawned, use that team; otherwise build a fresh random team.
+    const prebuilt = await client.DB.get(`ashen-prebuilt-${M.from}`).catch(() => null)
+    let dungeonParty
+    let dungeonDifficulty = null
+    if (prebuilt && Array.isArray(prebuilt.team) && prebuilt.team.length === 6) {
+      dungeonParty = prebuilt.team.map((p) => ({
+        ...p,
+        hp: p.maxHp ?? p.hp,
+        tag: client.utils.generateRandomUniqueTag(10),
+        state: { status: '', movesUsed: 0 }
+      }))
+      dungeonDifficulty = prebuilt.difficulty || null
+      await client.DB.delete(`ashen-prebuilt-${M.from}`).catch(() => null)
+    } else {
+      const dungeonTeamNames = pickDungeonTeam(client)
+      dungeonParty = []
+      for (const name of dungeonTeamNames) {
+        dungeonParty.push(await buildPokemonFromName(client, name, 100))
+      }
     }
     await client.poke.set(`${wildUser}_Party`, dungeonParty)
 
@@ -397,6 +532,7 @@ module.exports = {
       mode: 'wild',
       isDungeon: true,
       dungeonId: 'ashen_sanctum',
+      dungeonDifficulty,
       noCapture: true,
       wildUser,
       dungeonClosesAt: active?.expiresAt || (Date.now() + 40 * 60 * 1000),

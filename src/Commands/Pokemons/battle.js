@@ -745,10 +745,14 @@ const handleBattles = async (client, M) => {
                 setBattleData(client, M.from, battle);
 
                 if (pokemon.level < 100 && !isWildUser(current.user)) {
+                    // PvP: winner's pokemon earns the FULL exp value of the defeated pokemon.
+                    // handleStats divides by 50 internally, so multiply here to compensate
+                    // (wild battles keep the historic /50 reward via the unchanged handleStats path).
+                    const xpAward = isWildUser(opponent.user) ? target.exp : (Number(target.exp) || 0) * 50;
                     await handleStats(
                         client,
                         M,
-                        target.exp,
+                        xpAward,
                         current.user,
                         pokemon,
                         opponent.user === battle.player1.user ? 'player2' : 'player1'
@@ -937,8 +941,9 @@ const endBattle = async (client, M, winner, loser) => {
                 client.pokemonBattlePlayerMap.delete(winner);
 
                 if (battle.isDungeon) {
-                    const rewardGems = 500000;
-                    const rewardBalls = 10;
+                    const diffScale = { easy: 0.5, normal: 1, hard: 2, boss: 4 }[battle.dungeonDifficulty] || 1;
+                    const rewardGems = Math.round(500000 * diffScale);
+                    const rewardBalls = Math.round(10 * diffScale);
 
                     const econ = await client.getEcon(winner, { createIfMissing: true });
                     econ.gem = Math.round(Number(econ.gem || 0)) + rewardGems;
@@ -956,7 +961,7 @@ const endBattle = async (client, M, winner, loser) => {
                         const party = await getPartyForUser(client, winner);
                         const active = battle.player1?.user === winner ? battle.player1.activePokemon : battle.player2.activePokemon;
                         if (active && active.hp > 0 && active.level < 100) {
-                            await handleStats(client, M, 5000000, winner, active, 'player1');
+                            await handleStats(client, M, Math.round(5000000 * diffScale), winner, active, 'player1');
                         }
                         // keep party saved via handleStats' updateActivePokemonInParty
                     } catch (_) {
@@ -1026,15 +1031,21 @@ const endBattle = async (client, M, winner, loser) => {
                         // ignore reward pokemon errors
                     }
 
+                    const diffLabel = battle.dungeonDifficulty
+                        ? ` (${String(battle.dungeonDifficulty).toUpperCase()} CHALLENGE)`
+                        : '';
                     return client.sendMessage(M.from, {
                         text:
-                            `🔥 *ASHEN SANCTUM CLEARED!* 🔥\n\n` +
+                            `🔥 *ASHEN SANCTUM CLEARED!*${diffLabel} 🔥\n\n` +
                             `🎉 *@${winner.split('@')[0]}* defeated all sanctum guardians.\n\n` +
-                            `Rewards:\n- *${rewardGems}* gems\n- *${rewardBalls}* Master Balls${bonusText}`,
+                            `Rewards:\n- *${rewardGems.toLocaleString()}* gems\n- *${rewardBalls}* Master Balls${bonusText}`,
                         mentions: [winner]
                     });
                 }
 
+                // Make sure any lingering wild spawn in this chat is cleared so others
+                // can use spawnpokemon / catch right away.
+                try { await client.pokemonResponse.delete(M.from); } catch (_) {}
                 return client.sendMessage(M.from, {
                     text: `🎉 ${formatBattleTrainer(winner)} defeated the wild *${client.utils.capitalize((battle.wildPokemon || battle.player2.activePokemon).name)}*, and it fled the battlefield.`,
                     mentions: [winner]

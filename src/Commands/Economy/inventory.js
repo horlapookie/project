@@ -22,7 +22,7 @@ module.exports = {
             const deck = (await client.DB.get(`${targetUser}_Deck`)) || [];
             const collection = (await client.DB.get(`${targetUser}_Collection`)) || [];
 
-            const userKey = String(targetUser).replace(/\D/g, '') || targetUser;
+            const userKey = (await client.resolveNumber?.(targetUser)) || String(targetUser).replace(/\D/g, '') || targetUser;
             const pokeballItems = await getInventory(client, userKey);
             const totalPokeballs = pokeballItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
 

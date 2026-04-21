@@ -1,4 +1,5 @@
 const { getStats, getLevelFromXp } = require('../../Helpers/Stats');
+const { getInventory } = require('../../Helpers/pokeballs');
 
 module.exports = {
     name: 'profile',
@@ -38,7 +39,32 @@ module.exports = {
         const level = getLevelFromXp(experience);
         await client.DB.set(`${user}_LEVEL`, level);
         const stats = getStats(level);
-        const contact = await client.contact.getContact(user, client);
+
+        // Compute global XP rank (position on the leaderboard)
+        let globalPosition = 'Unranked';
+        try {
+            const all = (await client.exp.all()) || [];
+            const sorted = all
+                .filter((x) => x && x.id)
+                .map((x) => ({ id: x.id, value: Number(x.value || 0) }))
+                .sort((a, b) => b.value - a.value);
+            const myDigits = String(user).replace(/\D/g, '');
+            const idx = sorted.findIndex((x) => String(x.id).replace(/\D/g, '') === myDigits);
+            if (idx >= 0) globalPosition = `#${idx + 1} of ${sorted.length}`;
+        } catch (_) {
+            globalPosition = 'Unranked';
+        }
+
+        // Pokeball totals
+        let totalPokeballs = 0;
+        try {
+            const userKey = (await client.resolveNumber?.(user)) || String(user).replace(/\D/g, '') || user;
+            const items = await getInventory(client, userKey);
+            totalPokeballs = items.reduce((sum, it) => sum + (it.quantity || 0), 0);
+        } catch (_) {
+            totalPokeballs = 0;
+        }
+
         const username = M.pushName
         const banned = (await client.DB.get('banned')) || [];
 
@@ -48,11 +74,13 @@ module.exports = {
         text += `*╏🎫 Bio:* ${bio}\n`;
         text += `*╏🍀 Level:* ${level}\n`;
         text += `*╏🌟 XP:* ${experience}\n`;
-        text += `*╏🥇 Rank:* ${stats.rank}\n`;
+        text += `*╏🥇 Title:* ${stats.rank}\n`;
+        text += `*╏📊 Global Rank:* ${globalPosition}\n`;
         text += `*╏👑 Admin:* ${groupAdmins.includes(user) ? 'True' : 'False'}\n`;
         text += `*╏✖ Ban:* ${banned.includes(user) ? 'True' : 'False'}\n`;
-        text += `*╏💰 Wallet:* ${wallet}\n`;
-        text += `*╏🃏 Deck:* ${deck ? deck.length : 0}\n`; // Check if deck is empty
+        text += `*╏💰 Wallet:* ${Number(wallet).toLocaleString()}\n`;
+        text += `*╏🎯 Pokeballs:* ${totalPokeballs}\n`;
+        text += `*╏🃏 Deck:* ${deck ? deck.length : 0}\n`;
         text += `*┗─═━══─|🎀 ᴘʀᴏғɪʟᴇ 🎀|─══━═─∘⦿ꕹ᛫*\n`;
 
         client.sendMessage(

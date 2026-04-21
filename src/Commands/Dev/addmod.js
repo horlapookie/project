@@ -43,6 +43,11 @@ module.exports = {
 
         mods.add(target.number)
         await client.DB.set('mods', Array.from(mods))
+        // Lift any prior delmod deny-list entry for this user.
+        const removed = new Set(((await client.DB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
+        if (removed.delete(target.number)) {
+            await client.DB.set('mods-removed', Array.from(removed))
+        }
         await client.DB.set(`mod-name-${target.number}`, target.name || 'Unknown User')
         await client.refreshRoles?.()
         return M.reply(`Added *${target.name || target.number}* as a moderator.`)

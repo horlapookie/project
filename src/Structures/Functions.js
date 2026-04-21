@@ -809,13 +809,51 @@ const isLikelyGif = (buffer) =>
      * @returns {Promise<object>} An object containing assigned moves and rejected moves.
      */
     const assignPokemonMoves = async (pokemon, level) => {
-        let moves = shuffleArray(
-            (await (await axios.get(`https://pokeapi.co/api/v2/pokemon/${pokemon}`)).data).moves.filter(
-                (move) =>
-                    move.version_group_details[0].move_learn_method.name === 'level-up' &&
-                    move.version_group_details[0].level_learned_at <= level
-            )
+        // Try the requested form first; if it has no level-up moves (common for gmax/special
+        // forms in PokeAPI), fall back to the base species name so the Pokemon still has moves.
+        const fetchMoves = async (name) => {
+            try {
+                const data = (await axios.get(`https://pokeapi.co/api/v2/pokemon/${name}`)).data;
+                return data?.moves || [];
+            } catch (_) {
+                return [];
+            }
+        };
+
+        const baseName = String(pokemon || '')
+            .replace(/-(gmax|gigantamax|mega(-x|-y)?|primal|alola|galar|hisui|paldea|origin|crowned|eternamax|ultra|dawn|dusk|therian|incarnate|10|50|complete|black|white|attack|defense|speed)$/i, '')
+            .trim() || pokemon;
+
+        let rawMoves = await fetchMoves(pokemon);
+        let levelUpMoves = rawMoves.filter(
+            (move) =>
+                move.version_group_details?.[0]?.move_learn_method?.name === 'level-up' &&
+                (move.version_group_details?.[0]?.level_learned_at ?? 999) <= level
         );
+
+        // Fallback 1: base species level-up moves
+        if (levelUpMoves.length === 0 && baseName !== pokemon) {
+            rawMoves = await fetchMoves(baseName);
+            levelUpMoves = rawMoves.filter(
+                (move) =>
+                    move.version_group_details?.[0]?.move_learn_method?.name === 'level-up' &&
+                    (move.version_group_details?.[0]?.level_learned_at ?? 999) <= level
+            );
+        }
+
+        // Fallback 2: any level-up moves regardless of level requirement
+        if (levelUpMoves.length === 0 && rawMoves.length) {
+            levelUpMoves = rawMoves.filter(
+                (move) => move.version_group_details?.[0]?.move_learn_method?.name === 'level-up'
+            );
+        }
+
+        // Fallback 3: any move at all
+        if (levelUpMoves.length === 0 && rawMoves.length) {
+            levelUpMoves = rawMoves.slice(0, 8);
+        }
+
+        let moves = shuffleArray(levelUpMoves);
     
         const client = new MoveClient();
         const result = [];

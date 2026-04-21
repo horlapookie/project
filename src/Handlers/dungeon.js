@@ -55,17 +55,26 @@ module.exports = async function DungeonHandler(client) {
     if (client._dungeonCronStarted) return
     client._dungeonCronStarted = true
 
-    cron.schedule('0 */4 * * *', async () => {
+    // Run hourly and only spawn at most ONCE PER DAY per group (UTC).
+    cron.schedule('0 * * * *', async () => {
       try {
         const groups = (await client.DB.get('dungeon')) || []
         if (!groups.length) return
 
         const imagePath = join(process.cwd(), 'assets', 'Images', 'dungeon.jpg')
         const text = buildAshenText(client.prefix || '-')
+        const today = new Date().toISOString().slice(0, 10)
 
         for (const jid of groups) {
           try {
+            const lastDay = (await client.DB.get(`ashen-day-${jid}`).catch(() => null)) || ''
+            if (lastDay === today) continue
+            // Don't double-spawn if a manual one is already active.
+            const active = await client.DB.get(`ashen-active-${jid}`).catch(() => null)
+            if (active?.expiresAt && Date.now() <= Number(active.expiresAt)) continue
+
             await markAshenActive(client, jid)
+            await client.DB.set(`ashen-day-${jid}`, today).catch(() => null)
             // Tag all participants without adding extra "tagall" text.
             const meta = await client.groupMetadata(jid).catch(() => null)
             const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)

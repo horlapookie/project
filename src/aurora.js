@@ -180,9 +180,14 @@ const start = async () => {
     const storedOwner = normalizeNumber((await client.DB.get('owner')) || OWNER_NUMBER)
     const storedMods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
     const storedOfficers = ((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
+    const removedMods = new Set(((await client.DB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
     client.owner = storedOwner
     // `mods` remain the "mods" role. Officers are a separate role with limited privileges.
-    client.mods = Array.from(new Set([client.owner, ...DEFAULT_MODS, ...storedMods]))
+    // The owner is always a mod and cannot be removed; everyone else can be removed via delmod
+    // (which adds them to the `mods-removed` deny-list so DEFAULT_MODS doesn't re-add them).
+    const mergedMods = Array.from(new Set([client.owner, ...DEFAULT_MODS, ...storedMods]))
+        .filter((n) => n === client.owner || !removedMods.has(n))
+    client.mods = mergedMods
     client.officers = Array.from(new Set(storedOfficers.filter((x) => x && x !== client.owner)))
     await client.DB.set('owner', client.owner)
     await client.DB.set('mods', client.mods)
@@ -305,8 +310,10 @@ const start = async () => {
         const owner = normalizeNumber((await client.DB.get('owner')) || client.owner || OWNER_NUMBER)
         const mods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
         const sudo = ((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
+        const removed = new Set(((await client.DB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
         client.owner = owner
         client.mods = Array.from(new Set([owner, ...DEFAULT_MODS, ...mods]))
+            .filter((n) => n === owner || !removed.has(n))
         client.officers = Array.from(new Set(sudo.filter((x) => x && x !== owner)))
         return { owner: client.owner, mods: client.mods, officers: client.officers }
     }
