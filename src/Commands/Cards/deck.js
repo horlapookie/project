@@ -49,6 +49,9 @@ module.exports = {
           const data = require(filePath);
           const cardsInTier = data.filter((cardData) => cardData.tier === card[1]);
           const cardData = cardsInTier.find((cardData) => cardData.title === card[0]);
+          if (!cardData) {
+            return M.reply(`Card *${card[0]}* (Tier ${card[1]}) no longer exists in the card database. It may have been removed.`);
+          }
           const cardUrl = cardData.url;
           let text = `🃏 Total Deck Cards: ${deck.length}\n\n🏮 Username: ${(await client.contact.getContact(M.sender, client)).username} \n*#${index + 1}*\n🃏 *Name:* ${card[0]}\n🪄 *Tier:* ${card[1]} \n`;
           const file = await client.utils.getBuffer(cardUrl);
@@ -82,6 +85,10 @@ module.exports = {
           const data = require(filePath);
           const cardsInTier = data.filter((cardData) => cardData.tier === card[1]);
           const cardData = cardsInTier.find((cardData) => cardData.title === card[0]);
+          if (!cardData) {
+            cardText += `🔰Card ${i+1}:\n🌟Tier: ${card[1]}\n💎Name ${card[0]} *(missing)*\n\n`;
+            continue;
+          }
           const cardKey = `${cardData.title}-${card[1]}-${cardData.url}-${i}`;
           let cardUrl = cardData.url;
           if (!cardSet.has(cardKey)) {

@@ -5,27 +5,31 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :delete quoted to the mesaege you want to delete',
+    usage: 'Use :delete (quote the message you want to delete)',
     description: 'Deletes the quoted message',
     async execute(client, arg, M) {
-    
         if (!M.quoted) return M.reply('Quote the message that you want me to delete, Baka!')
         try {
             const quotedKey = M.quoted?.key || {}
             const quotedId = quotedKey.id || M.quoted?.id
-            const participant = quotedKey.participant || M.quoted?.participant
+            const remoteJid = quotedKey.remoteJid || M.from
+            const fromMe = Boolean(quotedKey.fromMe || M.quoted?.fromMe)
+            const participant = quotedKey.participant || M.quoted?.participant || M.quoted?.sender
+
             const key = {
-                remoteJid: quotedKey.remoteJid || M.from,
+                remoteJid,
                 id: String(quotedId),
-                fromMe: Boolean(quotedKey.fromMe || M.quoted?.fromMe),
-                ...(participant ? { participant } : {})
+                fromMe,
+                ...(participant ? { participant: String(participant) } : {})
             }
 
-            await client.sendMessage(M.from, { delete: key })
+            // Use rawSendMessage to bypass the media-normalization wrapper
+            const rawSend = client._rawSendMessage || client.sendMessage
+            await rawSend(M.from, { delete: key })
             return M.reply('Message deleted successfully!')
         } catch (error) {
             console.error('Error deleting message:', error)
-            M.reply('Failed to delete message.')
+            return M.reply('Failed to delete message. Make sure I am an admin in this group.')
         }
     }
 }

@@ -117,7 +117,7 @@ const buildInfo = (prefix = '-') =>
 const markActive = async (client, jid) => {
   const key = `ashen-active-${jid}`
   const now = Date.now()
-  const expiresAt = now + 40 * 60 * 1000
+  const expiresAt = now + 60 * 60 * 1000  // 1 hour
   await client.DB.set(key, { spawnedAt: now, expiresAt }).catch(() => null)
   await client.DB.set(`ashen-last-${jid}`, now).catch(() => null)
   return { expiresAt }
@@ -297,15 +297,21 @@ module.exports = {
     const active = await client.DB.get(`ashen-active-${M.from}`).catch(() => null)
     const isActive = Boolean(active?.expiresAt && Date.now() <= Number(active.expiresAt))
 
-    const nextAppearInMinutes = async () => {
-      // Ashen now appears at most once per day per group.
-      const now = Date.now()
+    const MAX_AUTO_SPAWNS = 3
+    const getAutoSpawnCount = async () => {
       const today = todayStr()
-      const lastDay = (await client.DB.get(`ashen-day-${M.from}`).catch(() => null)) || ''
+      const key = `ashen-auto-count-${today}-${M.from}`
+      return (await client.DB.get(key).catch(() => null)) || 0
+    }
+
+    const nextAppearInMinutes = async () => {
+      const spawnCount = await getAutoSpawnCount()
+      if (spawnCount < MAX_AUTO_SPAWNS) return 0 // more spawns available today
+      // All 3 used — next reset at midnight UTC
+      const now = Date.now()
       const next = new Date()
       next.setUTCHours(0, 0, 0, 0)
-      next.setUTCDate(next.getUTCDate() + 1) // tomorrow 00:00 UTC
-      if (lastDay !== today) return 0
+      next.setUTCDate(next.getUTCDate() + 1)
       return Math.max(0, Math.ceil((next.getTime() - now) / 60000))
     }
 
@@ -323,21 +329,25 @@ module.exports = {
     }
 
     if (sub.startsWith('spawn') || sub.startsWith('appear') || sub.startsWith('announce')) {
-      if (!client.isOwner(M) && !client.isOfficer(M)) {
+      if (!client.isOwner(M) && !client.isOfficer(M) && !client.isMod(M)) {
         return M.reply('Only the owner or officers can spawn the Ashen Sanctum.')
       }
 
       const fullArg = String(arg || '').trim().toLowerCase()
       const isChallenge = /--ch(allenge)?(=|\b)/.test(fullArg)
-      const today = todayStr()
-      const dayKey = isChallenge ? `ashen-ch-day-${M.from}` : `ashen-day-${M.from}`
-      const lastDay = (await client.DB.get(dayKey).catch(() => null)) || ''
-      if (lastDay === today) {
-        return M.reply(
-          isChallenge
-            ? '🔥 The Ashen Challenge can only be spawned *once per day* in this group. Try again tomorrow.'
-            : '🔥 The Ashen Sanctum can only be spawned *once per day* in this group. Try again tomorrow.'
-        )
+      // Owner and officers bypass the daily countdown entirely
+      const isBypass = client.isOwner(M) || client.isOfficer(M) || client.isMod(M)
+      if (!isBypass) {
+        const today = todayStr()
+        const dayKey = isChallenge ? `ashen-ch-day-${M.from}` : `ashen-day-${M.from}`
+        const lastDay = (await client.DB.get(dayKey).catch(() => null)) || ''
+        if (lastDay === today) {
+          return M.reply(
+            isChallenge
+              ? '🔥 The Ashen Challenge can only be spawned *once per day* in this group. Try again tomorrow.'
+              : '🔥 The Ashen Sanctum can only be spawned *once per day* in this group. Try again tomorrow.'
+          )
+        }
       }
       if (isActive) {
         return M.reply('🔥 An Ashen Sanctum is already open in this group.')
@@ -535,9 +545,9 @@ module.exports = {
       dungeonDifficulty,
       noCapture: true,
       wildUser,
-      dungeonClosesAt: active?.expiresAt || (Date.now() + 40 * 60 * 1000),
+      dungeonClosesAt: active?.expiresAt || (Date.now() + 60 * 60 * 1000),
       wildPokemon: { ...dungeonParty[0] },
-      dungeonExpiresAt: active?.expiresAt || (Date.now() + 40 * 60 * 1000),
+      dungeonExpiresAt: active?.expiresAt || (Date.now() + 60 * 60 * 1000),
       expiryToken: `${Date.now()}-${Math.random()}`,
       player1: {
         user: M.sender,

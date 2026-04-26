@@ -3,7 +3,17 @@ const { shizobtn1, shizobtn1img, shizobtn1gif } = require('./shizofunc.js')
 const cron = require("node-cron");
 const axios = require('axios');
 const path = require('path');
+const sharp = require('sharp');
 require("./Message");
+
+// Resize a static image buffer to max 360px width for faster delivery
+const resizeCardBuffer = async (buf) => {
+  try {
+    return await sharp(buf).resize({ width: 360, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+  } catch (_) {
+    return buf; // fallback to original if resize fails
+  }
+};
 
 module.exports = CardHandler = async (client, M) => {
   try {
@@ -67,11 +77,11 @@ module.exports = CardHandler = async (client, M) => {
 
             console.log(`Sended:${obj.tier + "  Name:" + obj.title + "  For " + price + " in " + jid}`);
       await client.cardMap.set(jid, {
-	      card: `${obj.title}-${obj.tier}`,
-	      price: price
+              card: `${obj.title}-${obj.tier}`,
+              price: price
       })
             if (obj.tier.includes('6') || obj.tier.includes('S')) {
-              const mediaBuffer = await client.utils.getBuffer(obj.url);
+              const rawBuffer = await client.utils.getBuffer(obj.url);
         let shizoshona = `*┌─🄱🄾🅃────────❀̥˚─┈ ⳹*
     *└──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
 *│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
@@ -91,19 +101,22 @@ module.exports = CardHandler = async (client, M) => {
     *┌──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
     *└❀̥˚───────────🄱🄾🅃─┈ ⳹*`
               if (String(obj.url || '').toLowerCase().endsWith('.gif')) {
-                const mp4 = await client.utils.gifToMp4(mediaBuffer);
+                const mp4 = await client.utils.gifToMp4(rawBuffer);
                 if (client.utils.isLikelyMp4(mp4)) {
                   return shizobtn1gif(client, jid, shizoshona, mp4, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
                 }
-                const png = await client.utils.gifToPng(mediaBuffer);
-                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
+                const png = await client.utils.gifToPng(rawBuffer);
+                const resizedPng = await resizeCardBuffer(png);
+                return shizobtn1img(client, jid, shizoshona, resizedPng, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
               }
 
               if (String(obj.url || '').toLowerCase().endsWith('.webp')) {
-                const png = await client.utils.webpToPng(mediaBuffer);
-                return shizobtn1img(client, jid, shizoshona, png, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
+                const png = await client.utils.webpToPng(rawBuffer);
+                const resizedPng = await resizeCardBuffer(png);
+                return shizobtn1img(client, jid, shizoshona, resizedPng, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
               }
 
+              const mediaBuffer = await resizeCardBuffer(rawBuffer);
               return shizobtn1img(client, jid, shizoshona, mediaBuffer, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
             } else {
  let shizocutie = `*┌─🄱🄾🅃────────❀̥˚─┈ ⳹*
@@ -124,7 +137,7 @@ module.exports = CardHandler = async (client, M) => {
    *│▱▱▱▱▱▱▱▱▱▱▱▱▱▱*
    *┌──🄲🄰🅁🄳 🅂🄿🅆🄰🄽──┈ ⳹*
    *└❀̥˚───────────🄱🄾🅃─┈ ⳹*`
-	              return shizobtn1img(client, jid, shizocutie, obj.url, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
+                      return shizobtn1img(client, jid, shizocutie, obj.url, ' Collect 🔖', `${client.prefix}collect`, client.name || 'Eternal')
             }
 
           } catch (err) {
@@ -137,7 +150,7 @@ module.exports = CardHandler = async (client, M) => {
           await client.cards.delete(`${jid}.card_price`);
           console.log(`Card deleted after 5 minutes`);
         });
-		        });
+                        });
       }
     }
   } catch(error) {
@@ -146,4 +159,4 @@ module.exports = CardHandler = async (client, M) => {
 };
 
 
-		  
+                  

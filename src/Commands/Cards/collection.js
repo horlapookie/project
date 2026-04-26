@@ -24,6 +24,10 @@ module.exports = {
         const data = require(filePath);
         const newArray = data.filter((I) => I.tier == card[1]);
         const obj = newArray.find((cardData) => cardData.title === card[0]);
+        if (!obj) {
+          tr += `*${i+1}) Name: ${card[0]} (Tier: ${card[1]}) — *(missing from database)*\n\n`;
+          continue;
+        }
         tr += `*${i+1}) Name: ${card[0]} (Tier: ${obj.tier})*\n\n`;
       }
       if (arg) { 
@@ -35,6 +39,7 @@ module.exports = {
           const filePath = path.join(__dirname, '../../Helpers/card.json');
           const data = require(filePath);
           const cardData = data.find((cardData) => cardData.title === card[0] && cardData.tier === card[1]);
+          if (!cardData) return M.reply(`Card *${card[0]}* (Tier ${card[1]}) no longer exists in the card database.`);
           const cardUrl = cardData.url;
           let text = `🃏 Total Coll Cards: ${collection.length}\n\n🏮 Username: ${(await client.contact.getContact(M.sender, client)).username}`
           text += `\n*#${index + 1}*\n🃏 *Name:* ${card[0]}\n🪄 *Tier:* ${card[1]}\n`;
@@ -59,6 +64,10 @@ module.exports = {
           const filePath = path.join(__dirname, '../../Helpers/card.json');
           const data = require(filePath);
           const cardData = data.find((cardData) => cardData.title === card[0] && cardData.tier === card[1]);
+          if (!cardData) {
+            cardText += `🔰Card ${i+1}:\n\n🌟Tier: ${card[1]}\n\n💎Name ${card[0]} *(missing)*\n`;
+            continue;
+          }
           let cardUrl = cardData.url;
           if (!cardSet.has(cardData.title)) {
             cardSet.add(cardData.title);

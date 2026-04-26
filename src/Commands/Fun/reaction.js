@@ -22,9 +22,9 @@ module.exports = {
         const text = arg.trim();
         const command = M.body.split(' ')[0].toLowerCase().slice(client.prefix.length).trim();
         let flag = true;
-        
+
         if (command === 'r' || command === 'reaction') flag = false;
-        
+
         if (!flag && !text) {
             const reactionList = `🎃 *Available Reactions:*\n\n- ${reactions
                 .map((reaction) => client.utils.capitalize(reaction))
@@ -33,40 +33,70 @@ module.exports = {
             }(reaction) [tag/quote user]\nExample: ${client.prefix}pat`;
             return await M.reply(reactionList);
         }
-        
+
         const reaction = flag ? command : text.split(' ')[0].trim().toLowerCase();
-        
+
         if (!flag && !reactions.includes(reaction)) {
             return M.reply(`Invalid reaction. Use *${client.prefix}react* to see all of the available reactions`);
         }
-        
+
         const users = M.mentions;
-        
+
         if (M.quoted && !users.includes(M.quoted.sender)) {
             users.push(M.quoted.sender);
         }
-        
+
         if (users.length < 1) {
             users.push(M.sender);
         }
-        
-        const reactant = M.mentions[0] || (M.quoted && M.quoted.participant);
+
+        const reactant = M.mentions[0] || (M.quoted && M.quoted.participant) || M.sender;
         const single = reactant === M.sender;
-        const { url } = await client.utils.fetch(`https://api.waifu.pics/sfw/${reaction}`);
-        const result = await client.utils.getBuffer(url);
-        const buffer = await client.utils.gifToMp4(result);
-        
-        await client.sendMessage(
-            M.from,
-            {
-                video: buffer,
-                gifPlayback: true,
-                caption: `*@${M.sender.split('@')[0]} ${suitableWords[reaction]} ${
-                    single ? 'Themselves' : `@${reactant.split('@')[0]}`
-                }*`,
-                mentions: [M.sender, reactant]
-            },
-            { quoted: M }
-        );
+        const caption = `*@${M.sender.split('@')[0]} ${suitableWords[reaction]} ${
+            single ? 'Themselves' : `@${reactant.split('@')[0]}`
+        }*`;
+        const mentions = [M.sender, reactant].filter(Boolean);
+
+        try {
+            const { url } = await client.utils.fetch(`https://api.waifu.pics/sfw/${reaction}`);
+            const rawBuffer = await client.utils.getBuffer(url);
+
+            // Try converting to MP4 for proper GIF playback
+            let mp4Buffer = null;
+            try {
+                const converted = await client.utils.gifToMp4(rawBuffer);
+                if (client.utils.isLikelyMp4 ? client.utils.isLikelyMp4(converted) : converted?.length > 1000) {
+                    mp4Buffer = converted;
+                }
+            } catch (_) {}
+
+            if (mp4Buffer) {
+                return await client.sendMessage(
+                    M.from,
+                    { video: mp4Buffer, gifPlayback: true, caption, mentions },
+                    { quoted: M }
+                );
+            }
+
+            // Fallback: send as image (first frame) if MP4 failed
+            try {
+                const png = await client.utils.gifToPng(rawBuffer);
+                return await client.sendMessage(
+                    M.from,
+                    { image: png, caption, mentions },
+                    { quoted: M }
+                );
+            } catch (_) {}
+
+            // Final fallback: send original buffer as image
+            return await client.sendMessage(
+                M.from,
+                { image: rawBuffer, caption, mentions },
+                { quoted: M }
+            );
+        } catch (err) {
+            console.error('Reaction command error:', err);
+            return M.reply(`${caption}\n\n_(GIF unavailable right now)_`);
+        }
     }
 };

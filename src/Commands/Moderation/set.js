@@ -5,49 +5,61 @@ module.exports = {
     cool: 4,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :set --<toggleable_function>=[enble/disable]',
-    description: 'Enable or disable certain features on group-chats',
+    usage: 'Use :set --<feature>=enable|disable',
+    description: 'Enable or disable certain features in a group chat',
     async execute(client, arg, M) {
+        if (!M.isGroup) return M.reply('This command can only be used in groups.')
+        if (!client.isOwner(M) && !client.isMod(M)) {
+            return M.reply('Only the bot owner or mods can toggle group features.')
+        }
+
         const toggleableGroupActions = {
-            'mod': 'This features helps to auto remove a member from the group if he/she have sended a different group link also delete the link.',
-            'events': 'This helps to turn on events where if any member joins, leaves, promoted or demoted eill be shown.',
-            'cards': 'This function enables card spawning in your group.',
-            'wild': 'This feature enable wild pokemon encounters.',
-            'dungeon': 'This feature enables dungeon announcements every 3 hours (PvE boss rush).',
-            'yugioh': 'This feature enables Yu-Gi-Oh card spawning in your group.',
-            'nsfw': 'This feature enables NSFW commands in your group.'
+            'mod': 'Anti-link moderation (auto-removes members who send group links).',
+            'events': 'Group events (join/leave/promote/demote announcements).',
+            'cards': 'Card spawning in this group.',
+            'wild': 'Wild Pokémon encounters.',
+            'dungeon': 'Ashen Sanctum dungeon announcements.',
+            'yugioh': 'Yu-Gi-Oh card spawning.',
+            'nsfw': 'NSFW commands.'
         };
 
         if (!arg) {
             const actionsInfo = Object.entries(toggleableGroupActions)
-                .map(([action, description]) => `\`${action}\`: ${description}`)
+                .map(([action, description]) => `*${action}*: ${description}`)
                 .join('\n');
-            return M.reply(`Please provide a valid toggleable item and action.\n\n*Available Items and Descriptions:*\n${actionsInfo}\n\n*Usage:*\n\`set --<toggleableItem>=<enable/disable>\``);
+            return M.reply(`*Available toggleable features:*\n\n${actionsInfo}\n\n*Usage:* \`set --<feature>=enable|disable\`\nExample: \`set --wild=enable\``);
         }
 
         const regex = /--(.+?)=(enable|disable)/;
         const match = arg.match(regex);
-        if (!match || !toggleableGroupActions.hasOwnProperty(match[1])) {
-            return M.reply(`Invalid toggleable item provided. Please provide a valid item. For available items, use \`set\`.`);
+        if (!match || !Object.prototype.hasOwnProperty.call(toggleableGroupActions, match[1])) {
+            return M.reply(`Invalid feature. Use *${client.prefix}set* to see available features.`);
         }
 
         const item = match[1];
         const action = match[2];
 
-        const Actives = (await client.DB.get(item)) || [];
-        const isCurrentlyActive = Actives.includes(M.from);
+        // Reliable enable/disable: get array, modify, set back
+        let list = (await client.DB.get(item)) || [];
+        if (!Array.isArray(list)) list = [];
 
-        if ((action === 'enable' && isCurrentlyActive) || (action === 'disable' && !isCurrentlyActive)) {
-            const actionText = action === 'enable' ? 'activated' : 'deactivated';
-            return M.reply(`${toggleableGroupActions[item]} is already ${actionText} in your group.`);
+        const isCurrentlyActive = list.includes(M.from);
+
+        if (action === 'enable' && isCurrentlyActive) {
+            return M.reply(`*${item}* is already enabled in this group.`);
+        }
+        if (action === 'disable' && !isCurrentlyActive) {
+            return M.reply(`*${item}* is already disabled in this group.`);
         }
 
         if (action === 'enable') {
-            await client.DB.push(item, M.from);
-            M.reply(`${toggleableGroupActions[item]} successfully activated in your group.`);
-        } else if (action === 'disable') {
-            await client.DB.pull(item, M.from);
-            M.reply(`${toggleableGroupActions[item]} successfully deactivated in your group.`);
+            list = [...list, M.from];
+            await client.DB.set(item, list);
+            return M.reply(`✅ *${item}* has been *enabled* in this group.\n\n_${toggleableGroupActions[item]}_`);
+        } else {
+            list = list.filter((jid) => jid !== M.from);
+            await client.DB.set(item, list);
+            return M.reply(`❌ *${item}* has been *disabled* in this group.\n\n_${toggleableGroupActions[item]}_`);
         }
     }
 };

@@ -81,8 +81,38 @@ const start = async () => {
         version: (await fetchLatestBaileysVersion()).version,
         auth: state,
         logger: waLogger,
-        browser: ['Aurora', 'Chrome', '1.0.0']
+        browser: ['Aurora', 'Chrome', '1.0.0'],
+        printQRInTerminal: false
     })
+
+    // Use pairing code instead of QR code
+    if (!client.authState.creds.registered) {
+        const phone = OWNER_NUMBER
+        setTimeout(async () => {
+            try {
+                const code = await client.requestPairingCode(phone)
+                const pretty = code?.match(/.{1,4}/g)?.join('-') || code
+                console.log('\n========================================')
+                console.log(`  Aurora — WhatsApp Pairing`)
+                console.log('========================================')
+                console.log(`  Phone : +${phone}`)
+                console.log(`  Code  : ${pretty}`)
+                console.log('========================================')
+                console.log('  Steps on your phone:')
+                console.log('   1. Open WhatsApp')
+                console.log('   2. Settings → Linked Devices')
+                console.log('   3. Tap "Link a Device"')
+                console.log('   4. Tap "Link with phone number instead"')
+                console.log(`   5. Make sure number matches +${phone}`)
+                console.log('   6. Enter the code shown above')
+                console.log('========================================')
+                console.log('  ⚠ Code expires in ~60 seconds.')
+                console.log('  ⚠ Restart the bot to get a new one.\n')
+            } catch (e) {
+                console.error('Failed to request pairing code:', e?.message || e)
+            }
+        }, 4000)
+    }
 
     //Config
     client.name = process.env.NAME || 'Eternal'
@@ -128,6 +158,9 @@ const start = async () => {
         }
         return rawSendMessage(jid, content, options)
     }
+
+    // Expose the raw send so commands can bypass the media-normalization wrapper (e.g. delete).
+    client._rawSendMessage = rawSendMessage
 
     // Small helper for moderation: delete a message by quoted key/id.
     // Baileys deletes via `sendMessage(jid, { delete: key })`.
@@ -510,10 +543,7 @@ const start = async () => {
     client.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update
         if (update.qr) {
-            client.log('[!]', 'red')
-            qrcode.generate(update.qr, { small: true })
-            client.log(`You can also authenticate at http://localhost:${port}`, 'blue')
-            client.QR = imageSync(update.qr)
+            client.log('QR generated but pairing-code mode is active. Restart the bot to get a fresh pairing code.', 'yellow')
         }
         if (connection === 'close') {
             const { statusCode } = new Boom(lastDisconnect?.error).output

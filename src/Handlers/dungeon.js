@@ -34,7 +34,7 @@ const buildAshenText = (prefix = '-') => {
     '',
     '📌 *Suggested Commands:*',
     `- ${prefix}ashen`,
-    `- ${prefix}ashen spawn (owner only)`,
+    `- ${prefix}ashen spawn (owner/officer only)`,
     `- ${prefix}ashen enter`,
     `- ${prefix}ashen status`,
     `- ${prefix}ashen quit`
@@ -44,48 +44,83 @@ const buildAshenText = (prefix = '-') => {
 const markAshenActive = async (client, jid) => {
   const key = `ashen-active-${jid}`
   const now = Date.now()
-  const expiresAt = now + 40 * 60 * 1000
+  const expiresAt = now + 60 * 60 * 1000  // 1 hour
   await client.DB.set(key, { spawnedAt: now, expiresAt }).catch(() => null)
   await client.DB.set(`ashen-last-${jid}`, now).catch(() => null)
 }
 
+// Returns how many times Ashen has spawned today for this group (auto only)
+const getSpawnCount = async (client, jid) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const key = `ashen-auto-count-${today}-${jid}`
+  return (await client.DB.get(key).catch(() => null)) || 0
+}
+
+const incrementSpawnCount = async (client, jid) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const key = `ashen-auto-count-${today}-${jid}`
+  const cur = (await client.DB.get(key).catch(() => null)) || 0
+  await client.DB.set(key, cur + 1).catch(() => null)
+}
+
 module.exports = async function DungeonHandler(client) {
   try {
-    // prevent duplicate schedules if hot-reloading
     if (client._dungeonCronStarted) return
     client._dungeonCronStarted = true
 
-    // Run hourly and only spawn at most ONCE PER DAY per group (UTC).
-    cron.schedule('0 * * * *', async () => {
+    // Run every 30 minutes and spawn up to 3 times per day per group at random.
+    // Groups are staggered with a random delay so they don't all spawn at the same time.
+    cron.schedule('*/30 * * * *', async () => {
       try {
         const groups = (await client.DB.get('dungeon')) || []
         if (!groups.length) return
 
         const imagePath = join(process.cwd(), 'assets', 'Images', 'dungeon.jpg')
         const text = buildAshenText(client.prefix || '-')
-        const today = new Date().toISOString().slice(0, 10)
+        const MAX_SPAWNS_PER_DAY = 3
 
-        for (const jid of groups) {
+        // Shuffle group order for extra randomness
+        const shuffled = [...groups].sort(() => Math.random() - 0.5)
+
+        for (const jid of shuffled) {
           try {
-            const lastDay = (await client.DB.get(`ashen-day-${jid}`).catch(() => null)) || ''
-            if (lastDay === today) continue
-            // Don't double-spawn if a manual one is already active.
+            // Only spawn if under the daily cap
+            const spawnCount = await getSpawnCount(client, jid)
+            if (spawnCount >= MAX_SPAWNS_PER_DAY) continue
+
+            // Don't double-spawn if one is already active
             const active = await client.DB.get(`ashen-active-${jid}`).catch(() => null)
             if (active?.expiresAt && Date.now() <= Number(active.expiresAt)) continue
 
-            await markAshenActive(client, jid)
-            await client.DB.set(`ashen-day-${jid}`, today).catch(() => null)
-            // Tag all participants without adding extra "tagall" text.
-            const meta = await client.groupMetadata(jid).catch(() => null)
-            const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)
-            await client.sendMessage(
-              jid,
-              {
-                image: { url: imagePath },
-                caption: text,
-                mentions
-              }
-            )
+            // Random chance per check so not every 30-min tick spawns it
+            // With ~48 ticks/day and a max of 3 spawns, ~6% chance per tick is fair
+            if (Math.random() > 0.08) continue
+
+            // Stagger each group with a random delay (0–10 min)
+            const delayMs = Math.floor(Math.random() * 10 * 60 * 1000)
+            setTimeout(async () => {
+              try {
+                // Re-check after delay in case something changed
+                const stillActive = await client.DB.get(`ashen-active-${jid}`).catch(() => null)
+                if (stillActive?.expiresAt && Date.now() <= Number(stillActive.expiresAt)) return
+                const countNow = await getSpawnCount(client, jid)
+                if (countNow >= MAX_SPAWNS_PER_DAY) return
+
+                await markAshenActive(client, jid)
+                await incrementSpawnCount(client, jid)
+
+                const meta = await client.groupMetadata(jid).catch(() => null)
+                const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)
+                await client.sendMessage(
+                  jid,
+                  {
+                    image: { url: imagePath },
+                    caption: text,
+                    mentions
+                  }
+                )
+              } catch (_) {}
+            }, delayMs)
           } catch (_) {
             // ignore per-group failures
           }
