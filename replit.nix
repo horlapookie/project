@@ -1,5 +1,13 @@
 { pkgs }: {
     deps = [
+      pkgs.python3
+      pkgs.librsvg
+      pkgs.giflib
+      pkgs.libpng
+      pkgs.libjpeg
+      pkgs.pango
+      pkgs.cairo
+      pkgs.pkg-config
 
         pkgs.nodejs-16_x
         pkgs.libwebp

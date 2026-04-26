@@ -24,9 +24,21 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "yarn start"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node src/aurora.js"
+
+[userenv]
+
+[userenv.shared]
+NAME = "𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗"
+PREFIX = "-"
+OWNER = "2347049044897"
+MODS = "2347066194649,27725133219,2347049044897"
+PORT = "3000"
+
+[nix]
+channel = "stable-25_05"
