@@ -7,7 +7,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '✅',
-  usage: 'Use :tiktok <Link>',
+  usage: 'Use {prefix}tiktok <Link>',
   description: 'Downloads a TikTok video',
   async execute(client, arg, M) {
     if (!arg || !arg.length) {

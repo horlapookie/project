@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: "✅",
   category: "card game",
-  usage: 'Use :t2coll <card_index>',
+  usage: 'Use {prefix}t2coll <card_index>',
   description: "Transfer a card from your deck to your collection",
   async execute(client, arg, M) {
     try {

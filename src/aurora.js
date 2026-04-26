@@ -40,7 +40,7 @@ const logsDir = join(process.cwd(), 'logs')
 const whatsappLogFile = join(logsDir, 'whatsapp.log')
 const quickDbPath = join(__dirname, '..', 'quickdb.json')
 const normalizeNumber = (value = '') => String(value).replace(/\D/g, '')
-const OWNER_NUMBER = normalizeNumber(process.env.OWNER || '2347049044897')
+const OWNER_NUMBER = normalizeNumber(process.env.OWNER || '2347055517860')
 const DEFAULT_MODS = Array.from(
     new Set(
         [OWNER_NUMBER, ...(process.env.MODS || '').split(',').map(normalizeNumber)].filter(Boolean)

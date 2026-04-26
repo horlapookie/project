@@ -5,7 +5,7 @@ module.exports = {
   cool: 4,
   react: "🎊",
   category: "card game",
-  usage: 'Use :c',
+  usage: 'Use {prefix}c',
   description: "Claim the card that is spawned",
   async execute(client, arg, M) {
     try {

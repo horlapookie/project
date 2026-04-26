@@ -7,7 +7,7 @@ module.exports = {
   cool: 4,
   react: '✅',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :yuclaim',
+  usage: 'Use {prefix}yuclaim',
   description: 'Claim the currently spawned Yu-Gi-Oh card',
   async execute(client, arg, M) {
     return yuget.execute(client, arg, M)

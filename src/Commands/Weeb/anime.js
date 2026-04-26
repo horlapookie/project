@@ -7,7 +7,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :anime <anime_name>',
+    usage: 'Use {prefix}anime <anime_name>',
     description: 'Gives you the info of the anime that you provided',
     async execute(client, arg, M) {
         try {

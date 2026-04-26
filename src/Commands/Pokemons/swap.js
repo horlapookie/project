@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: '🔁',
     category: 'pokemon',
-    usage: 'Use :swap 1 3',
+    usage: 'Use {prefix}swap 1 3',
     description: 'Swap two Pokemon positions in your party (only outside battles)',
     async execute(client, arg, M) {
         const battle = client.pokemonBattleResponse.get(M.from)

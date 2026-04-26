@@ -7,7 +7,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: "✅",
-  usage: 'Use :insta <Link>',
+  usage: 'Use {prefix}insta <Link>',
   description: 'Sends the content of a given Instagram URL',
   async execute(client, arg, M) { 
     if (!arg || !arg.length) {

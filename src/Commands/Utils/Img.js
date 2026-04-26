@@ -4,7 +4,7 @@ module.exports = {
     category: 'utils',
     exp: 10,
     react: "✅",
-    usage: 'Use :toimg attached or quoted to the sticker',
+    usage: 'Use {prefix}toimg attached or quoted to the sticker',
     description: 'Converts sticker to image/gif as its media type',
     cool: 4, // Add cooldown time in seconds
     async execute(client, arg, M) {

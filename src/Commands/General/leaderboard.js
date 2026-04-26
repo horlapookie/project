@@ -8,7 +8,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "📢",
-    usage: 'Use :lb or :lb --gems',
+    usage: 'Use {prefix}lb or :lb --gems',
     description: "Displays global leaderboard by XP or Golds",
     async execute(client, arg, M) {
         try {

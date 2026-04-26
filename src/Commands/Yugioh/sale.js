@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '🏷',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :sale <index> <price>',
+  usage: 'Use {prefix}sale <index> <price>',
   description: 'List a Yu-Gi-Oh card for sale',
   async execute(client, arg, M) {
     const parts = String(arg || '').trim().split(/\s+/).filter(Boolean)

@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '📦',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :yudeck [index]',
+  usage: 'Use {prefix}yudeck [index]',
   description: 'View your Yu-Gi-Oh deck',
   async execute(client, arg, M) {
     const userKey = getUserKey(client, M)

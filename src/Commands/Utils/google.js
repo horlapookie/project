@@ -8,7 +8,7 @@ module.exports = {
     category: 'utils',
     exp: 5,
     react: "✅",
-    usage: 'Use :getgoogle <prompt>',
+    usage: 'Use {prefix}getgoogle <prompt>',
     description: 'Search topics from google.com',
     cool: 4, // Add cooldown time in seconds
     async execute(client, arg, M) {

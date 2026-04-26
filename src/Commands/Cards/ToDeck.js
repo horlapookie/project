@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: "✅",
   category: "card game",
-  usage: 'Use :t2deck <card_index>',
+  usage: 'Use {prefix}t2deck <card_index>',
   description: "Send a card from collection to deck",
   async execute(client, arg, M) {
     try {

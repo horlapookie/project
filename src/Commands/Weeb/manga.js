@@ -7,7 +7,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :manga <manga_name>',
+    usage: 'Use {prefix}manga <manga_name>',
     description: 'Gives you the info about he manga that you provided',
     async execute(client, arg, M) {
         if (!arg) return void M.reply('Provide a query for the search, Baka!');

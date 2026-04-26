@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :set --<feature>=enable|disable',
+    usage: 'Use {prefix}set --<feature>=enable|disable',
     description: 'Enable or disable certain features in a group chat',
     async execute(client, arg, M) {
         if (!M.isGroup) return M.reply('This command can only be used in groups.')

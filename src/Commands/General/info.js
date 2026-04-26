@@ -6,7 +6,7 @@ module.exports = {
     exp: 0,
     cool: 4,
     react: "📢",
-    usage: 'Use :info or :info <command>',
+    usage: 'Use {prefix}info or :info <command>',
     description: 'Get bot information or command info',
     async execute(client, arg, M) {
         // If a command is provided, show command help (same idea as `help <cmd>`).
@@ -17,8 +17,9 @@ module.exports = {
                 client.cmd.find((c) => c.aliases && c.aliases.map((a) => a.toLowerCase()).includes(query))
             if (!cmd) return M.reply(`No command named *${arg.trim()}* was found.`)
             const aliases = cmd.aliases && cmd.aliases.length ? cmd.aliases.join(', ') : 'None'
+            const usageText = (cmd.usage || 'No usage provided').replace(/\{prefix\}/g, client.prefix)
             return M.reply(
-                `*Command:* ${cmd.name}\n*Aliases:* ${aliases}\n*Category:* ${cmd.category || 'Uncategorized'}\n*Usage:* ${cmd.usage || 'No usage provided'}\n*Description:* ${cmd.description || 'No description provided'}`
+                `*Command:* ${cmd.name}\n*Aliases:* ${aliases}\n*Category:* ${cmd.category || 'Uncategorized'}\n*Usage:* ${usageText}\n*Description:* ${cmd.description || 'No description provided'}`
             )
         }
 

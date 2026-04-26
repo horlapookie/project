@@ -7,7 +7,7 @@ module.exports = {
     cool: 3,
     react: '🎒',
     category: 'pokemon',
-    usage: 'Use :bags',
+    usage: 'Use {prefix}bags',
     description: 'View the items in your trainer bag',
     async execute(client, arg, M) {
         const inventory = await getInventory(client, M.sender);

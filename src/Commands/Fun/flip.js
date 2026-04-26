@@ -5,7 +5,7 @@ module.exports = {
     react: "✅",
     exp: 12,
     cool: 4,
-    usage: 'Use :flip dice/coin',
+    usage: 'Use {prefix}flip dice/coin',
     description: 'Play a game of flip coin or roll a dice (1-6). Usage: !flip [coin/dice]',
     async execute(client, arg, M) { 
       const choices = ['heads', 'tails'];

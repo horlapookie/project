@@ -7,7 +7,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '✅',
-  usage: 'Use :xvideo-search <query>',
+  usage: 'Use {prefix}xvideo-search <query>',
   description: 'Search Xvideos and return top 10 links',
   async execute(client, arg, M) {
     const query = String(arg || '').trim();

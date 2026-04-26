@@ -36,7 +36,7 @@ module.exports = {
   cool: 5,
   react: "🥳",
   category: "games",
-  description: "Use :ttt start @tag / :ttt join / :ttt mark (number) / :ttt forfeit / :ttt reject / :ttt guide",
+  description: "Play Tic-Tac-Toe: start, join, mark, forfeit, reject, guide",
   async execute(client, arg, M) {
     const args = arg.split(' ');
     const command = args[0];
@@ -53,17 +53,17 @@ module.exports = {
     };
 
     if (!command) {
-      return M.reply('⚠️ **No command provided. Use** \`:ttt guide\` **for instructions on how to play.**');
+      return M.reply(`⚠️ **No command provided. Use** \`${client.prefix}ttt guide\` **for instructions on how to play.**`);
     }
 
     if (command === 'guide') {
       return M.reply(`
         🎮 **Tic-Tac-Toe Game Guide** 🎮
-        - \`:ttt start @tag\`: Challenge someone to a game of Tic-Tac-Toe. Entry fee is 5000 coins per player.
-        - \`:ttt join\`: Accept a challenge.
-        - \`:ttt mark (number)\`: Place your mark on the board.
-        - \`:ttt forfeit\`: Forfeit the current game.
-        - \`:ttt reject\`: Reject a pending challenge.
+        - \`${client.prefix}ttt start @tag\`: Challenge someone to a game of Tic-Tac-Toe. Entry fee is 5000 coins per player.
+        - \`${client.prefix}ttt join\`: Accept a challenge.
+        - \`${client.prefix}ttt mark (number)\`: Place your mark on the board.
+        - \`${client.prefix}ttt forfeit\`: Forfeit the current game.
+        - \`${client.prefix}ttt reject\`: Reject a pending challenge.
         
         **Game Details:**
         - Both players need to have at least 5000 coins to start the game.
@@ -102,7 +102,7 @@ module.exports = {
         opponent: null
       });
 
-      M.reply(`🎮 **Tic-Tac-Toe Challenge!** 🎮\n\n@${challenged.split('@')[0]}, you have been challenged by @${challenger.split('@')[0]} to a game of Tic-Tac-Toe. Use \`:ttt join\` to accept or \`:ttt reject\` to decline.\n\n💰 **Both players have given 5000 coins to join the game.**`);
+      M.reply(`🎮 **Tic-Tac-Toe Challenge!** 🎮\n\n@${challenged.split('@')[0]}, you have been challenged by @${challenger.split('@')[0]} to a game of Tic-Tac-Toe. Use \`${client.prefix}ttt join\` to accept or \`${client.prefix}ttt reject\` to decline.\n\n💰 **Both players have given 5000 coins to join the game.**`);
     } else if (command === 'join') {
       const game = ttt.get(challenger);
 
@@ -119,11 +119,11 @@ module.exports = {
       ttt.set(game.challenger, game);
       ttt.set(game.opponent, game);
 
-      M.reply(`🎮 **Game On!** 🎮\n\n@${game.challenger.split('@')[0]} is ❌ and @${game.opponent.split('@')[0]} is ⭕\n\n${displayBoard(game.board)}\n\n❌ **Player X's turn. Use \`:ttt mark (number)\` to place your mark.**`);
+      M.reply(`🎮 **Game On!** 🎮\n\n@${game.challenger.split('@')[0]} is ❌ and @${game.opponent.split('@')[0]} is ⭕\n\n${displayBoard(game.board)}\n\n❌ **Player X's turn. Use \`${client.prefix}ttt mark (number)\` to place your mark.**`);
     } else if (command === 'mark') {
       const game = ttt.get(challenger) || ttt.get(challenged);
       if (!game || !game.progress) {
-        return M.reply('⚠️ You need to be in a game to make a move. Start a new game using \`:ttt start @tag\`.');
+        return M.reply(`⚠️ You need to be in a game to make a move. Start a new game using \`${client.prefix}ttt start @tag\`.`);
       }
 
       // Check if it's the player's turn
@@ -161,7 +161,7 @@ module.exports = {
         ttt.delete(game.opponent);
       } else {
         game.currentPlayer = game.currentPlayer === '❌' ? '⭕' : '❌';
-        M.reply(`${displayBoard(game.board)}\n\n${game.currentPlayer === '❌' ? '❌' : '⭕'} **Player ${game.currentPlayer}'s turn. Use \`:ttt mark (number)\` to place your mark.**`);
+        M.reply(`${displayBoard(game.board)}\n\n${game.currentPlayer === '❌' ? '❌' : '⭕'} **Player ${game.currentPlayer}'s turn. Use \`${client.prefix}ttt mark (number)\` to place your mark.**`);
         ttt.set(game.challenger, game);
         ttt.set(game.opponent, game);
       }
@@ -198,7 +198,7 @@ module.exports = {
 
       M.reply(`🏳️ **Player @${forfeitingPlayer.split('@')[0]} has forfeited the game. @${winningPlayer.split('@')[0]} wins and receives 10000 coins!**`);
     } else {
-      M.reply('⚠️ **Invalid command. Use `:ttt start @tag / join / mark (number) / forfeit / reject / guide`.**');
+      M.reply(`⚠️ **Invalid command. Use \`${client.prefix}ttt start @tag / join / mark (number) / forfeit / reject / guide\`.**`);
     }
   }
 };

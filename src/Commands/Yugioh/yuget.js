@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '✅',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :yuget',
+  usage: 'Use {prefix}yuget',
   description: 'Get the currently spawned Yu-Gi-Oh card',
   async execute(client, arg, M) {
     const jid = M.from

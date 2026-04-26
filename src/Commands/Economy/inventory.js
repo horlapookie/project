@@ -8,7 +8,7 @@ module.exports = {
     exp: 7,
     cool: 4,
     react: "🧭",
-    usage: 'Use :inv',
+    usage: 'Use {prefix}inv',
     description: 'Gives you details about your inventory',
     async execute(client, arg, M) {
         try {

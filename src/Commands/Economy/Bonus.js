@@ -6,7 +6,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "🏮",
-    usage: 'Use :bonus',
+    usage: 'Use {prefix}bonus',
     description: 'Claims your bonus',
     async execute(client, arg, M) {
         const userId = client.getUserNumber(M) || M.sender;

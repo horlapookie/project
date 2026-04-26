@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :group open  OR  :group close  OR  :opengroup  /  :closegroup',
+    usage: 'Use {prefix}group open  OR  {prefix}group close  OR  {prefix}opengroup  /  {prefix}closegroup',
     description: 'Opens or closes the group (only admins can send messages when closed)',
     async execute(client, arg, M) {
         if (!M.isGroup) return M.reply('This command can only be used in groups.')

@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :invite ',
+    usage: 'Use {prefix}invite ',
     description: 'Get the group link',
     async execute(client, arg, M) {
         const code = await client.groupInviteCode(M.from);

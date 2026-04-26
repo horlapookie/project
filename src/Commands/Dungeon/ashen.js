@@ -285,7 +285,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '🔥',
-  usage: 'Use :ashen enter/status/quit',
+  usage: 'Use {prefix}ashen enter/status/quit',
   description: 'Ashen Sanctum dungeon (PvE boss rush)',
   async execute(client, arg, M) {
     const prefix = client.prefix || '-'

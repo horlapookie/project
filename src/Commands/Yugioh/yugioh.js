@@ -7,7 +7,7 @@ module.exports = {
   cool: 4,
   react: '🃏',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :yugioh <name|id>',
+  usage: 'Use {prefix}yugioh <name|id>',
   description: 'Fetch a Yu-Gi-Oh card by name or ID',
   async execute(client, arg, M) {
     const query = String(arg || '').trim()

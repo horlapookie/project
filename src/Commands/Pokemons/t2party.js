@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: '🎒',
     category: 'pokemon',
-    usage: 'Use :t2party 1',
+    usage: 'Use {prefix}t2party 1',
     description: 'Transfer a Pokemon from your PC to your party',
     async execute(client, arg, M) {
         const battle = client.pokemonBattleResponse.get(M.from)

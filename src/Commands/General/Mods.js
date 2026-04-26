@@ -5,7 +5,7 @@ module.exports = {
   exp: 0,
   cool: 5,
   react: "📢",
-  usage: 'Use :mods',
+  usage: 'Use {prefix}mods',
   description: 'Get information about moderators',
   async execute(client, arg, M) {
     await client.refreshRoles?.();

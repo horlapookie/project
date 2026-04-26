@@ -8,7 +8,7 @@ module.exports = {
     exp: 5,
     cool: 5,
     react: "🎀",
-    usage: 'Use : relationship @tag @tag',
+    usage: 'Use {prefix} relationship @tag @tag',
     description: 'Ship People! ♥',
     async execute(client, arg, M) {
         const shipArray = []

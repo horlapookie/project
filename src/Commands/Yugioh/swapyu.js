@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '🔁',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :swapyu <index1> <index2>',
+  usage: 'Use {prefix}swapyu <index1> <index2>',
   description: 'Swap two Yu-Gi-Oh cards in your deck',
   async execute(client, arg, M) {
     const parts = String(arg || '').trim().split(/\s+/).filter(Boolean)

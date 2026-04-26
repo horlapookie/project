@@ -7,7 +7,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "⚡",
-    usage: 'Use :ai <your text>',
+    usage: 'Use {prefix}ai <your text>',
     description: 'Fetches a response from the GPT-4 API',
     async execute(client, arg, M) {
         if (!arg) {

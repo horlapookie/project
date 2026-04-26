@@ -8,7 +8,7 @@ module.exports = {
     // Casino cooldown
     cool: 30,
     react: "✅",
-    usage: 'Use :gamble <amount> <direction>',
+    usage: 'Use {prefix}gamble <amount> <direction>',
     description: 'Gambles your credits to increase or decrease',
     async execute(client, arg, M) {
         const directions = ['right', 'left'];

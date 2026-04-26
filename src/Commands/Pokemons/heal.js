@@ -6,7 +6,7 @@ module.exports = {
     cool: 800,
     react: "🟩",
     category: "pokemon",
-    usage: 'Use :party',
+    usage: 'Use {prefix}party',
     description: "View your caught Pokémon in your party",
     async execute(client, arg, M) {
         try {

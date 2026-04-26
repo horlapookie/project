@@ -46,7 +46,7 @@ module.exports = {
         }
 
         const imageUrl = cardData.url;
-        const text = `💎 *Card on Auction* 💎\n\n🌊 *Name:* ${cardData.title}\n\n🌟 *Tier:* ${cardData.tier}\n\n📝 *Starting Price:* ${startingPrice} gems\n\n🎉 *Highest bidder gets the card* 🎉\n\n🔰 Use :bid <amount> to bid`;
+        const text = `💎 *Card on Auction* 💎\n\n🌊 *Name:* ${cardData.title}\n\n🌟 *Tier:* ${cardData.tier}\n\n📝 *Starting Price:* ${startingPrice} gems\n\n🎉 *Highest bidder gets the card* 🎉\n\n🔰 Use ${client.prefix}bid <amount> to bid`;
 
         const file = await client.utils.getBuffer(imageUrl);
         const isGif = imageUrl.endsWith('.gif');

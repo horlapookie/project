@@ -11,7 +11,7 @@ module.exports = {
   cool: 4,
   react: "✅",
   category: 'card game',
-  usage: 'Use :deck or :deck <index>',
+  usage: 'Use {prefix}deck or :deck <index>',
   description: 'Claim the card',
   async execute(client, arg, M) {
     const deck = await client.DB.get(`${M.sender}_Deck`);

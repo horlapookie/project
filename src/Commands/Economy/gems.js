@@ -5,7 +5,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :wallet',
+    usage: 'Use {prefix}wallet',
     description: 'Shows your wallet gems balance',
     async execute(client, arg, M) {
         const economy = await client.getEcon(M);

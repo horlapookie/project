@@ -5,7 +5,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :delete (quote the message you want to delete)',
+    usage: 'Use {prefix}delete (quote the message you want to delete)',
     description: 'Deletes the quoted message',
     async execute(client, arg, M) {
         if (!M.quoted) return M.reply('Quote the message that you want me to delete, Baka!')

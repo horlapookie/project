@@ -8,7 +8,7 @@ module.exports = {
     cool: 3,
     react: '🛍️',
     category: 'pokemon',
-    usage: 'Use :mart-buy #2 --quantity=1',
+    usage: 'Use {prefix}mart-buy #2 --quantity=1',
     description: 'Buy pokeballs from the Pokemon Mart',
     async execute(client, arg, M) {
         const battle = client.pokemonBattleResponse.get(M.from)
@@ -29,7 +29,7 @@ module.exports = {
 
         const economy = await client.getEcon(M);
         if (!economy) {
-            return M.reply('You need an economy account first. Use :bonus to get started.')
+            return M.reply(`You need an economy account first. Use ${client.prefix}bonus to get started.`)
         }
 
         const totalPrice = item.price * quantity;

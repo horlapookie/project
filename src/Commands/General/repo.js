@@ -6,7 +6,7 @@ module.exports = {
     exp: 0,
     cool: 4,
     react: "👿",
-    usage: 'Use :- Hahaha Leave it!!! ',
+    usage: 'Use {prefix}- Hahaha Leave it!!! ',
     description: 'Fool Kid You think 💬 This bot is a public one ⁉',
     async execute(client, arg, M) {
 

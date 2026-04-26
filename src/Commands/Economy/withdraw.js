@@ -6,7 +6,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :withdraw <amount>',
+    usage: 'Use {prefix}withdraw <amount>',
     description: 'Withdraws credits from your treasury to your wallet',
     async execute(client, arg, M) {
         if (!arg || isNaN(arg)) return M.reply('Please provide a valid amount.');

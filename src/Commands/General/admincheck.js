@@ -5,7 +5,7 @@ module.exports = {
     exp: 0,
     cool: 4,
     react: '🧪',
-    usage: 'Use :admincheck',
+    usage: 'Use {prefix}admincheck',
     description: 'Shows whether the bot detects itself as admin in this group',
     async execute(client, arg, M) {
         if (!M.isGroup) return M.reply('Use this in a group.')

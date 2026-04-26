@@ -5,13 +5,13 @@ module.exports = {
   exp: 5,
   cool: 5,
   react: "✅",
-  usage: 'Use :bid <amount>',
+  usage: 'Use {prefix}bid <amount>',
   description: 'Bid an amount on an ongoing auction',
   async execute(client, arg, M) {
     try {
       const eco = await client.getEcon(M);
       if (!eco) {
-        return M.reply('You do not have an economy account yet. Use :bonus to get started.');
+        return M.reply(`You do not have an economy account yet. Use ${client.prefix}bonus to get started.`);
       }
       const auctionInProgress = await client.DB.get(`${M.from}.auctionInProgress`);
       if (!auctionInProgress) {

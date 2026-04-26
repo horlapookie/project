@@ -20,7 +20,7 @@ module.exports = {
     cool: 3,
     react: '✅',
     category: 'dev',
-    usage: 'Use :delmod @user or :delmod 234xxxxxxxxx',
+    usage: 'Use {prefix}delmod @user or :delmod 234xxxxxxxxx',
     description: 'Removes a moderator by tag, reply, or number',
     async execute(client, arg, M) {
         if (!client.isOwner(M) && !client.isOfficer(M)) {

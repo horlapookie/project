@@ -5,7 +5,7 @@ module.exports = {
   exp: 15,
   cool: 4,
   react: "✅",
-  usage: 'Use :rule',
+  usage: 'Use {prefix}rule',
   description: 'Here you can get the rules of our bot which is made to be maintained and breaking rules have punishments.',
   async execute(client, arg, M) {
 

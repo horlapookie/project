@@ -5,7 +5,7 @@ module.exports = {
     cool: 5,
     react: "🟩",
     category: "pokemon",
-    usage: 'Use :party',
+    usage: 'Use {prefix}party',
     description: "Learn or replace a move for your Pokémon in your party",
     async execute(client, arg, M) {
         try {

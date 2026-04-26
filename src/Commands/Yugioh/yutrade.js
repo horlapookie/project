@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '🤝',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :yutrade <yourIndex> <theirIndex> @user',
+  usage: 'Use {prefix}yutrade <yourIndex> <theirIndex> @user',
   description: 'Request a Yu-Gi-Oh card trade',
   async execute(client, arg, M) {
     const parts = String(arg || '').trim().split(/\s+/).filter(Boolean)

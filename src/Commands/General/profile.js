@@ -8,7 +8,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "👀",
-    usage: 'Use :p to get your profile',
+    usage: 'Use {prefix}p to get your profile',
     description: 'Gives you your stats',
     async execute(client, arg, M) {
         const groupMetadata = await client.groupMetadata(M.from);

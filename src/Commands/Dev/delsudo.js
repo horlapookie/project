@@ -15,7 +15,7 @@ module.exports = {
     cool: 3,
     react: '✅',
     category: 'dev',
-    usage: 'Use :delsudo @user or :delsudo 234xxxxxxxxx',
+    usage: 'Use {prefix}delsudo @user or :delsudo 234xxxxxxxxx',
     description: 'Removes an officer (sudo) by tag, reply, or number',
     async execute(client, arg, M) {
         if (!client.isOwner(M)) return M.reply('Only the owner can remove officers.')

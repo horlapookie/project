@@ -7,7 +7,7 @@ module.exports = {
     exp: 15,
     cool: 4,
     react: "✅",
-    usage: 'Use :aninews',
+    usage: 'Use {prefix}aninews',
     description: 'Provides news about anime world by aurora',
     async execute(client, arg, M) {
         try {

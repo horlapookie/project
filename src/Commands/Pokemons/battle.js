@@ -208,7 +208,7 @@ module.exports = {
     cool: 6,
     react: '🟩',
     category: 'pokemon',
-    usage: 'Use :battle fight / switch / forfeit',
+    usage: 'Use {prefix}battle fight / switch / forfeit',
     description: 'Battle another trainer or a wild Pokemon',
     async execute(client, arg, M) {
         const context = arg.trim().toLowerCase();

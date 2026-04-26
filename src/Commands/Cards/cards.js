@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: "⚡",
   category: "card game",
-  usage: 'Use :cards --tier/--name',
+  usage: 'Use {prefix}cards --tier/--name',
   description: "View all your cards, mixed from deck and collection",
   async execute(client, arg, M) {
     const collection = await client.DB.get(`${M.sender}_Collection`) || [];

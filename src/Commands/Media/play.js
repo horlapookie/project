@@ -8,7 +8,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "🎧",
-    usage: 'Use :ytaudio <song_link>',
+    usage: 'Use {prefix}ytaudio <song_link>',
     description: 'Downloads given YouTube video and sends it as audio',
     async execute(client, arg, M) {
         try {

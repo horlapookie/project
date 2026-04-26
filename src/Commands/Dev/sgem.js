@@ -6,7 +6,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :transfer <amount> @taguser',
+    usage: 'Use {prefix}transfer <amount> @taguser',
     description: 'Transfer credits to your friend',
     async execute(client, arg, M) {
         const recipient = M.mentions[0] || (M.quoted && M.quoted.participant);

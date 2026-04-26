@@ -11,7 +11,7 @@ module.exports = {
     exp: 10,
     cool: 4,
     react: '✅',
-    usage: 'Use :buy <item_name> <item_quantity>',
+    usage: 'Use {prefix}buy <item_name> <item_quantity>',
     description: 'Buy an item from the shop',
     async execute(client, arg, M) {
         if (!arg) return M.reply('Please specify an item name and quantity.');

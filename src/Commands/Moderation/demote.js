@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :demote @tag',
+    usage: 'Use {prefix}demote @tag',
     description: 'Demotes the tagged user',
     async execute(client, arg, M) {
     

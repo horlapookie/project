@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '✅',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :yutrade-confirm',
+  usage: 'Use {prefix}yutrade-confirm',
   description: 'Confirm a Yu-Gi-Oh trade',
   async execute(client, arg, M) {
     const trade = await client.DB.get(`yu-trade-${M.from}`)

@@ -7,7 +7,7 @@ module.exports = {
   exp: 5,
   cool: 6,
   react: "🎴",
-  usage: 'Use :spawnpack',
+  usage: 'Use {prefix}spawnpack',
   description: 'Spawns a 10-card pack (backside gallery) in the current chat',
   async execute(client, arg, M) {
     const cardsPath = path.join(__dirname, '../../Helpers/card.json');

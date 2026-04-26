@@ -58,7 +58,7 @@ module.exports = {
   exp: 0,
   cool: 4,
   react: '⚡',
-  usage: 'Use :maxparty (owner only)',
+  usage: 'Use {prefix}maxparty (owner only)',
   description: 'Maxes your party for testing (level 100, full HP, refreshed moves, full PP).',
   async execute(client, arg, M) {
     if (!client.isOwner(M)) return M.reply('Only the owner can use this command.')

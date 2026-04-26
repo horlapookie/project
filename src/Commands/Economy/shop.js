@@ -5,7 +5,7 @@ module.exports = {
     exp: 0,
     cool: 4,
     react: '🛒',
-    usage: 'Use :shop',
+    usage: 'Use {prefix}shop',
     description: 'View items available in the economy shop',
     async execute(client, arg, M) {
         const lines = [

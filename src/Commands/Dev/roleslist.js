@@ -25,7 +25,7 @@ module.exports = {
     exp: 0,
     cool: 5,
     react: '📜',
-    usage: 'Use :roleslist',
+    usage: 'Use {prefix}roleslist',
     description: 'Lists officers and moderators',
     async execute(client, arg, M) {
         if (!client.isStaff?.(M)) return M.reply('This command can only be used by staff.')

@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :remove @tag',
+    usage: 'Use {prefix}remove @tag',
     description: 'Removes the tagged user',
     async execute(client, arg, M) {
     

@@ -5,7 +5,7 @@ module.exports = {
     exp: 0,
     cool: 4,
     react: "✅",
-    usage: 'Use :info',
+    usage: 'Use {prefix}info',
     description: 'Get bot information',
     async execute(client, arg, M) {
         if (!arg) return M.reply('Use create x/y');

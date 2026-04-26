@@ -7,7 +7,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '✅',
-  usage: 'Use :facebook <Link>',
+  usage: 'Use {prefix}facebook <Link>',
   description: 'Downloads a Facebook video or reel',
   async execute(client, arg, M) {
     if (!arg || !arg.length) {

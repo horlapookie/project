@@ -23,7 +23,7 @@ module.exports = {
     cool: 3,
     react: '✅',
     category: 'dev',
-    usage: 'Use :addsudo @user or :addsudo 234xxxxxxxxx',
+    usage: 'Use {prefix}addsudo @user or :addsudo 234xxxxxxxxx',
     description: 'Adds an officer (sudo) by tag, reply, or number',
     async execute(client, arg, M) {
         if (!client.isOwner(M)) return M.reply('Only the owner can add officers.')

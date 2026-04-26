@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '📥',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :t2yucollec <index>',
+  usage: 'Use {prefix}t2yucollec <index>',
   description: 'Transfer a Yu-Gi-Oh card from deck to collection',
   async execute(client, arg, M) {
     const idx = parseInt(String(arg || '').trim(), 10)

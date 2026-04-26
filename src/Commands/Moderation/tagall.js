@@ -5,7 +5,7 @@ module.exports = {
     cool: 5,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :ping',
+    usage: 'Use {prefix}ping',
     description: 'Tag all the users present in the group',
     async execute(client, arg, M) {
         const groupMetadata = await client.groupMetadata(M.from)

@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: "📚",
     category: "pokemon",
-    usage: 'Use :dex',
+    usage: 'Use {prefix}dex',
     description: "View your total Pokémon caught by you",
     async execute(client, arg, M) {
         try {

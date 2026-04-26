@@ -8,7 +8,7 @@ module.exports = {
   exp: 0,
   react: "✅",
   category: "card game",
-  usage: 'Use :aboutcard <cardName>',
+  usage: 'Use {prefix}aboutcard <cardName>',
   description: "Views any card from the bot",
   async execute(client, args, M) {
     const [cardName, cardTier] = args.trim().split("-"); // Accept card name and tier as input

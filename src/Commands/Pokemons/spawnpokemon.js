@@ -5,7 +5,7 @@ module.exports = {
     cool: 250,
     react: '🌟',
     category: 'pokemon',
-    usage: 'Use :spawnpokemon',
+    usage: 'Use {prefix}spawnpokemon',
     description: 'Spawns a wild Pokemon in the current chat for anyone to challenge',
     async execute(client, arg, M) {
         try {

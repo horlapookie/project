@@ -6,7 +6,7 @@ module.exports = {
     category: 'weeb',
     exp: 7,
     react: "🤭",
-    usage: 'Use :waifu',
+    usage: 'Use {prefix}waifu',
     description: 'Sends an image of a random waifu',
     cool: 4, // Add cooldown time in seconds
     async execute(client, arg, M) { 

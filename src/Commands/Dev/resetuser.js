@@ -32,7 +32,7 @@ module.exports = {
     cool: 5,
     react: '♻️',
     category: 'dev',
-    usage: 'Use :resetuser @user --confirm',
+    usage: 'Use {prefix}resetuser @user --confirm',
     description: 'Wipes a user’s pokemon, cards, XP and economy (owner / officer only)',
     async execute(client, arg, M) {
         if (!client.isOwner(M) && !client.isOfficer(M)) {

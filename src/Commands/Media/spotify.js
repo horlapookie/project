@@ -7,7 +7,7 @@ module.exports = {
     exp: 5,
     cool: 5,
     react: "✅",
-    usage: 'Use :spotify <Link>',
+    usage: 'Use {prefix}spotify <Link>',
     description: 'Downloads given Spotify track and sends it as audio',
     async execute(client, arg, M) {
         const link = String(arg || '').trim()

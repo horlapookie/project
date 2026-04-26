@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '🗑',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :discard <index> [--deck]',
+  usage: 'Use {prefix}discard <index> [--deck]',
   description: 'Discard a Yu-Gi-Oh card from your collection or deck',
   async execute(client, arg, M) {
     const raw = String(arg || '').trim()

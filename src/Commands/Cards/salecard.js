@@ -42,7 +42,7 @@ module.exports = {
       const imageUrl = cardUrl;
       const isGif = imageUrl.endsWith('.gif');
       const file = await client.utils.getBuffer(imageUrl);
-      const text = `💎 Card on sale 💎\n\n🌊 Name: ${cardName}\n\n🌟 Tier: ${cardTier}\n\n📝 Price: ${price}\n\n🎉 ID: ${shopID}\n\n🔰 Use :buycard <saleID> to get the card`;
+      const text = `💎 Card on sale 💎\n\n🌊 Name: ${cardName}\n\n🌟 Tier: ${cardTier}\n\n📝 Price: ${price}\n\n🎉 ID: ${shopID}\n\n🔰 Use ${client.prefix}buycard <saleID> to get the card`;
 
       if (isGif) {
         const giffed = await client.utils.gifToMp4(file);

@@ -6,7 +6,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :treasury',
+    usage: 'Use {prefix}treasury',
     description: 'Shows the treasury value',
     async execute(client, arg, M) {
         const economy = await client.getEcon(M);

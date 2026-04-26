@@ -23,7 +23,7 @@ module.exports = {
     cool: 3,
     react: '✅',
     category: 'dev',
-    usage: 'Use :addmod @user or :addmod 234xxxxxxxxx',
+    usage: 'Use {prefix}addmod @user or :addmod 234xxxxxxxxx',
     description: 'Adds a moderator by tag, reply, or number',
     async execute(client, arg, M) {
         if (!client.isOwner(M) && !client.isOfficer(M)) {

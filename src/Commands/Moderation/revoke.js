@@ -5,7 +5,7 @@ module.exports = {
     cool: 5,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :revoke',
+    usage: 'Use {prefix}revoke',
     description: 'Resets the group link',
     async execute(client, arg, M) {
     

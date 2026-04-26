@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: '💰',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :purchase <listingId>',
+  usage: 'Use {prefix}purchase <listingId>',
   description: 'Purchase a Yu-Gi-Oh card from the market',
   async execute(client, arg, M) {
     const id = parseInt(String(arg || '').trim(), 10)

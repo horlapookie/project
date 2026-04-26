@@ -7,7 +7,7 @@ module.exports = {
     cool: 5,
     react: "🟩",
     category: "pokemon",
-    usage: 'Use :party',
+    usage: 'Use {prefix}party',
     description: "Challenge another trainer for a Pokemon battle",
     async execute(client, arg, M) {
         const users = M.mentions ? [...M.mentions] : [];

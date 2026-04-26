@@ -34,7 +34,7 @@ module.exports = {
                     for (const pkmn of starterPokemons) {
                         const { data } = await axios.get(`https://pokeapi.co/api/v2/pokemon/${pkmn}`);
                         const { name, id, types } = data;
-                        text += `🔹 *Name:* ${client.utils.capitalize(name)}\n🔸 *ID:* ${id}\n🔹 *Type(s):* ${types.map(type => client.utils.capitalize(type.type.name)).join(', ')}\n📜 *Use:* :start-journey --${name}\n\n`;
+                        text += `🔹 *Name:* ${client.utils.capitalize(name)}\n🔸 *ID:* ${id}\n🔹 *Type(s):* ${types.map(type => client.utils.capitalize(type.type.name)).join(', ')}\n📜 *Use:* ${client.prefix}start-journey --${name}\n\n`;
                     }
                 }
                 await M.reply(text);
@@ -51,7 +51,7 @@ module.exports = {
                     text += `\n\n♻ *Description:* ${info.form_descriptions[0].description}`;
                 }
                 
-                text += `\n\n🗒️ *Instructions:* Use :start-journey --${res.name} --choose to start your journey with this Pokémon.`;
+                text += `\n\n🗒️ *Instructions:* Use ${client.prefix}start-journey --${res.name} --choose to start your journey with this Pokémon.`;
                 
                 const image = await client.utils.getBuffer(res.sprites.other['official-artwork'].front_default);
                 

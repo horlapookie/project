@@ -8,7 +8,7 @@ module.exports = {
   cool: 4,
   react: "✅",
   category: "card game",
-  usage: 'Use :cg 1 by tagging',
+  usage: 'Use {prefix}cg 1 by tagging',
   description: "Give a card to another user",
   async execute(client, arg, M) {
     try {

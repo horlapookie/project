@@ -5,7 +5,7 @@ module.exports = {
      exp: 5,
      cool: 4,
      react: "✅",
-     usage: 'Use :support',
+     usage: 'Use {prefix}support',
      description: 'Gives links of official gcs',
 	     async execute(client, arg, M) {
 	       try {

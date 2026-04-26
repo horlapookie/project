@@ -7,7 +7,7 @@ module.exports = {
     exp: 1,
     cool: 4,
     react: "🕒",
-    usage: 'Use :sticker by quoting an image/gif <pack_name>|<author_name>',
+    usage: 'Use {prefix}sticker by quoting an image/gif <pack_name>|<author_name>',
     description: 'Sticker command helps you to convert images or gifs to a sticker',
     async execute(client, arg, M) {
         try {

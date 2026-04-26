@@ -7,7 +7,7 @@ module.exports = {
     exp: 10,
     cool: 4,
     react: "✅",
-    usage: 'Use :neko',
+    usage: 'Use {prefix}neko',
     description: 'Sends an image of a random neko',
     async execute(client, arg, M) {
         try {

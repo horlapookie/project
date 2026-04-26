@@ -7,7 +7,7 @@ module.exports = {
     cool: 4,
     react: '🛒',
     category: 'pokemon',
-    usage: 'Use :mart',
+    usage: 'Use {prefix}mart',
     description: 'View pokeballs available in the Pokemon Mart',
     async execute(client, arg, M) {
         const battle = client.pokemonBattleResponse.get(M.from)

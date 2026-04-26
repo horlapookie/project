@@ -7,7 +7,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '✅',
-  usage: 'Use :pinterest <Link>',
+  usage: 'Use {prefix}pinterest <Link>',
   description: 'Downloads media from a Pinterest link',
   async execute(client, arg, M) {
     if (!arg || !arg.length) {

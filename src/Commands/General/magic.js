@@ -5,7 +5,7 @@ module.exports = {
     exp: 0,
     cool: 20, // Cooldown in seconds
     react: "🍥",
-    usage: 'Use :magic to check bot',
+    usage: 'Use {prefix}magic to check bot',
     description: 'Experience a magical journey.',
     async execute(client, arg, M) { 
         try {
@@ -259,7 +259,7 @@ module.exports = {
                     }, index * 5000); // Delay between each display
                 });
             } else {
-                return M.reply("Scene not found. Use :magic to check available scenes.");
+                return M.reply(`Scene not found. Use ${client.prefix}magic to check available scenes.`);
             }
         } catch (error) {
             console.error('Error in executing magic command:', error);

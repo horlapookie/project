@@ -5,7 +5,7 @@ module.exports = {
   cool: 4,
   react: '🗑',
   category: 'yu-gi-oh-cards',
-  usage: 'Use :yutrade-delete',
+  usage: 'Use {prefix}yutrade-delete',
   description: 'Cancel a pending Yu-Gi-Oh trade',
   async execute(client, arg, M) {
     const trade = await client.DB.get(`yu-trade-${M.from}`)

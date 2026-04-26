@@ -7,7 +7,7 @@ module.exports = {
   exp: 5,
   cool: 6,
   react: "🎴",
-  usage: 'Use :spawncard [--tier=1|2|3|4|5|6|S]',
+  usage: 'Use {prefix}spawncard [--tier=1|2|3|4|5|6|S]',
   description: 'Spawns an anime card in the current chat',
   async execute(client, arg, M) {
     const cardsPath = path.join(__dirname, '../../Helpers/card.json');

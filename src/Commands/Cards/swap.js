@@ -5,7 +5,7 @@ module.exports = {
   cool: 4,
   react: "✅",
   category: "card game",
-  usage: 'Use :cswap <index1> <imdex2>',
+  usage: 'Use {prefix}cswap <index1> <imdex2>',
   description: "Swap two cards in your deck",
   async execute(client, arg, M) {
       try {

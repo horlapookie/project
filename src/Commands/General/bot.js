@@ -5,7 +5,7 @@ module.exports = {
   exp: 0,
   cool: 5,
   react: '🤖',
-  usage: 'Use :bot',
+  usage: 'Use {prefix}bot',
   description: 'Shows bot identity',
   async execute(client, arg, M) {
     const brand = client.brand || `${client.name || 'Eternal'} ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ`

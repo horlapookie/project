@@ -8,7 +8,7 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "✅",
-    usage: 'Use :ytsearch <query>',
+    usage: 'Use {prefix}ytsearch <query>',
     description: 'Searches for videos on YouTube based on the given query',
     async execute(client, arg, M) {
         try {

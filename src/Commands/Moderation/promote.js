@@ -5,7 +5,7 @@ module.exports = {
     cool: 4,
     react: "✅",
     category: 'moderation',
-    usage: 'Use :promote @tag',
+    usage: 'Use {prefix}promote @tag',
     description: 'Promotes the tagged user',
     async execute(client, arg, M) {
     

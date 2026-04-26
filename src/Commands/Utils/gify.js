@@ -7,7 +7,7 @@ module.exports = {
     category: 'utils',
     exp: 7,
     react: "✅",
-    usage: 'Use :getgif <search_content>',
+    usage: 'Use {prefix}getgif <search_content>',
     description: 'Searches for a gif from the web',
     cool: 4, // Add cooldown time in seconds
     async execute(client, arg, M) {
