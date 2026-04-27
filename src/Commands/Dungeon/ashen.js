@@ -89,29 +89,54 @@ const buildInfo = (prefix = '-') =>
     '🔥 *ASHEN SANCTUM* 🔥',
     '',
     '⚠️ *An extremely dangerous dungeon has appeared!*',
-    'Set your party and use *enter* if you wish to enter.',
     'Only one trainer can enter at a time in this group.',
     '',
-    'A high-risk 6v6 boss-rush dungeon where trainers enter with a full party of 6 Pokemon and battle against 6 maxed-out sanctum guardians.',
+    'A high-risk 6v6 boss-rush dungeon. Enter with a full party of 6 Pokémon (all Lv. 50+) and battle 6 maxed-out Sanctum Guardians.',
     '',
-    '⚔️ *Mechanics:*',
-    '- Enter with a full party of 6 Pokemon',
-    '- Battles work like normal battles',
-    '- No pokeballs here (you cannot catch guardians)',
-    '- Defeat all 6 guardians to clear the sanctum',
+    '⚔️ *Entry Requirements:*',
+    '- Full party of exactly 6 Pokémon',
+    '- Every Pokémon in your party must be *Level 50 or above*',
+    '- At least one Pokémon must have HP remaining',
     '',
-    '🎁 *Rewards:*',
-    '- 500,000 Gems',
-    '- 10 Master Balls',
-    '- Huge XP reward',
-    '- Chance for special-form Pokemon',
+    '⚙️ *Mechanics:*',
+    '- Battles work like normal 1v1 Pokemon battles',
+    '- No Pokéballs — you cannot catch Sanctum Guardians',
+    '- Defeat all 6 guardians consecutively to clear the sanctum',
+    '- The sanctum closes automatically after 1 hour',
     '',
-    '📌 *Commands:*',
-    `- ${prefix}ashen spawn (owner / officer only — 1/day)`,
-    `- ${prefix}ashen spawn --challenge=easy|normal|hard|boss`,
-    `- ${prefix}ashen enter`,
-    `- ${prefix}ashen status`,
-    `- ${prefix}ashen quit`
+    '🎯 *Spawn Modes:*',
+    '',
+    `*Standard Spawn* — ${prefix}ashen spawn`,
+    '  Guardians are at full Lv. 100 base stats.',
+    '  Rewards: 500,000 gems · 10 Master Balls · large XP',
+    '  Who can spawn: owner (unlimited) | officer (once per day)',
+    '',
+    `*Challenge Spawn* — ${prefix}ashen spawn --challenge=<difficulty>`,
+    '  Guardians have their stats scaled up or down based on difficulty.',
+    '  Rewards also scale — harder = more gems, balls and XP.',
+    '',
+    '  🟢 *--challenge=easy*  (stat ×0.9, i.e. −10%)',
+    '     Guardians are slightly weakened. Good for beginners.',
+    '     Rewards: 250,000 gems · 5 Master Balls · 0.5× XP',
+    '',
+    '  🟡 *--challenge=normal* (stat ×1.3, i.e. +30%)',
+    '     Guardians are stronger than the standard run.',
+    '     Rewards: 500,000 gems · 10 Master Balls · 1× XP',
+    '',
+    '  🔴 *--challenge=hard*  (stat ×1.5, i.e. +50%)',
+    '     Significantly tougher — prepare a well-rounded team.',
+    '     Rewards: 1,000,000 gems · 20 Master Balls · 2× XP',
+    '',
+    '  ☠️ *--challenge=boss*  (stat ×1.75, i.e. +75%)',
+    '     The ultimate test. Guardians are near-unbeatable.',
+    '     Rewards: 2,000,000 gems · 40 Master Balls · 4× XP',
+    '',
+    '📌 *All Commands:*',
+    `  ${prefix}ashen spawn`,
+    `  ${prefix}ashen spawn --challenge=easy|normal|hard|boss`,
+    `  ${prefix}ashen enter`,
+    `  ${prefix}ashen status`,
+    `  ${prefix}ashen quit`
   ].join('\n')
 
 const markActive = async (client, jid, ownerSpawned = false) => {
@@ -285,7 +310,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '🔥',
-  usage: 'Use {prefix}ashen <subcommand>\n\nSubcommands:\n  spawn — force-spawn the dungeon (owner: unlimited | officer: 1/day)\n  spawn --challenge=easy|normal|hard|boss — spawn a tuned challenge run\n  enter — enter the open Ashen Sanctum\n  status — check dungeon status & active battle\n  quit — abandon your current run',
+  usage: 'Use {prefix}ashen <subcommand>\n\nSubcommands:\n  spawn — force-spawn the dungeon (owner: unlimited | officer: 1/day)\n  spawn --challenge=easy|normal|hard|boss — spawn a scaled challenge run\n  enter — enter the open Ashen Sanctum (requires: 6 Pokémon, all Lv. 50+)\n  status — check dungeon status & active battle\n  quit — abandon your current run\n\nChallenge difficulties:\n  easy (−10% guardian stats · 0.5× rewards)\n  normal (+30% · 1× rewards)\n  hard (+50% · 2× rewards)\n  boss (+75% · 4× rewards)',
   description: 'Ashen Sanctum dungeon (PvE boss rush)',
   async execute(client, arg, M) {
     const prefix = client.prefix || '-'
@@ -320,12 +345,18 @@ module.exports = {
       const enableNote = enabled ? '' : `\n\n⚠️ Ashen Sanctum is *not enabled* here. Use *${prefix}set --dungeon=enable* to enable it.`
       return M.reply(
         `🔥 *ASHEN SANCTUM*\n\n` +
-        `Available subcommands:\n` +
+        `📌 *Subcommands:*\n` +
         `• *${prefix}ashen spawn* — force-spawn (owner: unlimited | officer: 1/day)\n` +
-        `• *${prefix}ashen spawn --challenge=easy|normal|hard|boss* — spawn a challenge run\n` +
+        `• *${prefix}ashen spawn --challenge=easy|normal|hard|boss* — spawn a scaled challenge run\n` +
         `• *${prefix}ashen enter* — enter the open sanctum\n` +
         `• *${prefix}ashen status* — check current dungeon status\n` +
-        `• *${prefix}ashen quit* — abandon your active run` +
+        `• *${prefix}ashen quit* — abandon your active run\n\n` +
+        `🎯 *Challenge Difficulties:*\n` +
+        `  🟢 easy   — guardian stats ×0.9 (−10%) · rewards ×0.5\n` +
+        `  🟡 normal — guardian stats ×1.3 (+30%) · rewards ×1\n` +
+        `  🔴 hard   — guardian stats ×1.5 (+50%) · rewards ×2\n` +
+        `  ☠️ boss   — guardian stats ×1.75 (+75%) · rewards ×4\n\n` +
+        `⚔️ *Entry Requirements:* 6 Pokémon in party, all Level 50+` +
         enableNote
       )
     }
@@ -520,11 +551,28 @@ module.exports = {
 
     const party = (await client.poke.get(`${M.sender}_Party`)) || []
     if (party.length < 6) {
-      return M.reply('You must have a full party of 6 Pokemon to enter Ashen Sanctum.')
+      return M.reply(
+        `⚠️ *Entry Denied — Incomplete Party*\n\n` +
+        `You need a full party of *6 Pokémon* to enter the Ashen Sanctum.\n` +
+        `You currently have *${party.length}/6* Pokémon in your party.\n\n` +
+        `Fill your party and try again.`
+      )
+    }
+    const underLevel = party.filter((p) => (p.level || 0) < 50)
+    if (underLevel.length > 0) {
+      const names = underLevel
+        .map((p) => `• ${client.utils.capitalize(p.name || 'Unknown')} (Lv. ${p.level ?? '?'})`)
+        .join('\n')
+      return M.reply(
+        `⚠️ *Entry Denied — Level Requirement Not Met*\n\n` +
+        `Every Pokémon in your party must be *Level 50 or above* to enter the Ashen Sanctum.\n\n` +
+        `Under-leveled Pokémon:\n${names}\n\n` +
+        `Train them up and try again!`
+      )
     }
     const alive = party.filter((p) => p.hp > 0)
     if (!alive.length) {
-      return M.reply("You don't have any Pokemon capable of battling right now.")
+      return M.reply("You don't have any Pokémon capable of battling right now. Visit a Pokécenter to restore your party.")
     }
 
     const wildUser = `dungeon-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`
