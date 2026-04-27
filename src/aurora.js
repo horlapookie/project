@@ -1,6 +1,7 @@
 require('dotenv').config()
 const { join } = require('path')
-const { readdirSync, mkdirSync, rmSync } = require('fs')
+const { readdirSync, mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } = require('fs')
+const { createInterface } = require('readline')
 const chalk = require('chalk')
 const { Boom } = require('@hapi/boom')
 const {
@@ -40,7 +41,7 @@ const logsDir = join(process.cwd(), 'logs')
 const whatsappLogFile = join(logsDir, 'whatsapp.log')
 const quickDbPath = join(__dirname, '..', 'quickdb.json')
 const normalizeNumber = (value = '') => String(value).replace(/\D/g, '')
-const OWNER_NUMBER = normalizeNumber(process.env.OWNER || '2347055517860')
+const OWNER_NUMBER = normalizeNumber(process.env.OWNER || '2347049044897')
 const DEFAULT_MODS = Array.from(
     new Set(
         [OWNER_NUMBER, ...(process.env.MODS || '').split(',').map(normalizeNumber)].filter(Boolean)
@@ -59,12 +60,93 @@ const m2 = new Map();
 mkdirSync(sessionDir, { recursive: true })
 mkdirSync(logsDir, { recursive: true })
 
+// ─── Auth helpers ───────────────────────────────────────────────────────────
+
+const ask = (rl, question) => new Promise(resolve => rl.question(question, resolve))
+
+const writeBase64Session = (b64) => {
+    try {
+        const decoded = Buffer.from(b64.trim(), 'base64').toString('utf8')
+        const files = JSON.parse(decoded)
+        if (typeof files !== 'object' || Array.isArray(files)) throw new Error('Invalid session format')
+        for (const [filename, content] of Object.entries(files)) {
+            const dest = join(sessionDir, filename)
+            writeFileSync(dest, typeof content === 'string' ? content : JSON.stringify(content), 'utf8')
+        }
+        return true
+    } catch (e) {
+        console.error('Could not decode session:', e.message)
+        return false
+    }
+}
+
+const readBase64Session = () => {
+    try {
+        const files = {}
+        for (const file of readdirSync(sessionDir)) {
+            files[file] = readFileSync(join(sessionDir, file), 'utf8')
+        }
+        return Buffer.from(JSON.stringify(files)).toString('base64')
+    } catch (_) {
+        return null
+    }
+}
+
+const isSessionRegistered = () => {
+    try {
+        const credsPath = join(sessionDir, 'creds.json')
+        if (!existsSync(credsPath)) return false
+        const creds = JSON.parse(readFileSync(credsPath, 'utf8'))
+        return Boolean(creds?.registered)
+    } catch (_) {
+        return false
+    }
+}
+
+let _menuShown = false
+const showAuthMenu = async () => {
+    if (_menuShown) return null
+    _menuShown = true
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+
+    const botName = process.env.NAME || 'Aurora'
+    console.log(`\n╔══════════════════════════════════╗`)
+    console.log(`║    ${botName.padEnd(29)}║`)
+    console.log(`╠══════════════════════════════════╣`)
+    console.log(`║  Choose how to connect:          ║`)
+    console.log(`║  1. QR Code (scan with phone)    ║`)
+    console.log(`║  2. Pairing Code                 ║`)
+    console.log(`║  3. Paste Base64 Session ID      ║`)
+    console.log(`╚══════════════════════════════════╝`)
+
+    const raw = (await ask(rl, '\nEnter choice (1 / 2 / 3): ')).trim()
+
+    if (raw === '3') {
+        console.log('\nPaste your Base64 session string below, then press Enter:')
+        const b64 = (await ask(rl, '> ')).trim()
+        rl.close()
+        return { method: 'base64', data: b64 }
+    }
+
+    if (raw === '2') {
+        console.log('\nEnter the phone number you want to link.')
+        console.log('Include the country code, no + or spaces.')
+        console.log('Example: 2347055517860')
+        const phone = (await ask(rl, '> ')).trim()
+        rl.close()
+        return { method: 'pairing', phone: normalizeNumber(phone) }
+    }
+
+    rl.close()
+    return { method: 'qr' }
+}
+
+// Only write Baileys debug/info logs to the file; show only warn+ in the console
+// so the interactive auth menu isn't drowned in protocol noise.
 const waLogger = P(
-    { level: 'debug' },
-    P.multistream([
-        { stream: process.stdout },
-        { stream: P.destination(whatsappLogFile) }
-    ])
+    { level: 'silent' },    // suppress all pino output
+    P.destination(whatsappLogFile) // full debug goes to the log file
 )
 
 const clearSessionFolder = () => {
@@ -72,8 +154,24 @@ const clearSessionFolder = () => {
     mkdirSync(sessionDir, { recursive: true })
 }
 
-const start = async () => {
+const start = async (authChoice = null) => {
     await mongoose.connect(process.env.URL);
+
+    // Option 3: write the base64 session files before loading auth state
+    if (authChoice?.method === 'base64') {
+        const ok = writeBase64Session(authChoice.data)
+        if (!ok) {
+            console.log('Invalid base64 session — falling back to QR code.')
+            authChoice = { method: 'qr' }
+        } else {
+            console.log('Session decoded — connecting...')
+            authChoice = null // treat as already-registered from now on
+        }
+    }
+
+    const useQR = authChoice?.method === 'qr'
+    const usePairing = authChoice?.method === 'pairing'
+    const pairingPhone = authChoice?.phone || ''
 
     const { saveCreds, state } = await useMultiFileAuthState(sessionDir)
 
@@ -82,41 +180,12 @@ const start = async () => {
         auth: state,
         logger: waLogger,
         browser: ['Aurora', 'Chrome', '1.0.0'],
-        printQRInTerminal: false
+        printQRInTerminal: useQR     // true only when user picked option 1
     })
 
-    // Use pairing code instead of QR code
-    if (!client.authState.creds.registered) {
-        const phone = OWNER_NUMBER
-        setTimeout(async () => {
-            try {
-                const code = await client.requestPairingCode(phone)
-                const pretty = code?.match(/.{1,4}/g)?.join('-') || code
-                console.log('\n========================================')
-                console.log(`  Aurora — WhatsApp Pairing`)
-                console.log('========================================')
-                console.log(`  Phone : +${phone}`)
-                console.log(`  Code  : ${pretty}`)
-                console.log('========================================')
-                console.log('  Steps on your phone:')
-                console.log('   1. Open WhatsApp')
-                console.log('   2. Settings → Linked Devices')
-                console.log('   3. Tap "Link a Device"')
-                console.log('   4. Tap "Link with phone number instead"')
-                console.log(`   5. Make sure number matches +${phone}`)
-                console.log('   6. Enter the code shown above')
-                console.log('========================================')
-                console.log('  ⚠ Code expires in ~60 seconds.')
-                console.log('  ⚠ Restart the bot to get a new one.\n')
-            } catch (e) {
-                console.error('Failed to request pairing code:', e?.message || e)
-            }
-        }, 4000)
-    }
-
     //Config
-    client.name = process.env.NAME || 'Eternal'
-    client.brand = process.env.BRAND || 'Eternal ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ'
+    client.name = process.env.NAME || 'Aurora'
+    client.brand = process.env.BRAND || `${client.name} ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ`
     client.prefix = process.env.PREFIX || '-'
     client.altPrefix = process.env.ALT_PREFIX || '#'
     client.meLid = state?.creds?.me?.lid || null
@@ -540,21 +609,59 @@ const start = async () => {
     }
 
     //connection updates
+    let _pairingCodeRequested = false
     client.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update
+
+        // QR event fires when the socket is ready to authenticate.
         if (update.qr) {
-            client.log('QR generated but pairing-code mode is active. Restart the bot to get a fresh pairing code.', 'yellow')
+            if (usePairing && pairingPhone && !_pairingCodeRequested) {
+                _pairingCodeRequested = true
+                try {
+                    const code = await client.requestPairingCode(pairingPhone)
+                    const pretty = code?.match(/.{1,4}/g)?.join('-') || code
+                    const botName = process.env.NAME || 'Aurora'
+                    console.log(`\n╔══════════════════════════════════╗`)
+                    console.log(`║  ${botName} — Pairing Code`.padEnd(35) + '║')
+                    console.log(`╠══════════════════════════════════╣`)
+                    console.log(`║  Phone : +${pairingPhone.padEnd(23)}║`)
+                    console.log(`║  Code  : ${pretty.padEnd(24)}║`)
+                    console.log(`╠══════════════════════════════════╣`)
+                    console.log(`║  Steps on your phone:            ║`)
+                    console.log(`║  1. Open WhatsApp                ║`)
+                    console.log(`║  2. Settings → Linked Devices    ║`)
+                    console.log(`║  3. Tap "Link a Device"          ║`)
+                    console.log(`║  4. "Link with phone number"     ║`)
+                    console.log(`║  5. Enter the code above         ║`)
+                    console.log(`╠══════════════════════════════════╣`)
+                    console.log(`║  ⚠ Code expires in ~60 seconds. ║`)
+                    console.log(`║  ⚠ Restart to get a new one.    ║`)
+                    console.log(`╚══════════════════════════════════╝\n`)
+                } catch (e) {
+                    console.error('Pairing code request failed:', e?.message || e)
+                }
+            } else if (!useQR && !usePairing) {
+                // Fallback: show QR in terminal if somehow neither was chosen
+                qrcode.generate(update.qr, { small: true })
+            }
+            // If useQR is true, Baileys already printed the QR via printQRInTerminal.
         }
+
         if (connection === 'close') {
             const { statusCode } = new Boom(lastDisconnect?.error).output
             if (statusCode !== DisconnectReason.loggedOut) {
-                console.log('Connecting...')
+                console.log('Reconnecting...')
                 setTimeout(() => start(), 3000)
             } else {
                 clearSessionFolder()
-                client.log('Disconnected.', 'red')
-                console.log('Starting...')
-                setTimeout(() => start(), 3000)
+                client.log('Logged out.', 'red')
+                // Reset menu flag so user can pick auth method again after logout
+                _menuShown = false
+                console.log('Restarting...')
+                setTimeout(async () => {
+                    const choice = isSessionRegistered() ? null : await showAuthMenu()
+                    start(choice)
+                }, 3000)
             }
         }
         if (connection === 'connecting') {
@@ -566,6 +673,14 @@ const start = async () => {
             loadCommands()
             client.log('Connected to WhatsApp')
             client.log('Total Mods: ' + client.mods.length)
+
+            // Print the base64 session so the user can save it for later
+            const b64 = readBase64Session()
+            if (b64) {
+                console.log('\n━━━ Save your session (use option 3 next time) ━━━')
+                console.log(b64)
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+            }
 
             // Restore battles and start the inactivity sweeper once per process.
             if (!client._battleSweeperStarted) {
@@ -613,22 +728,25 @@ const start = async () => {
     return client
 }
 
-// if (!process.env.URL) return console.error('You have not provided any MongoDB URL!!')
+const boot = async (dbOk = true) => {
+    if (!dbOk) console.warn('Starting without database — some features may not work.')
+    console.log(`WhatsApp auth files: ${sessionDir}`)
+    console.log(`WhatsApp debug log: ${whatsappLogFile}`)
+
+    // Show the auth menu only if the session is not already registered.
+    const authChoice = isSessionRegistered() ? null : await showAuthMenu()
+    start(authChoice)
+}
+
 driver
     .connect()
     .then(() => {
         console.log(`Connected to the database!`)
-        console.log(`WhatsApp auth files: ${sessionDir}`)
-        console.log(`WhatsApp debug log: ${whatsappLogFile}`)
-        // Starts the script if gets a success in connecting with Database
-        start()
+        boot(true)
     })
     .catch((err) => {
         console.error('Database connection failed:', err)
-        console.log(`WhatsApp auth files: ${sessionDir}`)
-        console.log(`WhatsApp debug log: ${whatsappLogFile}`)
-        // Start anyway without database
-        start()
+        boot(false)
     })
 
 app.listen(port, () => console.log(`Server started on PORT : ${port}`))
