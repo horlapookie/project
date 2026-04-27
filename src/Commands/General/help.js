@@ -60,6 +60,7 @@ module.exports = {
                 const usersCounts = usersCount.length;
                 const modCount = client.mods.length;
                 const categories = client.cmd.reduce((obj, cmd) => {
+                    if (cmd.hidden) return obj
                     const category = cmd.category || 'Uncategorized';
                     obj[category] = obj[category] || [];
                     obj[category].push(cmd.name);
@@ -96,9 +97,10 @@ module.exports = {
                     commands += `*𓊈𒆜 ${client.utils.capitalize(category, true)} 𒆜𓊉* \n\`\`\`${categories[category].join(', ')}\`\`\`\n\n`;
                 }
 
-                const brand = client.brand || `${client.name || 'Eternal'} ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ`
+                const brand = client.brand || 'Eternal by VEN domain'
+                const botName = client.name || 'Eternal'
                 const message = [
-                    `*${client.name || 'Eternal'} HELP*`,
+                    `*${botName} HELP*`,
                     '',
                     `Hi @${M.sender.split('@')[0]}, I am ${brand}`,
                     `${wish()}`,
@@ -109,7 +111,7 @@ module.exports = {
                     '',
                     commands.trim(),
                     '',
-                    '𝚅𝙴𝙽 𝚍𝚘𝚖𝚊𝚒𝚗𝚜'
+                    brand
                 ].join('\n').trim();
                 return client.sendMessage(
                     M.from,
@@ -134,10 +136,9 @@ module.exports = {
             }
 
             const aliases = command.aliases && command.aliases.length ? command.aliases.join(', ') : 'None';
+            const usageText = (command.usage || 'No usage provided').replace(/\{prefix\}/g, client.prefix)
             return M.reply(
-                `*Command:* ${command.name}\n*Aliases:* ${aliases}\n*Category:* ${command.category || 'Uncategorized'}\n*Usage:* ${
-                    command.usage || 'No usage provided'
-                }\n*Description:* ${command.description || 'No description provided'}`
+                `*Command:* ${command.name}\n*Aliases:* ${aliases}\n*Category:* ${command.category || 'Uncategorized'}\n*Usage:* ${usageText}\n*Description:* ${command.description || 'No description provided'}`
             );
         } catch (error) {
             console.error(error);

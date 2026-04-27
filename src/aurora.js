@@ -185,7 +185,7 @@ const start = async (authChoice = null) => {
 
     //Config
     client.name = process.env.NAME || 'Aurora'
-    client.brand = process.env.BRAND || `${client.name} ᵇʸ ᵛᵉⁿ ᵈᵒᵐᵃⁱⁿ`
+    client.brand = process.env.BRAND || 'Eternal by VEN domain'
     client.prefix = process.env.PREFIX || '-'
     client.altPrefix = process.env.ALT_PREFIX || '#'
     client.meLid = state?.creds?.me?.lid || null

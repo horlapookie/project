@@ -114,18 +114,18 @@ const buildInfo = (prefix = '-') =>
     `- ${prefix}ashen quit`
   ].join('\n')
 
-const markActive = async (client, jid) => {
+const markActive = async (client, jid, ownerSpawned = false) => {
   const key = `ashen-active-${jid}`
   const now = Date.now()
   const expiresAt = now + 60 * 60 * 1000  // 1 hour
-  await client.DB.set(key, { spawnedAt: now, expiresAt }).catch(() => null)
+  await client.DB.set(key, { spawnedAt: now, expiresAt, ownerSpawned }).catch(() => null)
   await client.DB.set(`ashen-last-${jid}`, now).catch(() => null)
   return { expiresAt }
 }
 
-const sendAnnouncement = async (client, M) => {
+const sendAnnouncement = async (client, M, ownerSpawned = false) => {
   const prefix = client.prefix || '-'
-  await markActive(client, M.from)
+  await markActive(client, M.from, ownerSpawned)
   // Tag all participants without adding extra "tagall" text.
   const meta = await client.groupMetadata(M.from).catch(() => null)
   const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)
@@ -285,7 +285,7 @@ module.exports = {
   exp: 5,
   cool: 4,
   react: '🔥',
-  usage: 'Use {prefix}ashen enter/status/quit',
+  usage: 'Use {prefix}ashen <subcommand>\n\nSubcommands:\n  spawn — force-spawn the dungeon (owner: unlimited | officer: 1/day)\n  spawn --challenge=easy|normal|hard|boss — spawn a tuned challenge run\n  enter — enter the open Ashen Sanctum\n  status — check dungeon status & active battle\n  quit — abandon your current run',
   description: 'Ashen Sanctum dungeon (PvE boss rush)',
   async execute(client, arg, M) {
     const prefix = client.prefix || '-'
@@ -317,38 +317,46 @@ module.exports = {
 
     // If user just types `ashen`, show status and the available subcommands (no spam announcement).
     if (!sub) {
-      if (!enabled) {
-        return M.reply(`Ruins is closed for now.\n\nEnable Ashen Sanctum in this group with *${client.prefix}set --dungeon=enable*.\n\nSubcommands: spawn, enter, status, quit`)
-      }
-      if (isActive) {
-        const minsLeft = Math.max(0, Math.ceil((Number(active.expiresAt) - Date.now()) / 60000))
-        return M.reply(`Ruins is open now.\nRemaining: *${minsLeft} min*.\n\nSubcommands: spawn, enter, status, quit`)
-      }
-      const mins = await nextAppearInMinutes()
-      return M.reply(`Ruins is closed for now.\nRuins will appear in *${mins} min* for this group.\n\nSubcommands: spawn, enter, status, quit`)
+      const enableNote = enabled ? '' : `\n\n⚠️ Ashen Sanctum is *not enabled* here. Use *${prefix}set --dungeon=enable* to enable it.`
+      return M.reply(
+        `🔥 *ASHEN SANCTUM*\n\n` +
+        `Available subcommands:\n` +
+        `• *${prefix}ashen spawn* — force-spawn (owner: unlimited | officer: 1/day)\n` +
+        `• *${prefix}ashen spawn --challenge=easy|normal|hard|boss* — spawn a challenge run\n` +
+        `• *${prefix}ashen enter* — enter the open sanctum\n` +
+        `• *${prefix}ashen status* — check current dungeon status\n` +
+        `• *${prefix}ashen quit* — abandon your active run` +
+        enableNote
+      )
     }
 
     if (sub.startsWith('spawn') || sub.startsWith('appear') || sub.startsWith('announce')) {
-      if (!client.isOwner(M) && !client.isOfficer(M) && !client.isMod(M)) {
-        return M.reply('Only the owner or officers can spawn the Ashen Sanctum.')
+      const isOwnerSpawning = client.isOwner(M)
+      const isOfficerSpawning = client.isOfficer(M)
+
+      if (!isOwnerSpawning && !isOfficerSpawning) {
+        return M.reply('Only the owner or officers can force-spawn the Ashen Sanctum.')
       }
 
       const fullArg = String(arg || '').trim().toLowerCase()
       const isChallenge = /--ch(allenge)?(=|\b)/.test(fullArg)
-      // Owner and officers bypass the daily countdown entirely
-      const isBypass = client.isOwner(M) || client.isOfficer(M) || client.isMod(M)
-      if (!isBypass) {
-        const today = todayStr()
-        const dayKey = isChallenge ? `ashen-ch-day-${M.from}` : `ashen-day-${M.from}`
-        const lastDay = (await client.DB.get(dayKey).catch(() => null)) || ''
-        if (lastDay === today) {
-          return M.reply(
-            isChallenge
-              ? '🔥 The Ashen Challenge can only be spawned *once per day* in this group. Try again tomorrow.'
-              : '🔥 The Ashen Sanctum can only be spawned *once per day* in this group. Try again tomorrow.'
-          )
+      const today = todayStr()
+      const senderNum = M.sender.split('@')[0]
+      const dayKey = isChallenge ? `ashen-ch-day-${M.from}` : `ashen-day-${M.from}`
+      const officerDayKey = `ashen-officer-${today}-${M.from}-${senderNum}`
+
+      // Officers: dungeon must be enabled + 1 force spawn per day per officer
+      if (!isOwnerSpawning) {
+        if (!enabled) {
+          return M.reply(`🔥 Ashen Sanctum is not enabled in this group. Enable it first with *${prefix}set --dungeon=enable*.`)
+        }
+        const alreadyUsed = await client.DB.get(officerDayKey).catch(() => null)
+        if (alreadyUsed) {
+          return M.reply('🔥 You have already used your daily force spawn. Officers can spawn once per day. Try again tomorrow.')
         }
       }
+      // Owner: no daily limit, no enabled-check needed — they can spawn anywhere, any time.
+
       if (isActive) {
         return M.reply('🔥 An Ashen Sanctum is already open in this group.')
       }
@@ -434,8 +442,11 @@ module.exports = {
             createdAt: Date.now()
           })
           .catch(() => null)
-        await client.DB.set(dayKey, today).catch(() => null)
-        await markActive(client, M.from)
+        if (!isOwnerSpawning) {
+          await client.DB.set(dayKey, today).catch(() => null)
+          await client.DB.set(officerDayKey, true).catch(() => null)
+        }
+        await markActive(client, M.from, isOwnerSpawning)
 
         const meta = await client.groupMetadata(M.from).catch(() => null)
         const mentions = (meta?.participants || []).map((p) => p?.id).filter(Boolean)
@@ -451,8 +462,11 @@ module.exports = {
       }
 
       // Normal spawn
-      await client.DB.set(dayKey, today).catch(() => null)
-      return sendAnnouncement(client, M)
+      if (!isOwnerSpawning) {
+        await client.DB.set(dayKey, today).catch(() => null)
+        await client.DB.set(officerDayKey, true).catch(() => null)
+      }
+      return sendAnnouncement(client, M, isOwnerSpawning)
     }
 
     if (sub === 'status') {
@@ -488,7 +502,7 @@ module.exports = {
       return M.reply(`Invalid usage. Use *${prefix}ashen enter*, *${prefix}ashen status*, or *${prefix}ashen quit*.`)
     }
 
-    if (!enabled) {
+    if (!enabled && !active?.ownerSpawned) {
       return M.reply(`Dungeon is not enabled in this group. Use *${client.prefix}set --dungeon=enable*.`)
     }
 

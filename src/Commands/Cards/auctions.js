@@ -7,9 +7,19 @@ module.exports = {
   cool: 5,
   react: "✅",
   category: "card game",
+  usage: 'Use {prefix}auction start|<card index>|<starting price>  — to start an auction\nUse {prefix}auction end  — to end the current auction early',
   description: "Starts or ends a card auction",
   async execute(client, arg, M) {
+    const prefix = client.prefix || '-'
     try {
+      if (!arg || !arg.trim()) {
+        return M.reply(
+          `*Auction Command*\n\n` +
+          `📌 *Start an auction:*\n${prefix}auction start|<card index>|<starting price>\n_Example: ${prefix}auction start|1|500_\n\n` +
+          `📌 *End the current auction:*\n${prefix}auction end\n\n` +
+          `📌 *Bid on an auction:*\n${prefix}bid <amount>`
+        )
+      }
       if (arg.startsWith('start')) {
         const auctionInProgress = await client.DB.get(`${M.from}.auctionInProgress`);
         if (auctionInProgress) {
