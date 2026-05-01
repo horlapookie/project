@@ -123,8 +123,28 @@ const showAuthMenu = async () => {
     const raw = (await ask(rl, '\nEnter choice (1 / 2 / 3): ')).trim()
 
     if (raw === '3') {
-        console.log('\nPaste your Base64 session string below, then press Enter:')
-        const b64 = (await ask(rl, '> ')).trim()
+        let validSession = false
+        let b64 = ''
+        
+        while (!validSession) {
+            console.log('\nPaste your Base64-encoded session string below, then press Enter:')
+            console.log('(This should be the full encoded session from a previous connection)')
+            b64 = (await ask(rl, '> ')).trim()
+            
+            // Validate the base64
+            if (!b64) {
+                console.log('❌ Session string cannot be empty. Try again.')
+                continue
+            }
+            
+            if (!isValidBase64(b64)) {
+                console.log('❌ Invalid Base64 format. Make sure you copy the entire string correctly.')
+                continue
+            }
+            
+            validSession = true
+        }
+        
         rl.close()
         return { method: 'base64', data: b64 }
     }
@@ -140,6 +160,15 @@ const showAuthMenu = async () => {
 
     rl.close()
     return { method: 'qr' }
+}
+
+// Helper to validate base64 format
+const isValidBase64 = (str) => {
+    try {
+        return Buffer.from(str, 'base64').toString('base64') === str
+    } catch (_) {
+        return false
+    }
 }
 
 // Only write Baileys debug/info logs to the file; show only warn+ in the console
@@ -161,10 +190,12 @@ const start = async (authChoice = null) => {
     if (authChoice?.method === 'base64') {
         const ok = writeBase64Session(authChoice.data)
         if (!ok) {
-            console.log('Invalid base64 session — falling back to QR code.')
-            authChoice = { method: 'qr' }
+            console.log('❌ Invalid base64 session — falling back to auth menu.')
+            _menuShown = false  // Reset menu flag to allow retry
+            const newChoice = await showAuthMenu()
+            return start(newChoice)
         } else {
-            console.log('Session decoded — connecting...')
+            console.log('✅ Session decoded successfully — connecting...')
             authChoice = null // treat as already-registered from now on
         }
     }
@@ -190,6 +221,9 @@ const start = async (authChoice = null) => {
     client.altPrefix = process.env.ALT_PREFIX || '#'
     client.meLid = state?.creds?.me?.lid || null
     client.mePn = state?.creds?.me?.id || null
+    
+    // Store auth choice in client for reconnection
+    client._authChoice = { useQR, usePairing, pairingPhone }
 
     // Baileys media expects:
     // - Buffer (raw bytes)
@@ -615,16 +649,17 @@ const start = async (authChoice = null) => {
 
         // QR event fires when the socket is ready to authenticate.
         if (update.qr) {
-            if (usePairing && pairingPhone && !_pairingCodeRequested) {
+            if (client._authChoice?.usePairing && client._authChoice?.pairingPhone && !_pairingCodeRequested) {
                 _pairingCodeRequested = true
                 try {
-                    const code = await client.requestPairingCode(pairingPhone)
+                    console.log('📱 Requesting pairing code...')
+                    const code = await client.requestPairingCode(client._authChoice.pairingPhone)
                     const pretty = code?.match(/.{1,4}/g)?.join('-') || code
                     const botName = process.env.NAME || 'Aurora'
                     console.log(`\n╔══════════════════════════════════╗`)
                     console.log(`║  ${botName} — Pairing Code`.padEnd(35) + '║')
                     console.log(`╠══════════════════════════════════╣`)
-                    console.log(`║  Phone : +${pairingPhone.padEnd(23)}║`)
+                    console.log(`║  Phone : +${client._authChoice.pairingPhone.padEnd(23)}║`)
                     console.log(`║  Code  : ${pretty.padEnd(24)}║`)
                     console.log(`╠══════════════════════════════════╣`)
                     console.log(`║  Steps on your phone:            ║`)
@@ -638,10 +673,11 @@ const start = async (authChoice = null) => {
                     console.log(`║  ⚠ Restart to get a new one.    ║`)
                     console.log(`╚══════════════════════════════════╝\n`)
                 } catch (e) {
-                    console.error('Pairing code request failed:', e?.message || e)
+                    console.error('❌ Pairing code request failed:', e?.message || e)
                 }
-            } else if (!useQR && !usePairing) {
+            } else if (!client._authChoice?.useQR && !client._authChoice?.usePairing) {
                 // Fallback: show QR in terminal if somehow neither was chosen
+                console.log('📱 Scan QR code with WhatsApp:')
                 qrcode.generate(update.qr, { small: true })
             }
             // If useQR is true, Baileys already printed the QR via printQRInTerminal.
@@ -650,14 +686,16 @@ const start = async (authChoice = null) => {
         if (connection === 'close') {
             const { statusCode } = new Boom(lastDisconnect?.error).output
             if (statusCode !== DisconnectReason.loggedOut) {
-                console.log('Reconnecting...')
+                console.log('📡 Reconnecting...')
+                // Reset pairing code flag on reconnect so it can be requested again
+                _pairingCodeRequested = false
                 setTimeout(() => start(), 3000)
             } else {
                 clearSessionFolder()
                 client.log('Logged out.', 'red')
                 // Reset menu flag so user can pick auth method again after logout
                 _menuShown = false
-                console.log('Restarting...')
+                console.log('🔄 Restarting...')
                 setTimeout(async () => {
                     const choice = isSessionRegistered() ? null : await showAuthMenu()
                     start(choice)
@@ -666,12 +704,12 @@ const start = async (authChoice = null) => {
         }
         if (connection === 'connecting') {
             client.state = 'connecting'
-            console.log('Connecting to WhatsApp...')
+            console.log('⏳ Connecting to WhatsApp...')
         }
         if (connection === 'open') {
             client.state = 'open'
             loadCommands()
-            client.log('Connected to WhatsApp')
+            console.log('✅ Connected to WhatsApp')
             client.log('Total Mods: ' + client.mods.length)
 
             // Print the base64 session so the user can save it for later
@@ -729,9 +767,9 @@ const start = async (authChoice = null) => {
 }
 
 const boot = async (dbOk = true) => {
-    if (!dbOk) console.warn('Starting without database — some features may not work.')
-    console.log(`WhatsApp auth files: ${sessionDir}`)
-    console.log(`WhatsApp debug log: ${whatsappLogFile}`)
+    if (!dbOk) console.warn('⚠️ Starting without database — some features may not work.')
+    console.log(`📁 WhatsApp auth files: ${sessionDir}`)
+    console.log(`📝 WhatsApp debug log: ${whatsappLogFile}`)
 
     // Show the auth menu only if the session is not already registered.
     const authChoice = isSessionRegistered() ? null : await showAuthMenu()
