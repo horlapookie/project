@@ -263,21 +263,45 @@ module.exports = MessageHandler = async (messages, client) => {
             if (check.condition) return M.reply(check.message);
         }
 
-        await command.execute(client, arg, M);
-        const xpKey = client.getUserNumber(M) || sender;
-        await client.exp.add(xpKey, command.exp ?? 0);
+        // Execute command with error handling so one broken command doesn't crash the bot
+        try {
+            await command.execute(client, arg, M);
+            const xpKey = client.getUserNumber(M) || sender;
+            await client.exp.add(xpKey, command.exp ?? 0);
 
-        if (Math.floor(Math.random() * 500) < 10) {
-            const surpriseImages = [
-                join(process.cwd(), 'assets/Images/battle.png'),
-                join(process.cwd(), 'assets/Images/pokeball.png'),
-                join(process.cwd(), 'assets/Images/greyPokeball.png')
-            ];
-            const randomImage = surpriseImages[Math.floor(Math.random() * surpriseImages.length)];
-            await client.sendMessage(from, { image: { url: randomImage }, caption: "🐻✨ Have a bear-y nice day! ✨🐻" });
+            if (Math.floor(Math.random() * 500) < 10) {
+                const surpriseImages = [
+                    join(process.cwd(), 'assets/Images/battle.png'),
+                    join(process.cwd(), 'assets/Images/pokeball.png'),
+                    join(process.cwd(), 'assets/Images/greyPokeball.png')
+                ];
+                const randomImage = surpriseImages[Math.floor(Math.random() * surpriseImages.length)];
+                await client.sendMessage(from, { image: { url: randomImage }, caption: "🐻✨ Have a bear-y nice day! ✨🐻" });
+            }
+        } catch (commandError) {
+            console.error(`❌ Command Error [${cmdName}]:`, commandError);
+            const errorMsg = commandError?.message || 'Unknown error occurred';
+            const errorStack = commandError?.stack ? commandError.stack.split('\n').slice(0, 3).join('\n') : '';
+            
+            try {
+                await M.reply(
+                    `⚠️ *Command Error*\n\nCommand: \`${cmdName}\`\nError: \`${errorMsg}\`\n\nThe command failed but the bot is still running.`
+                );
+            } catch (_) {
+                console.error(`Failed to send error message: ${_}`);
+            }
         }
 
     } catch (err) {
-        console.error(err);
+        console.error('❌ Message Handler Error:', err?.message || err);
+        // Don't propagate - let the bot continue running
+        try {
+            // Only reply if it looks like a valid message object
+            if (M && M.reply && typeof M.reply === 'function') {
+                await M.reply(`An unexpected error occurred. The bot continues running. Please try again.`);
+            }
+        } catch (_) {
+            // Silently ignore reply failures
+        }
     }
 };

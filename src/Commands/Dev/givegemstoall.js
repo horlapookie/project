@@ -10,6 +10,7 @@ module.exports = {
   hidden: true,
   usage: 'Use {prefix}givegemstoall <amount> | <reason>',
   description: 'Owner-only: give gems to every registered user and DM them one by one every minute.',
+
   async execute(client, arg, M) {
     if (!client.isOwner(M)) return M.reply('This command is only for the bot owner.')
 
@@ -18,9 +19,9 @@ module.exports = {
     const reason = parts[1] || 'No reason provided.'
 
     if (!amount || isNaN(amount) || amount <= 0) {
-      return M.reply('Provide a valid positive amount and optional reason.
-
-Usage: givegemstoall <amount> | <reason>')
+      return M.reply(
+        `Provide a valid positive amount and optional reason.\nUsage: givegemstoall <amount> | <reason>`
+      )
     }
 
     const users = await client.getAllUsers().catch(() => [])
@@ -28,12 +29,16 @@ Usage: givegemstoall <amount> | <reason>')
       return M.reply('No users were found to send gems to.')
     }
 
-    await M.reply(`✅ Starting gift delivery to ${users.length} users. Each user will receive ${amount.toLocaleString()} gems every minute.`)
+    await M.reply(
+      `✅ Starting gift delivery to ${users.length} users.\nEach user will receive ${amount.toLocaleString()} gems every minute.`
+    )
 
-    for (let i = 0; i < users.length; i += 1) {
+    for (let i = 0; i < users.length; i++) {
       const userJid = users[i]
+
       try {
         let eco = await client.getEcon(userJid, { createIfMissing: true })
+
         if (!eco) {
           const uid = String(userJid).split('@')[0]
           eco = await client.econ.create({ userId: uid })
@@ -44,10 +49,9 @@ Usage: givegemstoall <amount> | <reason>')
         await eco.save()
 
         await client.sendMessage(userJid, {
-          text: `💎 You have received *${amount.toLocaleString()}* gems from the bot owner.
-Reason: ${reason}
-New balance: *${eco.gem.toLocaleString()}* gems`,
+          text: `💎 You have received *${amount.toLocaleString()}* gems from the bot owner.\nReason: ${reason}\nNew balance: *${eco.gem.toLocaleString()}* gems`,
         })
+
       } catch (error) {
         console.error(`givegemstoall: failed for ${users[i]}:`, error?.message || error)
       }
@@ -59,9 +63,7 @@ New balance: *${eco.gem.toLocaleString()}* gems`,
 
     return client.sendMessage(
       M.from,
-      {
-        text: `✅ Gift delivery completed for ${users.length} users. Sent one DM every minute.`
-      },
+      { text: `✅ Gift delivery completed for ${users.length} users.` },
       { quoted: M }
     )
   }

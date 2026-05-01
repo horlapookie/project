@@ -98,12 +98,54 @@ const readBase64Session = () => {
     }
 }
 
+const saveSessionToFile = () => {
+    try {
+        const b64 = readBase64Session()
+        if (b64) {
+            const sessionFile = join(process.cwd(), 'session.backup')
+            writeFileSync(sessionFile, b64, 'utf8')
+            return true
+        }
+    } catch (_) {
+        return false
+    }
+}
+
+const restoreSessionFromFile = () => {
+    try {
+        const sessionFile = join(process.cwd(), 'session.backup')
+        if (existsSync(sessionFile)) {
+            const b64 = readFileSync(sessionFile, 'utf8').trim()
+            if (b64 && isValidBase64(b64)) {
+                const ok = writeBase64Session(b64)
+                if (ok) {
+                    console.log('✅ Restored previous session from backup')
+                    return true
+                }
+            }
+        }
+    } catch (_) {
+        return false
+    }
+    return false
+}
+
 const isSessionRegistered = () => {
     try {
         const credsPath = join(sessionDir, 'creds.json')
         if (!existsSync(credsPath)) return false
         const creds = JSON.parse(readFileSync(credsPath, 'utf8'))
-        return Boolean(creds?.registered)
+        
+        // Check if credentials are valid and registered
+        if (!creds?.registered) return false
+        
+        // Also verify that we have key files present
+        const requiredFiles = ['creds.json', 'pre-key-1.json', 'session-1.json', 'sender-key-1.json']
+        const hasRequiredFiles = requiredFiles.every(file => {
+            return existsSync(join(sessionDir, file))
+        })
+        
+        return hasRequiredFiles
     } catch (_) {
         return false
     }
@@ -795,8 +837,9 @@ const start = async (authChoice = null) => {
         if (connection === 'close') {
             const { statusCode } = new Boom(lastDisconnect?.error).output
             if (statusCode !== DisconnectReason.loggedOut) {
-                console.log('📡 Connection lost - Reconnecting...')
+                console.log('📡 Connection lost - Reconnecting in 3 seconds...')
                 _pairingCodeRequested = false
+                // Don't reset the menu flag - let the existing session be used if available
                 setTimeout(() => start(), 3000)
             } else {
                 clearSessionFolder()
@@ -823,6 +866,11 @@ const start = async (authChoice = null) => {
             loadCommands()
             console.log('✅ Connected to WhatsApp')
             client.log('Total Mods: ' + client.mods.length)
+
+            // Save session backup for future restarts
+            if (saveSessionToFile()) {
+                console.log('💾 Session backed up for next restart')
+            }
 
             // Print the base64 session so the user can save it for later
             const b64 = readBase64Session()
@@ -856,24 +904,55 @@ const start = async (authChoice = null) => {
         try {
             await MessageHandler(messages, client)
         } catch (error) {
-            console.error('messages.upsert handler failed:', error)
+            console.error('❌ messages.upsert handler failed:', error?.message || error)
+            // Bot continues despite message handler errors
         }
     })
 
-    client.ev.on('group-participants.update', async (event) => await EventsHandler(event, client))
+    client.ev.on('group-participants.update', async (event) => {
+        try {
+            await EventsHandler(event, client)
+        } catch (error) {
+            console.error('❌ group-participants.update handler failed:', error?.message || error)
+            // Bot continues despite event handler errors
+        }
+    })
 
-    client.ev.on('contacts.update', async (update) => await contact.saveContacts(update, client))
+    client.ev.on('contacts.update', async (update) => {
+        try {
+            await contact.saveContacts(update, client)
+        } catch (error) {
+            console.error('❌ contacts.update handler failed:', error?.message || error)
+            // Bot continues despite contact update errors
+        }
+    })
 
     client.ev.on('creds.update', saveCreds)
 
-    // Integrate CardHandler to set up card spawning functionality
-    await CardHandler(client);
+    // Initialize handlers with error handling - failures don't stop the bot
+    try {
+        await CardHandler(client);
+    } catch (error) {
+        console.error('⚠️ CardHandler initialization failed:', error?.message || error)
+    }
 
-    await PokeHandler(client);
+    try {
+        await PokeHandler(client);
+    } catch (error) {
+        console.error('⚠️ PokeHandler initialization failed:', error?.message || error)
+    }
 
-    await DungeonHandler(client);
+    try {
+        await DungeonHandler(client);
+    } catch (error) {
+        console.error('⚠️ DungeonHandler initialization failed:', error?.message || error)
+    }
 
-    await YugiohHandler(client);
+    try {
+        await YugiohHandler(client);
+    } catch (error) {
+        console.error('⚠️ YugiohHandler initialization failed:', error?.message || error)
+    }
 
     return client
 }
@@ -883,8 +962,17 @@ const boot = async (dbOk = true) => {
     console.log(`📁 WhatsApp auth files: ${sessionDir}`)
     console.log(`📝 WhatsApp debug log: ${whatsappLogFile}`)
 
-    // Show the auth menu only if the session is not already registered.
-    const authChoice = isSessionRegistered() ? null : await showAuthMenu()
+    // Check if a valid session already exists
+    let hasValidSession = isSessionRegistered()
+    
+    // If no valid session, try to restore from backup
+    if (!hasValidSession) {
+        console.log('🔄 No valid session found. Attempting to restore from backup...')
+        hasValidSession = restoreSessionFromFile()
+    }
+    
+    // Show the auth menu only if the session is not already registered or restored
+    const authChoice = hasValidSession ? null : await showAuthMenu()
     start(authChoice)
 }
 
@@ -900,3 +988,16 @@ driver
     })
 
 app.listen(port, () => console.log(`Server started on PORT : ${port}`))
+
+// Handle graceful shutdown - save session before exit
+process.on('SIGINT', async () => {
+    console.log('\n⏹️  Shutting down gracefully...')
+    saveSessionToFile()
+    process.exit(0)
+})
+
+process.on('SIGTERM', async () => {
+    console.log('\n⏹️  Shutting down gracefully...')
+    saveSessionToFile()
+    process.exit(0)
+})
