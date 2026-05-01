@@ -39,7 +39,8 @@ const P = require('pino')
 const qrcode = require('qrcode-terminal')
 const { Readable } = require('stream')
 
-const driver = new MongoDriver(process.env.URL)
+const mongoUri = process.env.URL || process.env.MONGO_URI
+const driver = mongoUri ? new MongoDriver(mongoUri) : null
 const port = process.env.PORT || 3000
 const sessionDir = process.env.SESSION_DIR || join(process.cwd(), 'session')
 const logsDir = join(process.cwd(), 'logs')
@@ -305,10 +306,54 @@ const start = async (authChoice = null) => {
     }
 
     //Database
+    const dbDriver = driver || new JSONDriver(quickDbPath)
+    if (!driver) {
+        console.warn('⚠️  No MongoDB URI found. Falling back to local JSON database storage. Set URL or MONGO_URI to use MongoDB.')
+    }
     client.DB = new QuickDB({
-        // Pin the DB file path so restarts (pm2/codespaces) don't silently create a new DB elsewhere.
+        // Pin the DB storage driver so restarts (pm2/codespaces) don't silently create a new DB elsewhere.
+        driver: dbDriver
+    })
+    client.roleDB = new QuickDB({
+        // Keep role/state metadata local in JSON, while all user data persists to Mongo.
         driver: new JSONDriver(quickDbPath)
     })
+
+    const migrateQuickDbToMongo = async () => {
+        if (!driver) return
+        const MIGRATION_FLAG = 'migration:quickdb-to-mongo'
+        const alreadyMigrated = await client.DB.get(MIGRATION_FLAG).catch(() => null)
+        if (alreadyMigrated) return
+
+        const localEntries = await client.roleDB.all().catch(() => [])
+        const skipPatterns = [/^owner$/, /^mods$/, /^sudo$/, /^mods-removed$/, /^mod-name-/, /^sudo-name-/]
+        let migrated = 0
+
+        if (Array.isArray(localEntries)) {
+            for (const item of localEntries) {
+                const key = String(item?.id || '')
+                if (!key) continue
+                if (skipPatterns.some((re) => re.test(key))) continue
+                if (key === MIGRATION_FLAG) continue
+
+                const value = item.value
+                const exists = await client.DB.get(key).catch(() => undefined)
+                const shouldUpdate = exists === undefined || exists === null || JSON.stringify(exists) !== JSON.stringify(value)
+                if (shouldUpdate) {
+                    await client.DB.set(key, value).catch(() => null)
+                    migrated++
+                }
+            }
+        }
+
+        await client.DB.set(MIGRATION_FLAG, true).catch(() => null)
+        if (migrated > 0) {
+            client.log(`Migrated ${migrated} quickdb entries to MongoDB.`, 'yellow')
+        }
+    }
+
+    await migrateQuickDbToMongo()
+
     //Tables
     client.contactDB = client.DB.table('contacts')
 
@@ -334,10 +379,10 @@ const start = async (authChoice = null) => {
     //Commands
     client.cmd = new Collection()
 
-    const storedOwner = normalizeNumber((await client.DB.get('owner')) || OWNER_NUMBER)
-    const storedMods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
-    const storedOfficers = ((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
-    const removedMods = new Set(((await client.DB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
+    const storedOwner = normalizeNumber((await client.roleDB.get('owner')) || OWNER_NUMBER)
+    const storedMods = ((await client.roleDB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
+    const storedOfficers = ((await client.roleDB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
+    const removedMods = new Set(((await client.roleDB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
     client.owner = storedOwner
     // `mods` remain the "mods" role. Officers are a separate role with limited privileges.
     // The owner is always a mod and cannot be removed; everyone else can be removed via delmod
@@ -346,9 +391,9 @@ const start = async (authChoice = null) => {
         .filter((n) => n === client.owner || !removedMods.has(n))
     client.mods = mergedMods
     client.officers = Array.from(new Set(storedOfficers.filter((x) => x && x !== client.owner)))
-    await client.DB.set('owner', client.owner)
-    await client.DB.set('mods', client.mods)
-    await client.DB.set('sudo', client.officers)
+    await client.roleDB.set('owner', client.owner)
+    await client.roleDB.set('mods', client.mods)
+    await client.roleDB.set('sudo', client.officers)
     client.normalizeNumber = normalizeNumber
     client.getIdentityNumbers = (value = '') => {
         const candidates = Array.isArray(value)
@@ -464,10 +509,10 @@ const start = async (authChoice = null) => {
         await client.poke.delete(`${u}_Pss`).catch(() => null)
     }
     client.refreshRoles = async () => {
-        const owner = normalizeNumber((await client.DB.get('owner')) || client.owner || OWNER_NUMBER)
-        const mods = ((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
-        const sudo = ((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
-        const removed = new Set(((await client.DB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
+        const owner = normalizeNumber((await client.roleDB.get('owner')) || client.owner || OWNER_NUMBER)
+        const mods = ((await client.roleDB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
+        const sudo = ((await client.roleDB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
+        const removed = new Set(((await client.roleDB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
         client.owner = owner
         client.mods = Array.from(new Set([owner, ...DEFAULT_MODS, ...mods]))
             .filter((n) => n === owner || !removed.has(n))

@@ -21,8 +21,8 @@ module.exports = {
       const jid = `${number}@s.whatsapp.net`;
       const contact = await client.contact.getContact(jid, client).catch(() => null);
       const savedName =
-        (await client.DB.get(`sudo-name-${number}`).catch(() => null)) ||
-        (await client.DB.get(`mod-name-${number}`).catch(() => null));
+        (await client.roleDB.get(`sudo-name-${number}`).catch(() => null)) ||
+        (await client.roleDB.get(`mod-name-${number}`).catch(() => null));
       const username = savedName && typeof savedName === 'string'
         ? savedName.trim()
         : contact?.username && typeof contact.username === 'string'

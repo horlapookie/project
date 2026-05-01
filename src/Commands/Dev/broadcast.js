@@ -19,12 +19,25 @@ module.exports = {
                 results = await client.getAllUsers();
             }
 
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let sentCount = 0;
+            let failedCount = 0;
+
             for (const result of results) {
                 const text = `*「 ${client.name.toUpperCase()} BROADCAST 」*\n\n${arg}\n\n`;
-                await client.sendMessage(result, {
-                    text,
-                    mentions: group ? (await client.groupMetadata(result)).participants.map((x) => ({ "id": x.id, "tag": 1 })) : []
-                });
+                try {
+                    const mentions = group
+                        ? (await client.groupMetadata(result)).participants.map((x) => ({ id: x.id, tag: 1 }))
+                        : [];
+
+                    await client.sendMessage(result, { text, mentions });
+                    sentCount += 1;
+                } catch (error) {
+                    failedCount += 1;
+                    console.error(f'broadcast failed for {result}:', error?.message or error);
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 1500));
             }
 
             const successMessage = `🟩 Successfully Broadcast in ${results.length} ${group ? 'groups' : 'DMs'}`;

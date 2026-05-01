@@ -824,28 +824,39 @@ const isLikelyGif = (buffer) =>
             .replace(/-(gmax|gigantamax|mega(-x|-y)?|primal|alola|galar|hisui|paldea|origin|crowned|eternamax|ultra|dawn|dusk|therian|incarnate|10|50|complete|black|white|attack|defense|speed)$/i, '')
             .trim() || pokemon;
 
+        const getLevelUpMoves = (moves, maxLevel) => {
+            return moves.filter((move) => {
+                const details = Array.isArray(move.version_group_details)
+                    ? move.version_group_details
+                    : [];
+                return details.some(
+                    (detail) =>
+                        detail.move_learn_method?.name === 'level-up' &&
+                        (detail.level_learned_at ?? 999) <= maxLevel
+                );
+            });
+        };
+
         let rawMoves = await fetchMoves(pokemon);
-        let levelUpMoves = rawMoves.filter(
-            (move) =>
-                move.version_group_details?.[0]?.move_learn_method?.name === 'level-up' &&
-                (move.version_group_details?.[0]?.level_learned_at ?? 999) <= level
-        );
+        let levelUpMoves = getLevelUpMoves(rawMoves, level);
 
         // Fallback 1: base species level-up moves
         if (levelUpMoves.length === 0 && baseName !== pokemon) {
             rawMoves = await fetchMoves(baseName);
-            levelUpMoves = rawMoves.filter(
-                (move) =>
-                    move.version_group_details?.[0]?.move_learn_method?.name === 'level-up' &&
-                    (move.version_group_details?.[0]?.level_learned_at ?? 999) <= level
-            );
+            levelUpMoves = getLevelUpMoves(rawMoves, level);
         }
 
         // Fallback 2: any level-up moves regardless of level requirement
         if (levelUpMoves.length === 0 && rawMoves.length) {
-            levelUpMoves = rawMoves.filter(
-                (move) => move.version_group_details?.[0]?.move_learn_method?.name === 'level-up'
-            );
+            const anyLevelUp = (moves) =>
+                moves.filter((move) =>
+                    Array.isArray(move.version_group_details)
+                        ? move.version_group_details.some(
+                            (detail) => detail.move_learn_method?.name === 'level-up'
+                        )
+                        : false
+                );
+            levelUpMoves = anyLevelUp(rawMoves);
         }
 
         // Fallback 3: any move at all

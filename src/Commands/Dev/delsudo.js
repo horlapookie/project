@@ -24,12 +24,12 @@ module.exports = {
         if (!target) return M.reply('Reply to a user, tag a user, or type a number to remove as officer.')
         if (String(target) === String(client.owner)) return M.reply('The owner cannot be removed from staff.')
 
-        const officers = new Set(((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean))
+        const officers = new Set(((await client.roleDB.get('sudo')) || []).map(normalizeNumber).filter(Boolean))
         if (!officers.has(target)) return M.reply(`*${target}* is not an officer.`)
 
         officers.delete(target)
-        await client.DB.set('sudo', Array.from(officers))
-        await client.DB.delete(`sudo-name-${target}`)
+        await client.roleDB.set('sudo', Array.from(officers))
+        await client.roleDB.delete(`sudo-name-${target}`)
         await client.refreshRoles?.()
         return M.reply(`Removed *${target}* from officers.`)
     }

@@ -35,19 +35,19 @@ module.exports = {
             return M.reply('The owner cannot be removed from moderators.')
         }
 
-        const mods = new Set(((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean))
+        const mods = new Set(((await client.roleDB.get('mods')) || []).map(normalizeNumber).filter(Boolean))
         const isCurrentMod = mods.has(target) || (client.mods || []).includes(target)
         if (!isCurrentMod) {
             return M.reply(`*${target}* is not a moderator.`)
         }
 
         mods.delete(target)
-        await client.DB.set('mods', Array.from(mods))
+        await client.roleDB.set('mods', Array.from(mods))
         // Add to deny-list so DEFAULT_MODS (env-baked) doesn't auto-restore them on next refresh.
-        const removed = new Set(((await client.DB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
+        const removed = new Set(((await client.roleDB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
         removed.add(target)
-        await client.DB.set('mods-removed', Array.from(removed))
-        await client.DB.delete(`mod-name-${target}`)
+        await client.roleDB.set('mods-removed', Array.from(removed))
+        await client.roleDB.delete(`mod-name-${target}`)
         await client.refreshRoles?.()
         return M.reply(`Removed *${target}* from moderators.`)
     }

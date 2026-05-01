@@ -34,12 +34,12 @@ module.exports = {
         const owner = client.owner || normalizeNumber(process.env.OWNER || '')
         if (target.number === owner) return M.reply('The owner is already staff.')
 
-        const officers = new Set(((await client.DB.get('sudo')) || []).map(normalizeNumber).filter(Boolean))
+        const officers = new Set(((await client.roleDB.get('sudo')) || []).map(normalizeNumber).filter(Boolean))
         if (officers.has(target.number)) return M.reply(`*${target.number}* is already an officer.`)
 
         officers.add(target.number)
-        await client.DB.set('sudo', Array.from(officers))
-        await client.DB.set(`sudo-name-${target.number}`, target.name || 'Unknown User')
+        await client.roleDB.set('sudo', Array.from(officers))
+        await client.roleDB.set(`sudo-name-${target.number}`, target.name || 'Unknown User')
         await client.refreshRoles?.()
 
         return M.reply(`Added *${target.name || target.number}* as an officer.`)

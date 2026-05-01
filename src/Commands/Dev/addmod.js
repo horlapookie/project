@@ -35,20 +35,20 @@ module.exports = {
             return M.reply('Reply to a user, tag a user, or type a number to add as mod.')
         }
 
-        const mods = new Set(((await client.DB.get('mods')) || []).map(normalizeNumber).filter(Boolean))
+        const mods = new Set(((await client.roleDB.get('mods')) || []).map(normalizeNumber).filter(Boolean))
         mods.add(client.owner)
         if (mods.has(target.number)) {
             return M.reply(`*${target.number}* is already a moderator.`)
         }
 
         mods.add(target.number)
-        await client.DB.set('mods', Array.from(mods))
+        await client.roleDB.set('mods', Array.from(mods))
         // Lift any prior delmod deny-list entry for this user.
-        const removed = new Set(((await client.DB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
+        const removed = new Set(((await client.roleDB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
         if (removed.delete(target.number)) {
-            await client.DB.set('mods-removed', Array.from(removed))
+            await client.roleDB.set('mods-removed', Array.from(removed))
         }
-        await client.DB.set(`mod-name-${target.number}`, target.name || 'Unknown User')
+        await client.roleDB.set(`mod-name-${target.number}`, target.name || 'Unknown User')
         await client.refreshRoles?.()
         return M.reply(`Added *${target.name || target.number}* as a moderator.`)
     }
