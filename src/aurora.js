@@ -190,10 +190,15 @@ const start = async (authChoice = null) => {
     if (authChoice?.method === 'base64') {
         const ok = writeBase64Session(authChoice.data)
         if (!ok) {
-            console.log('❌ Invalid base64 session — falling back to auth menu.')
+            console.log('❌ Invalid base64 session.')
+            clearSessionFolder()
             _menuShown = false  // Reset menu flag to allow retry
-            const newChoice = await showAuthMenu()
-            return start(newChoice)
+            console.log('🔄 Deleted invalid session. Please try again...')
+            setTimeout(async () => {
+                const newChoice = await showAuthMenu()
+                return start(newChoice)
+            }, 1000)
+            return
         } else {
             console.log('✅ Session decoded successfully — connecting...')
             authChoice = null // treat as already-registered from now on
@@ -644,6 +649,9 @@ const start = async (authChoice = null) => {
 
     //connection updates
     let _pairingCodeRequested = false
+    let _pairingCodeRetryCount = 0
+    const MAX_PAIRING_RETRIES = 10
+    
     client.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update
 
@@ -651,55 +659,78 @@ const start = async (authChoice = null) => {
         if (update.qr) {
             if (client._authChoice?.usePairing && client._authChoice?.pairingPhone && !_pairingCodeRequested) {
                 _pairingCodeRequested = true
-                try {
-                    console.log('📱 Requesting pairing code...')
-                    const code = await client.requestPairingCode(client._authChoice.pairingPhone)
-                    const pretty = code?.match(/.{1,4}/g)?.join('-') || code
-                    const botName = process.env.NAME || 'Aurora'
-                    console.log(`\n╔══════════════════════════════════╗`)
-                    console.log(`║  ${botName} — Pairing Code`.padEnd(35) + '║')
-                    console.log(`╠══════════════════════════════════╣`)
-                    console.log(`║  Phone : +${client._authChoice.pairingPhone.padEnd(23)}║`)
-                    console.log(`║  Code  : ${pretty.padEnd(24)}║`)
-                    console.log(`╠══════════════════════════════════╣`)
-                    console.log(`║  Steps on your phone:            ║`)
-                    console.log(`║  1. Open WhatsApp                ║`)
-                    console.log(`║  2. Settings → Linked Devices    ║`)
-                    console.log(`║  3. Tap "Link a Device"          ║`)
-                    console.log(`║  4. "Link with phone number"     ║`)
-                    console.log(`║  5. Enter the code above         ║`)
-                    console.log(`╠══════════════════════════════════╣`)
-                    console.log(`║  ⚠ Code expires in ~60 seconds. ║`)
-                    console.log(`║  ⚠ Restart to get a new one.    ║`)
-                    console.log(`╚══════════════════════════════════╝\n`)
-                } catch (e) {
-                    console.error('❌ Pairing code request failed:', e?.message || e)
+                
+                const requestPairingCode = async () => {
+                    try {
+                        console.log(`📱 Requesting pairing code (attempt ${_pairingCodeRetryCount + 1}/${MAX_PAIRING_RETRIES})...`)
+                        const code = await client.requestPairingCode(client._authChoice.pairingPhone)
+                        
+                        if (!code) {
+                            throw new Error('No code received from server')
+                        }
+                        
+                        const pretty = code?.match(/.{1,4}/g)?.join('-') || code
+                        const botName = process.env.NAME || 'Aurora'
+                        console.log(`\n╔══════════════════════════════════╗`)
+                        console.log(`║  ${botName} — Pairing Code`.padEnd(35) + '║')
+                        console.log(`╠══════════════════════════════════╣`)
+                        console.log(`║  Phone : +${client._authChoice.pairingPhone.padEnd(23)}║`)
+                        console.log(`║  Code  : ${pretty.padEnd(24)}║`)
+                        console.log(`╠══════════════════════════════════╣`)
+                        console.log(`║  Steps on your phone:            ║`)
+                        console.log(`║  1. Open WhatsApp                ║`)
+                        console.log(`║  2. Settings → Linked Devices    ║`)
+                        console.log(`║  3. Tap "Link a Device"          ║`)
+                        console.log(`║  4. "Link with phone number"     ║`)
+                        console.log(`║  5. Enter the code above         ║`)
+                        console.log(`╠══════════════════════════════════╣`)
+                        console.log(`║  ⚠ Code expires in ~60 seconds. ║`)
+                        console.log(`║  ⚠ Request new code if expired.  ║`)
+                        console.log(`╚══════════════════════════════════╝\n`)
+                        _pairingCodeRetryCount = 0
+                    } catch (e) {
+                        _pairingCodeRetryCount++
+                        console.error(`❌ Pairing code request failed: ${e?.message || e}`)
+                        
+                        if (_pairingCodeRetryCount >= MAX_PAIRING_RETRIES) {
+                            console.error('❌ Max pairing attempts reached. Aborting.')
+                            _menuShown = false
+                            clearSessionFolder()
+                            setTimeout(async () => {
+                                const choice = await showAuthMenu()
+                                start(choice)
+                            }, 2000)
+                        } else {
+                            console.log(`⏳ Retrying in 5 seconds...`)
+                            setTimeout(requestPairingCode, 5000)
+                        }
+                    }
                 }
-            } else if (!client._authChoice?.useQR && !client._authChoice?.usePairing) {
-                // Fallback: show QR in terminal if somehow neither was chosen
-                console.log('📱 Scan QR code with WhatsApp:')
+                
+                requestPairingCode()
+            } else if (client._authChoice?.useQR) {
+                // Only show QR if that was explicitly chosen
                 qrcode.generate(update.qr, { small: true })
             }
-            // If useQR is true, Baileys already printed the QR via printQRInTerminal.
         }
 
         if (connection === 'close') {
             const { statusCode } = new Boom(lastDisconnect?.error).output
             if (statusCode !== DisconnectReason.loggedOut) {
-                console.log('📡 Reconnecting...')
-                // Reset pairing code flag on reconnect so it can be requested again
+                console.log('📡 Connection lost - Reconnecting...')
+                // Reset pairing code flag on reconnect
                 _pairingCodeRequested = false
+                _pairingCodeRetryCount = 0
                 setTimeout(() => start(), 3000)
             } else {
                 clearSessionFolder()
-                client.log('Logged out.', 'red')
-                // Reset menu flag so user can pick auth method again after logout
+                client.log('Session logged out or invalid.', 'red')
                 _menuShown = false
-                console.log('🔄 Restarting...')
+                console.log('🔄 Session deleted. Restarting for new authentication...')
                 setTimeout(async () => {
-                    const choice = isSessionRegistered() ? null : await showAuthMenu()
+                    const choice = await showAuthMenu()
                     start(choice)
-                }, 3000)
+                }, 2000)
             }
         }
         if (connection === 'connecting') {
