@@ -752,7 +752,9 @@ const start = async (authChoice = null) => {
     //connection updates
     let _pairingCodeRequested = false
     let _pairingCodeTimeout = null
+    let _reconnectAttempts = 0
     const PAIRING_TIMEOUT = 5 * 60 * 1000  // 5 minutes
+    const MAX_RECONNECT_ATTEMPTS = 3
     
     client.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, isNewLogin, qr } = update
@@ -832,37 +834,73 @@ const start = async (authChoice = null) => {
                 clearTimeout(_pairingCodeTimeout)
                 _pairingCodeTimeout = null
             }
+            _reconnectAttempts = 0 // Reset on successful connection
         }
 
         if (connection === 'close') {
             const { statusCode } = new Boom(lastDisconnect?.error).output
-            if (statusCode !== DisconnectReason.loggedOut) {
-                console.log('📡 Connection lost - Reconnecting in 3 seconds...')
-                _pairingCodeRequested = false
-                // Don't reset the menu flag - let the existing session be used if available
-                setTimeout(() => start(), 3000)
-            } else {
+            
+            if (statusCode === DisconnectReason.loggedOut) {
+                // Session was logged out - ask to repair
+                console.log('📱 Session was logged out from another device')
+                console.log('🔧 Attempting to repair session...')
+                
                 clearSessionFolder()
-                client.log('Session logged out or invalid.', 'red')
-                if (_pairingCodeTimeout) {
-                    clearTimeout(_pairingCodeTimeout)
-                    _pairingCodeTimeout = null
+                
+                // Try to repair by showing pairing menu if we have a phone number
+                const storedPhone = client._authChoice?.pairingPhone
+                if (storedPhone) {
+                    console.log(`📞 Attempting to repair with phone: +${storedPhone}`)
+                    _menuShown = false
+                    _pairingCodeRequested = false
+                    const repairChoice = { method: 'pairing', phone: storedPhone }
+                    setTimeout(async () => {
+                        start(repairChoice)
+                    }, 2000)
+                } else {
+                    // No stored phone, show full menu
+                    _menuShown = false
+                    _pairingCodeRequested = false
+                    console.log('🔄 Session logged out. Please authenticate again...')
+                    setTimeout(async () => {
+                        const choice = await showAuthMenu()
+                        start(choice)
+                    }, 2000)
                 }
-                _menuShown = false
-                _pairingCodeRequested = false
-                console.log('🔄 Session deleted. Restarting for new authentication...')
-                setTimeout(async () => {
-                    const choice = await showAuthMenu()
-                    start(choice)
-                }, 2000)
+            } else {
+                // Other disconnection reason - could be invalid session or temporary issue
+                _reconnectAttempts++
+                
+                if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                    // Too many failed attempts - treat as invalid session
+                    console.log('❌ Session appears invalid after multiple connection attempts')
+                    clearSessionFolder()
+                    client.log('Session invalid. Please authenticate with a new session.', 'red')
+                    _menuShown = false
+                    _pairingCodeRequested = false
+                    _reconnectAttempts = 0
+                    console.log('🔄 Starting new authentication...')
+                    setTimeout(async () => {
+                        const choice = await showAuthMenu()
+                        start(choice)
+                    }, 2000)
+                } else {
+                    // Try reconnecting
+                    console.log(`📡 Connection lost (attempt ${_reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) - Reconnecting in 3 seconds...`)
+                    _pairingCodeRequested = false
+                    setTimeout(() => start(), 3000)
+                }
             }
         }
+        
         if (connection === 'connecting') {
             client.state = 'connecting'
             console.log('⏳ Connecting to WhatsApp...')
         }
+        
         if (connection === 'open') {
             client.state = 'open'
+            _reconnectAttempts = 0 // Reset on successful connection
             loadCommands()
             console.log('✅ Connected to WhatsApp')
             client.log('Total Mods: ' + client.mods.length)
