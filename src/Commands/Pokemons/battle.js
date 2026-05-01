@@ -130,7 +130,8 @@ const sendBattleState = async (client, M, battle, extra = {}) => {
     const image = await client.utils.drawPokemonBattle({
         player1: { activePokemon: battle.player1.activePokemon, party: player1Party },
         player2: { activePokemon: battle.player2.activePokemon, party: player2Party },
-        captureBall: extra.captureBall || null
+        captureBall: extra.captureBall || null,
+        background: battle.background
     });
 
     return client.sendMessage(M.from, {

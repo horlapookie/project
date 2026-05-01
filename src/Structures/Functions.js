@@ -1226,8 +1226,9 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
 
 const drawPokemonBattle = async (data) => {
 
+    const backgroundPath = data.background || 'battle.png';
     const background = await Canvas.loadImage(
-        await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'battle.png'))
+        await readFile(join(__dirname, '..', '..', 'assets', 'Images', backgroundPath))
     );
     const pokeball = await Canvas.loadImage(
         await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'pokeball.png'))

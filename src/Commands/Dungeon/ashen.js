@@ -606,6 +606,7 @@ module.exports = {
       dungeonId: 'ashen_sanctum',
       dungeonDifficulty,
       noCapture: true,
+      background: 'ashen_battle.jpg',
       wildUser,
       dungeonClosesAt: active?.expiresAt || (Date.now() + 60 * 60 * 1000),
       wildPokemon: { ...dungeonParty[0] },
@@ -646,7 +647,8 @@ module.exports = {
 
     const image = await client.utils.drawPokemonBattle({
       player1: { activePokemon: alive[0], party: alive },
-      player2: { activePokemon: dungeonParty[0], party: dungeonParty }
+      player2: { activePokemon: dungeonParty[0], party: dungeonParty },
+      background: 'ashen_battle.jpg'
     })
 
     await client.sendMessage(M.from, {
