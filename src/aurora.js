@@ -6,9 +6,14 @@ const chalk = require('chalk')
 const { Boom } = require('@hapi/boom')
 const {
     default: Baileys,
+    makeWASocket,
     DisconnectReason,
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore,
+    Browsers,
+    delay,
+    jidNormalizedUser
 } = require('@whiskeysockets/baileys')
 const { QuickDB, JSONDriver } = require('quick.db')
 const { MongoDriver } = require('quickmongo')
@@ -210,13 +215,24 @@ const start = async (authChoice = null) => {
     const pairingPhone = authChoice?.phone || ''
 
     const { saveCreds, state } = await useMultiFileAuthState(sessionDir)
+    const { version } = await fetchLatestBaileysVersion()
 
-    const client = Baileys({
-        version: (await fetchLatestBaileysVersion()).version,
-        auth: state,
+    const client = makeWASocket({
+        version,
+        auth: { 
+            creds: state.creds, 
+            keys: makeCacheableSignalKeyStore(state.keys, waLogger)
+        },
         logger: waLogger,
-        browser: ['Aurora', 'Chrome', '1.0.0'],
-        printQRInTerminal: useQR     // true only when user picked option 1
+        browser: Browsers.macOS('Chrome'),
+        printQRInTerminal: useQR,
+        markOnlineOnConnect: false,
+        generateHighQualityLinkPreview: false,
+        defaultQueryTimeoutMs: 60000,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 30000,
+        retryRequestDelayMs: 250,
+        maxRetries: 3
     })
 
     //Config
@@ -649,68 +665,86 @@ const start = async (authChoice = null) => {
 
     //connection updates
     let _pairingCodeRequested = false
-    let _pairingCodeRetryCount = 0
-    const MAX_PAIRING_RETRIES = 10
+    let _pairingCodeTimeout = null
+    const PAIRING_TIMEOUT = 5 * 60 * 1000  // 5 minutes
     
     client.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update
+        const { connection, lastDisconnect, isNewLogin, qr } = update
 
-        // QR event fires when the socket is ready to authenticate.
-        if (update.qr) {
-            if (client._authChoice?.usePairing && client._authChoice?.pairingPhone && !_pairingCodeRequested) {
-                _pairingCodeRequested = true
+        // Handle pairing code request when QR is generated and not yet registered
+        if (qr && client._authChoice?.usePairing && client._authChoice?.pairingPhone && !_pairingCodeRequested) {
+            _pairingCodeRequested = true
+            
+            try {
+                // Wait before requesting to ensure socket is ready
+                await delay(1500)
                 
-                const requestPairingCode = async () => {
-                    try {
-                        console.log(`📱 Requesting pairing code (attempt ${_pairingCodeRetryCount + 1}/${MAX_PAIRING_RETRIES})...`)
-                        const code = await client.requestPairingCode(client._authChoice.pairingPhone)
-                        
-                        if (!code) {
-                            throw new Error('No code received from server')
-                        }
-                        
-                        const pretty = code?.match(/.{1,4}/g)?.join('-') || code
-                        const botName = process.env.NAME || 'Aurora'
-                        console.log(`\n╔══════════════════════════════════╗`)
-                        console.log(`║  ${botName} — Pairing Code`.padEnd(35) + '║')
-                        console.log(`╠══════════════════════════════════╣`)
-                        console.log(`║  Phone : +${client._authChoice.pairingPhone.padEnd(23)}║`)
-                        console.log(`║  Code  : ${pretty.padEnd(24)}║`)
-                        console.log(`╠══════════════════════════════════╣`)
-                        console.log(`║  Steps on your phone:            ║`)
-                        console.log(`║  1. Open WhatsApp                ║`)
-                        console.log(`║  2. Settings → Linked Devices    ║`)
-                        console.log(`║  3. Tap "Link a Device"          ║`)
-                        console.log(`║  4. "Link with phone number"     ║`)
-                        console.log(`║  5. Enter the code above         ║`)
-                        console.log(`╠══════════════════════════════════╣`)
-                        console.log(`║  ⚠ Code expires in ~60 seconds. ║`)
-                        console.log(`║  ⚠ Request new code if expired.  ║`)
-                        console.log(`╚══════════════════════════════════╝\n`)
-                        _pairingCodeRetryCount = 0
-                    } catch (e) {
-                        _pairingCodeRetryCount++
-                        console.error(`❌ Pairing code request failed: ${e?.message || e}`)
-                        
-                        if (_pairingCodeRetryCount >= MAX_PAIRING_RETRIES) {
-                            console.error('❌ Max pairing attempts reached. Aborting.')
-                            _menuShown = false
-                            clearSessionFolder()
-                            setTimeout(async () => {
-                                const choice = await showAuthMenu()
-                                start(choice)
-                            }, 2000)
-                        } else {
-                            console.log(`⏳ Retrying in 5 seconds...`)
-                            setTimeout(requestPairingCode, 5000)
-                        }
-                    }
+                // Check if already registered (from previous session)
+                if (client.authState?.creds?.registered) {
+                    console.log('✅ Already registered with existing credentials')
+                    return
                 }
                 
-                requestPairingCode()
-            } else if (client._authChoice?.useQR) {
-                // Only show QR if that was explicitly chosen
-                qrcode.generate(update.qr, { small: true })
+                console.log('📱 Requesting pairing code...')
+                const pairingCode = await client.requestPairingCode(client._authChoice.pairingPhone)
+                
+                if (!pairingCode) {
+                    throw new Error('No code received from WhatsApp server')
+                }
+                
+                const pretty = pairingCode?.match(/.{1,4}/g)?.join('-') || pairingCode
+                const botName = process.env.NAME || 'Aurora'
+                console.log(`\n╔══════════════════════════════════╗`)
+                console.log(`║  ${botName} — Pairing Code`.padEnd(35) + '║')
+                console.log(`╠══════════════════════════════════╣`)
+                console.log(`║  Phone : +${client._authChoice.pairingPhone.padEnd(23)}║`)
+                console.log(`║  Code  : ${pretty.padEnd(24)}║`)
+                console.log(`╠══════════════════════════════════╣`)
+                console.log(`║  Steps on your phone:            ║`)
+                console.log(`║  1. Open WhatsApp                ║`)
+                console.log(`║  2. Settings → Linked Devices    ║`)
+                console.log(`║  3. Tap "Link a Device"          ║`)
+                console.log(`║  4. "Link with phone number"     ║`)
+                console.log(`║  5. Enter the code above         ║`)
+                console.log(`╠══════════════════════════════════╣`)
+                console.log(`║  ⚠ Code expires in ~60 seconds. ║`)
+                console.log(`║  ⚠ Complete pairing on phone.    ║`)
+                console.log(`╚══════════════════════════════════╝\n`)
+                
+                // Set timeout for pairing session
+                _pairingCodeTimeout = setTimeout(async () => {
+                    if (!client.authState?.creds?.registered) {
+                        console.error('❌ Pairing timeout - took too long to complete')
+                        clearSessionFolder()
+                        _menuShown = false
+                        const choice = await showAuthMenu()
+                        start(choice)
+                    }
+                }, PAIRING_TIMEOUT)
+                
+            } catch (error) {
+                console.error(`❌ Pairing code error: ${error?.message || error}`)
+                if (!client.authState?.creds?.registered) {
+                    clearSessionFolder()
+                    _menuShown = false
+                    _pairingCodeRequested = false
+                    setTimeout(async () => {
+                        const choice = await showAuthMenu()
+                        start(choice)
+                    }, 2000)
+                }
+            }
+        } else if (qr && client._authChoice?.useQR) {
+            // Show QR if that method was chosen
+            qrcode.generate(qr, { small: true })
+        }
+
+        // Detect successful pairing
+        if (isNewLogin) {
+            console.log('🔐 Device paired successfully via pairing code!')
+            if (_pairingCodeTimeout) {
+                clearTimeout(_pairingCodeTimeout)
+                _pairingCodeTimeout = null
             }
         }
 
@@ -718,14 +752,17 @@ const start = async (authChoice = null) => {
             const { statusCode } = new Boom(lastDisconnect?.error).output
             if (statusCode !== DisconnectReason.loggedOut) {
                 console.log('📡 Connection lost - Reconnecting...')
-                // Reset pairing code flag on reconnect
                 _pairingCodeRequested = false
-                _pairingCodeRetryCount = 0
                 setTimeout(() => start(), 3000)
             } else {
                 clearSessionFolder()
                 client.log('Session logged out or invalid.', 'red')
+                if (_pairingCodeTimeout) {
+                    clearTimeout(_pairingCodeTimeout)
+                    _pairingCodeTimeout = null
+                }
                 _menuShown = false
+                _pairingCodeRequested = false
                 console.log('🔄 Session deleted. Restarting for new authentication...')
                 setTimeout(async () => {
                     const choice = await showAuthMenu()
