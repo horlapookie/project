@@ -13,7 +13,8 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "scripts": {
     "format": "prettier --write --config .prettierrc.json \"src/**/*.js\"",
-    "start": "node src/aurora.js"
+    "start": "node src/aurora.js",
+    "restore": "node restore.js"
   },
   "bugs": {
     "url": "https://github.com/Kingshisui00/Aurora-Private/issues"

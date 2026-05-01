@@ -247,6 +247,11 @@ const start = async (authChoice = null) => {
     // Store auth choice in client for reconnection
     client._authChoice = { useQR, usePairing, pairingPhone }
 
+    client.log = (text, color = 'green') =>
+        color ? console.log(chalk.keyword(color)(text)) : console.log(chalk.green(text))
+    client.sessionDir = sessionDir
+    client.logFile = whatsappLogFile
+
     // Baileys media expects:
     // - Buffer (raw bytes)
     // - { url: 'https://...' | '/path/to/file' | 'data:...' }
@@ -686,12 +691,6 @@ const start = async (authChoice = null) => {
         const users = data.filter((element) => /^\d+@s$/.test(element)).map((element) => `${element}.whatsapp.net`)
         return users
     }
-
-    //Colourful
-    client.log = (text, color = 'green') =>
-        color ? console.log(chalk.keyword(color)(text)) : console.log(chalk.green(text))
-    client.sessionDir = sessionDir
-    client.logFile = whatsappLogFile
 
     //Command Loader
     const loadCommands = async () => {
