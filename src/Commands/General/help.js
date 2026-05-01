@@ -33,12 +33,31 @@ module.exports = {
     description: 'Displays the command list or specific command info',
     async execute(client, arg, M) {
         try {
-            const user = (await client.DB.get('data')) || [];
-            const m = M.sender;
+            if (arg === '--owner') {
+                if (!client.isOwner(M)) return M.reply('This option is only for the bot owner.')
 
-            // If user is not in data, push the user
-            if (!user.includes(m)) {
-                await client.DB.push('data', m);
+                const ownerCommands = client.cmd.filter(cmd => cmd.category === 'dev' || cmd.hidden)
+                const categories = ownerCommands.reduce((obj, cmd) => {
+                    const category = cmd.category || 'Uncategorized';
+                    obj[category] = obj[category] || [];
+                    obj[category].push(cmd.name);
+                    return obj;
+                }, {});
+
+                let commands = '';
+                for (const category of Object.keys(categories)) {
+                    commands += `*𓊈𒆜 ${client.utils.capitalize(category, true)} 𒆜𓊉* \n\`\`\`${categories[category].join(', ')}\`\`\`\n\n`;
+                }
+
+                const message = [
+                    `*OWNER HELP*`,
+                    '',
+                    `Owner-only and hidden commands:`,
+                    '',
+                    commands.trim()
+                ].join('\n').trim();
+
+                return M.reply(message);
             }
 
             if (!arg) {
@@ -56,8 +75,7 @@ module.exports = {
                 };
 
                 const uptime = formatTime(process.uptime());
-                const usersCount = await client.DB.get('data') || [];
-                const usersCounts = usersCount.length;
+                const usersCounts = await client.econ.countDocuments({}).catch(() => 0);
                 const modCount = client.mods.length;
                 const categories = client.cmd.reduce((obj, cmd) => {
                     if (cmd.hidden) return obj
