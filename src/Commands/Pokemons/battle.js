@@ -941,7 +941,30 @@ const handleBattles = async (client, M) => {
             }
 
             // Always show the battlefield after a move so both players see the updated HP.
-            await sendBattleState(client, M, battle);
+            // For Ruin battles, include a HP stats caption so the trainer can track the fight.
+            if (battle.isRuin) {
+                const p1 = battle.player1.activePokemon;
+                const p2 = battle.player2.activePokemon;
+                const hpBar = (cur, max) => {
+                    const pct = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
+                    const filled = Math.round(pct * 10);
+                    return '█'.repeat(filled) + '░'.repeat(10 - filled) +
+                        ` *${Math.max(0, cur).toLocaleString()} / ${(max || 0).toLocaleString()}*`;
+                };
+                await sendBattleState(client, M, battle, {
+                    text:
+                        `🏚️ *Ruin — Battle Update*\n\n` +
+                        `👤 *${client.utils.capitalize(p1.name)}*\n` +
+                        `   ❤️ HP  ${hpBar(p1.hp, p1.maxHp)}\n` +
+                        `   ⚔️ ATK *${p1.attack}*  🛡 DEF *${p1.defense}*\n\n` +
+                        `👾 *${client.utils.capitalize(p2.name)}*\n` +
+                        `   ❤️ HP  ${hpBar(p2.hp, p2.maxHp)}\n` +
+                        `   ⚔️ ATK *${p2.attack}*  🛡 DEF *${p2.defense}*\n\n` +
+                        `Use *${client.prefix}ruin fight* to attack.`
+                });
+            } else {
+                await sendBattleState(client, M, battle);
+            }
             await delay(2500);
         }
 
