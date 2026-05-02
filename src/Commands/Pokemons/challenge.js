@@ -1,4 +1,5 @@
 const pokemonChallengeResponse = new Map();
+const { applyMegaGmaxBoost } = require('../../Helpers/megaBoost')
 
 module.exports = {
     name: "challenge",
@@ -100,6 +101,25 @@ module.exports = {
                 const challengerPartyData = await client.poke.get(`${data.challenger}_Party`);
                 const challengerPartyRaw = challengerPartyData ? challengerPartyData : [];
                 const challengerParty = (challengerPartyRaw || []).filter((pkmn) => pkmn.hp > 0);
+
+                // Apply ×3 boost to any mega/gmax Pokémon for both players
+                const boostParty = async (userId, liveParty) => {
+                    let changed = false
+                    for (const p of liveParty) {
+                        const before = p.attack; applyMegaGmaxBoost(p)
+                        if (p.attack !== before) changed = true
+                    }
+                    if (changed) {
+                        const full = await client.poke.get(`${userId}_Party`) || []
+                        for (const fp of full) {
+                            const boosted = liveParty.find(a => a.tag === fp.tag)
+                            if (boosted) Object.assign(fp, boosted)
+                        }
+                        await client.poke.set(`${userId}_Party`, full)
+                    }
+                }
+                await boostParty(data.challenger, challengerParty)
+                await boostParty(M.sender, acceptorParty)
 
                 const battleObj = {
                     player1: {

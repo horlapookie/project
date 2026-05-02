@@ -1,3 +1,5 @@
+const { applyMegaGmaxBoost } = require('../../Helpers/megaBoost')
+
 module.exports = {
     name: "catch",
     aliases: ["catch"],
@@ -36,6 +38,23 @@ module.exports = {
             }
 
             client.pokemonResponse.delete(M.from);
+
+            // Apply ×3 boost to any mega/gmax Pokémon in the player's party
+            let partyUpdated = false
+            for (const p of availableParty) {
+                const before = p.attack
+                applyMegaGmaxBoost(p)
+                if (p.attack !== before) partyUpdated = true
+            }
+            if (partyUpdated) {
+                const fullParty = await client.poke.get(`${M.sender}_Party`) || []
+                for (const fp of fullParty) {
+                    const boosted = availableParty.find(a => a.tag === fp.tag)
+                    if (boosted) Object.assign(fp, boosted)
+                }
+                await client.poke.set(`${M.sender}_Party`, fullParty)
+            }
+
             const wildUser = `wild-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`;
             const wildParty = [{ ...data }];
             await client.poke.set(`${wildUser}_Party`, wildParty);

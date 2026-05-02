@@ -1,6 +1,7 @@
 const axios = require('axios')
-const { PokemonClient } = require('pokenode-ts')
+const { PokemonClient, MoveClient } = require('pokenode-ts')
 const { addInventoryQuantity } = require('../../Helpers/pokeballs')
+const { isMegaOrGmax, applyMegaGmaxBoost } = require('../../Helpers/megaBoost')
 
 // ─── Type → local battlefield background (under assets/Images/ruin/) ─────────
 // Primary images (exact type matches)
@@ -109,16 +110,123 @@ const BOSS_POOL = [
   'kyurem','lunala','solgaleo','calyrex-shadow','calyrex-ice',
 ]
 
+// 60% of non-boss encounters pull from this pool
+const MEGA_GMAX_POOL = [
+  // ── Mega forms ──────────────────────────────────────────────────────────
+  'charizard-mega-x','charizard-mega-y',
+  'mewtwo-mega-x','mewtwo-mega-y',
+  'gengar-mega','lucario-mega','gardevoir-mega',
+  'metagross-mega','salamence-mega','tyranitar-mega',
+  'blaziken-mega','kangaskhan-mega','banette-mega','rayquaza-mega',
+  'absol-mega','alakazam-mega','ampharos-mega','aerodactyl-mega',
+  'beedrill-mega','blastoise-mega','gallade-mega','garchomp-mega',
+  'gyarados-mega','heracross-mega','houndoom-mega',
+  'latias-mega','latios-mega','lopunny-mega',
+  'manectric-mega','mawile-mega','medicham-mega',
+  'pidgeot-mega','pinsir-mega','sableye-mega',
+  'scizor-mega','sharpedo-mega','slowbro-mega',
+  'steelix-mega','swampert-mega','venusaur-mega',
+  // ── GMax forms ──────────────────────────────────────────────────────────
+  'charizard-gmax','pikachu-gmax','machamp-gmax',
+  'gengar-gmax','lapras-gmax','snorlax-gmax',
+  'grimmsnarl-gmax','drednaw-gmax','kingler-gmax',
+  'coalossal-gmax','centiskorch-gmax','hatterene-gmax',
+  'alcremie-gmax','inteleon-gmax','rillaboom-gmax','cinderace-gmax',
+]
+
 const pickEncounterName = (encounterIndex, bossAt) => {
   if (encounterIndex >= bossAt) {
     return { name: BOSS_POOL[Math.floor(Math.random() * BOSS_POOL.length)], isBoss: true }
   }
+  // 60% chance of mega/gmax encounter
+  if (Math.random() < 0.6) {
+    const name = MEGA_GMAX_POOL[Math.floor(Math.random() * MEGA_GMAX_POOL.length)]
+    return { name, isBoss: false }
+  }
   return { name: String(Math.floor(Math.random() * 898) + 1), isBoss: false }
 }
 
-// ─── Build a Pokémon object for ruin ─────────────────────────────────────────
-const buildPokemonForRuin = async (client, nameOrId, level, encounterIndex) => {
+// ─── Strong-move selector for ruin encounters ─────────────────────────────────
+// Prioritises moves with power ≥ 90 and accuracy ≥ 90 (null accuracy = always hits).
+const assignRuinMoves = async (pokemonName, level = 100) => {
+  const mc = new MoveClient()
+
+  const baseName = String(pokemonName)
+    .replace(/-(gmax|gigantamax|mega(-x|-y)?|primal|galar|alola|hisui|paldea|origin|crowned|eternamax|ultra)$/i, '')
+    .trim() || pokemonName
+
+  const fetchRaw = async (name) => {
+    try {
+      return (await axios.get(`https://pokeapi.co/api/v2/pokemon/${name}`)).data?.moves || []
+    } catch (_) { return [] }
+  }
+
+  const filterLevelUp = (moves, maxLv) =>
+    moves.filter(m =>
+      (m.version_group_details || []).some(d =>
+        d.move_learn_method?.name === 'level-up' && (d.level_learned_at ?? 999) <= maxLv
+      )
+    )
+
+  let raw = await fetchRaw(pokemonName)
+  let levelUp = filterLevelUp(raw, level)
+  if (!levelUp.length) { raw = await fetchRaw(baseName); levelUp = filterLevelUp(raw, level) }
+  if (!levelUp.length) levelUp = raw.filter(m =>
+    (m.version_group_details || []).some(d => d.move_learn_method?.name === 'level-up')
+  )
+  if (!levelUp.length) levelUp = raw.slice(0, 30)
+
+  // Shuffle and cap candidates to avoid too many API calls
+  const candidates = [...levelUp].sort(() => Math.random() - 0.5).slice(0, 30)
+
+  const fetched = []
+  for (const { move } of candidates) {
+    if (fetched.length >= 20) break
+    try {
+      const d = await mc.getMoveByName(move.name)
+      fetched.push({
+        name: d.name,
+        accuracy:    d.accuracy || 0,
+        pp:          d.pp || 5,
+        maxPp:       d.pp || 5,
+        id:          d.id,
+        power:       d.power || 0,
+        priority:    d.priority,
+        type:        d.type.name,
+        stat_change: (d.stat_changes || []).map(c => ({ target: c.stat.name, change: c.change })),
+        effect:      d.meta?.ailment?.name || '',
+        drain:       d.meta?.drain || 0,
+        healing:     d.meta?.healing || 0,
+        description: (d.flavor_text_entries?.filter(x => x.language.name === 'en')[0] || {}).flavor_text || '',
+        _rawAcc:     d.accuracy  // null = always hits
+      })
+    } catch (_) {}
+  }
+
+  const isStrong  = m => m.power >= 90 && (m._rawAcc === null || m._rawAcc >= 90)
+  const isMedium  = m => m.power >= 70 && (m._rawAcc === null || m._rawAcc >= 85)
+
+  const pick = (pool, needed, exclude = []) =>
+    pool.filter(m => !exclude.find(e => e.id === m.id))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, needed)
+
+  let chosen = pick(fetched.filter(isStrong), 4)
+  if (chosen.length < 4) chosen = [...chosen, ...pick(fetched.filter(isMedium), 4 - chosen.length, chosen)]
+  if (chosen.length < 4) chosen = [...chosen, ...pick(fetched, 4 - chosen.length, chosen)]
+
+  const result = chosen.map(({ _rawAcc, ...m }) => m)
+  return {
+    moves: result,
+    rejectedMoves: fetched.filter(m => !result.find(r => r.id === m.id)).map(m => m.name)
+  }
+}
+
+// ─── Build a Pokémon object for ruin (always Lv 100, always ×3 stats) ─────────
+const buildPokemonForRuin = async (client, nameOrId, encounterIndex) => {
+  const level     = 100
   const scaleMult = 1 + encounterIndex * SCALING_PER_ENCOUNTER
+
   const response = await axios.get(`https://pokeapi.co/api/v2/pokemon/${nameOrId}`)
   const data = response.data
 
@@ -129,16 +237,23 @@ const buildPokemonForRuin = async (client, nameOrId, level, encounterIndex) => {
 
   let { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, level)
 
-  hp      = Math.floor(hp      * scaleMult)
-  attack  = Math.floor(attack  * scaleMult)
-  defense = Math.floor(defense * scaleMult)
-  speed   = Math.floor(speed   * scaleMult)
+  // Scale by encounter depth, then ×3 for all ruin Pokémon
+  const RUIN_MULT = 3
+  hp      = Math.floor(hp      * scaleMult * RUIN_MULT)
+  attack  = Math.floor(attack  * scaleMult * RUIN_MULT)
+  defense = Math.floor(defense * scaleMult * RUIN_MULT)
+  speed   = Math.floor(speed   * scaleMult * RUIN_MULT)
 
-  const { moves, rejectedMoves } = await client.utils.assignPokemonMoves(data.name, level)
+  // Mega/gmax get an additional ×3 on top (global rule)
+  if (isMegaOrGmax(data.name)) {
+    hp      *= 3; attack  *= 3; defense *= 3; speed *= 3
+  }
+
+  const { moves, rejectedMoves } = await assignRuinMoves(data.name, level)
 
   const server = new PokemonClient()
   const speciesName = data?.species?.name
-    || String(data?.name || '').replace(/-mega(-x|-y)?$/i, '').replace(/-primal$/i, '').trim()
+    || String(data?.name || '').replace(/-mega(-x|-y)?$/i, '').replace(/-(gmax|gigantamax|primal)$/i, '').trim()
   let gender_rate = 4
   try {
     const species = await server.getPokemonSpeciesByName(speciesName)
@@ -154,6 +269,7 @@ const buildPokemonForRuin = async (client, nameOrId, level, encounterIndex) => {
     moves, rejectedMoves,
     state: { status: '', movesUsed: 0 },
     female,
+    megaBoosted: isMegaOrGmax(data.name) ? true : undefined,
     tag: client.utils.generateRandomUniqueTag(10)
   }
 }
@@ -364,6 +480,16 @@ module.exports = {
           `You have *${party.length}/6*.`
         )
       }
+      // All party members must be level 100
+      const underLevel = party.filter(p => (p.level || 0) < 100)
+      if (underLevel.length) {
+        const names = underLevel.map(p => `*${client.utils.capitalize(p.name)}* (Lv. ${p.level})`).join(', ')
+        return M.reply(
+          `⚠️ *Entry Denied — Max Level Required*\n\n` +
+          `All 6 party Pokémon must be *Level 100* to enter the Ruin.\n\n` +
+          `Under-levelled: ${names}`
+        )
+      }
       const alive = party.filter(p => p.hp > 0)
       if (!alive.length) return M.reply('❌ All your Pokémon have fainted! Heal them first.')
 
@@ -407,25 +533,16 @@ module.exports = {
       const bossAt         = session.bossAt || 12
       const { name: encounterName, isBoss } = pickEncounterName(encounterIndex, bossAt)
       const difficulty     = getEncounterDifficulty(encounterIndex, bossAt)
-      const baseLevel      = isBoss ? 100 : Math.min(100, 20 + encounterIndex * 4)
 
       await M.reply(
         `🏚️ *Encounter #${encounterIndex + 1}*  ${DIFF_LABEL[difficulty]}\n` +
         (isBoss ? `⚫ ⚠️ *BOSS INCOMING…* ⚠️\n` : '') +
-        `Summoning the next Pokémon…`
+        `Summoning the next Pokémon… *(this may take a moment)*`
       )
 
       let wildPoke
       try {
-        wildPoke = await buildPokemonForRuin(client, encounterName, baseLevel, encounterIndex)
-        if (isBoss) {
-          // Boss: additional ×3 multiplier
-          const B = 3.0
-          wildPoke.hp      = Math.floor(wildPoke.hp      * B); wildPoke.maxHp      = wildPoke.hp
-          wildPoke.attack  = Math.floor(wildPoke.attack  * B); wildPoke.maxAttack  = wildPoke.attack
-          wildPoke.defense = Math.floor(wildPoke.defense * B); wildPoke.maxDefense = wildPoke.defense
-          wildPoke.speed   = Math.floor(wildPoke.speed   * B); wildPoke.maxSpeed   = wildPoke.speed
-        }
+        wildPoke = await buildPokemonForRuin(client, encounterName, encounterIndex)
       } catch (err) {
         console.error('ruin fight build error:', err)
         return M.reply('⚠️ Failed to summon the encounter Pokémon. Try again.')

@@ -1,6 +1,7 @@
 const axios = require('axios')
 const { PokemonClient } = require('pokenode-ts')
 const { addInventoryQuantity } = require('../../Helpers/pokeballs')
+const { applyMegaGmaxBoost } = require('../../Helpers/megaBoost')
 
 // Randomized "strong Pokemon" pool for sanctum guardians.
 // Keep these as PokeAPI names (lowercase, hyphenated).
@@ -249,7 +250,7 @@ const buildPokemonFromName = async (client, name, level) => {
     ''
 
   let { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, level)
-  const statBoost = tier === 'mythical' ? 1.35 : tier === 'legendary' ? 1.25 : tier === 'mega' ? 1.2 : 1
+  const statBoost = tier === 'mythical' ? 1.35 : tier === 'legendary' ? 1.25 : tier === 'mega' ? 3.0 : 1
   hp = Math.floor(hp * statBoost)
   attack = Math.floor(attack * statBoost)
   defense = Math.floor(defense * statBoost)
