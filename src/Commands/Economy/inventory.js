@@ -1,5 +1,6 @@
 // Inventory Command
 const { getInventory } = require('../../Helpers/pokeballs');
+const { getDeck, getCollection } = require('../../Helpers/yugioh');
 
 module.exports = {
     name: 'inventory',
@@ -19,8 +20,10 @@ module.exports = {
 
             const party = (await client.poke.get(`${targetUser}_Party`)) || [];
             const pss = (await client.poke.get(`${targetUser}_PSS`)) || [];
-            const deck = (await client.DB.get(`${targetUser}_Deck`)) || [];
-            const collection = (await client.DB.get(`${targetUser}_Collection`)) || [];
+
+            const yuUserKey = String(targetUser).replace(/\D/g, '') || String(targetUser).split('@')[0];
+            const deck = await getDeck(client, yuUserKey);
+            const collection = await getCollection(client, yuUserKey);
 
             const userKey = (await client.resolveNumber?.(targetUser)) || String(targetUser).replace(/\D/g, '') || targetUser;
             const pokeballItems = await getInventory(client, userKey);
@@ -49,7 +52,8 @@ module.exports = {
             text += `*╏🏦 ᴛʀᴇᴀꜱᴜʀʏ:* ${bank.toLocaleString()} gems\n`;
             text += `*╏💰 ᴛᴏᴛᴀʟ ɢᴇᴍꜱ:* ${totalGems.toLocaleString()}\n`;
             text += `*╏🧿 ᴘᴏᴋᴇᴍᴏɴ:* ${party.length} (party) / ${pss.length} (pc)\n`;
-            text += `*╏🃏 ᴄᴀʀᴅꜱ:* ${deck.length} (deck) / ${collection.length} (collection)\n`;
+            const totalYuCards = deck.length + collection.length;
+            text += `*╏🃏 ʏᴜ-ɢɪ-ᴏʜ ᴄᴀʀᴅꜱ:* ${totalYuCards} total (${deck.length} deck / ${collection.length} collection)\n`;
             text += `*╏🔥 ᴀꜱʜᴇɴ ᴡɪɴꜱ:* ${ashenWins}\n`;
             text += `*╏🎯 ᴘᴏᴋᴇʙᴀʟʟꜱ (${totalPokeballs} total):*\n`;
 

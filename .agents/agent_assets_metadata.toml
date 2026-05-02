@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "dgc_92e_0cKjkzuR7xuua"
+uri = "file://assets/Images/yubattle_demo.png"
+type = "image"
+title = "Yu-Gi-Oh Battle Image — Dark Magician vs Blue-Eyes White Dragon"

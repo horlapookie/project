@@ -1,5 +1,6 @@
 const { getDeck, setDeck, getCollection, setCollection } = require('../../Helpers/yugioh')
 const { getUserKey } = require('../../Helpers/yugiohCommand')
+const { isGold, MAX_DECK_SIZE } = require('../../Helpers/premium')
 
 module.exports = {
   name: 't2yudeck',
@@ -20,7 +21,12 @@ module.exports = {
     if (idx > collection.length) return M.reply(`Invalid index. Your collection has ${collection.length} cards.`)
 
     const deck = await getDeck(client, userKey)
-    if (deck.length >= 40) return M.reply('Your deck is full (40).')
+    const gold = await isGold(client, userKey)
+    const deckLimit = MAX_DECK_SIZE(gold)
+    if (deck.length >= deckLimit) {
+      const upgradeMsg = !gold ? ` Upgrade to 👑 *Gold* to expand to 60 cards!` : ''
+      return M.reply(`Your deck is full (${deckLimit} cards).${upgradeMsg}`)
+    }
 
     const [card] = collection.splice(idx - 1, 1)
     deck.push(card)

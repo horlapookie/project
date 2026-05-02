@@ -1,6 +1,7 @@
 const { getDeck } = require('../../Helpers/yugioh')
 const { getUserKey } = require('../../Helpers/yugiohCommand')
 const { renderYuBattleCard } = require('../../lib/CardRenderer')
+const { isGold } = require('../../Helpers/premium')
 
 module.exports = {
   name: 'yuaccept',
@@ -59,7 +60,12 @@ module.exports = {
       resultMsg = `🤝 The duel ended in a *DRAW*! (ATK: ${challengerAtk} vs DEF: ${acceptorDef})`
     }
 
-    const gemReward = winner ? Math.max(500, Math.floor(Number(loser.card.price || 5000) * 0.2)) : 0
+    const base = winner ? Math.max(500, Math.floor(Number(loser.card.price || 5000) * 0.2)) : 0
+    let gemReward = base
+    if (winner) {
+      const gold = await isGold(client, winner.key)
+      if (gold) gemReward = Math.round(base * 1.5)
+    }
 
     if (winner) {
       try {

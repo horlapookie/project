@@ -104,7 +104,14 @@ module.exports = {
                     'yutrade',
                     'yutrade-confirm',
                     'yutrade-delete',
-                    'yugioh'
+                    'yugioh',
+                    'yubattle',
+                    'yuaccept',
+                    'yudecline',
+                    'yubattlestatus',
+                    'yusummon',
+                    'yuch',
+                    'yuhelp'
                 ]
 
                 for (const category of commandList) {
