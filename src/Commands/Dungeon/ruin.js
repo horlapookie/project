@@ -26,11 +26,34 @@ const TYPE_BACKGROUNDS = {
   normal:   'ruin/fairy.jpg',     // plain cheerful meadow
 }
 
+// The 10 types that have actual battlefield images
+const PRIMARY_FIELD_TYPES = ['poison','flying','dragon','psychic','ground','ice','electric','fairy','water','fire']
+
+// Reverse-map background path → canonical field type
+const BACKGROUND_FIELD_TYPE = {
+  'ruin/poison.jpg':   'poison',
+  'ruin/flying.jpg':   'flying',
+  'ruin/dragon.jpg':   'dragon',
+  'ruin/psychic.jpg':  'psychic',
+  'ruin/ground.jpg':   'ground',
+  'ruin/ice.jpg':      'ice',
+  'ruin/electric.jpg': 'electric',
+  'ruin/fairy.jpg':    'fairy',
+  'ruin/water.jpg':    'water',
+  'ruin/fire.jpg':     'fire',
+}
+
 const getBackgroundForTypes = (types = []) => {
   for (const type of types) {
-    if (TYPE_BACKGROUNDS[type]) return TYPE_BACKGROUNDS[type]
+    if (TYPE_BACKGROUNDS[type]) {
+      const bg = TYPE_BACKGROUNDS[type]
+      return { background: bg, fieldType: BACKGROUND_FIELD_TYPE[bg] || type }
+    }
   }
-  return 'battle.png'  // final fallback
+  // No match → pick a random primary battlefield
+  const randomType = PRIMARY_FIELD_TYPES[Math.floor(Math.random() * PRIMARY_FIELD_TYPES.length)]
+  const bg = `ruin/${randomType}.jpg`
+  return { background: bg, fieldType: randomType }
 }
 
 // ─── Scaling & difficulty ─────────────────────────────────────────────────────
@@ -411,8 +434,34 @@ module.exports = {
       const wildUser  = ruinWildUser(M.from)
       await client.poke.set(`${wildUser}_Party`, [wildPoke])
 
-      const background = getBackgroundForTypes(wildPoke.types)
-      const flavor     = getTypeFlavor(wildPoke.types)
+      const { background, fieldType } = getBackgroundForTypes(wildPoke.types)
+      const flavor                    = getTypeFlavor(wildPoke.types)
+
+      // ── Field-type penalty: player's active Pokémon pays -5% ATK/DEF/SPD
+      //    if it shares no type with the battlefield ──────────────────────────
+      const activePoke   = alive[0]
+      const playerTypes  = (activePoke.types || []).map(t => t.toLowerCase())
+      const fieldMatches = playerTypes.includes(fieldType)
+      let penaltyLine    = ''
+
+      if (!fieldMatches) {
+        const penaltyPct = 5
+        const applyPenalty = stat => Math.max(1, Math.floor(stat * (1 - penaltyPct / 100)))
+        activePoke.attack  = applyPenalty(activePoke.attack)
+        activePoke.defense = applyPenalty(activePoke.defense)
+        activePoke.speed   = activePoke.speed != null ? applyPenalty(activePoke.speed) : activePoke.speed
+
+        // Persist the penalty back to the party so battle reads the reduced stats
+        alive[0] = activePoke
+        await client.poke.set(`${M.sender}_Party`, party.map(p =>
+          p.name === activePoke.name && p.hp === activePoke.hp ? activePoke : p
+        ))
+
+        penaltyLine =
+          `\n⚠️ *Field Penalty!* Your *${client.utils.capitalize(activePoke.name)}* ` +
+          `is not a *${client.utils.capitalize(fieldType)}*-type — its stats are reduced by *${penaltyPct}%* ` +
+          `(ATK/DEF/SPD) on this battlefield!\n`
+      }
 
       const battleObj = {
         mode: 'wild',
@@ -420,6 +469,7 @@ module.exports = {
         isRuin: true,
         noCapture: true,
         background,
+        fieldType,
         wildUser,
         ruinUser: M.sender,
         ruinEncounterIndex: encounterIndex,
@@ -428,7 +478,7 @@ module.exports = {
         expiresAt: Date.now() + 10 * 60 * 1000,
         lastActivityAt: Date.now(),
         wildPokemon: { ...wildPoke },
-        player1: { user: M.sender, ready: false, move: '', activePokemon: alive[0] },
+        player1: { user: M.sender, ready: false, move: '', activePokemon: activePoke },
         player2: { user: wildUser,  ready: true,  move: '', activePokemon: wildPoke },
         turn: 'player1',
         players: [M.sender]
@@ -441,8 +491,8 @@ module.exports = {
       let image
       try {
         image = await client.utils.drawPokemonBattle({
-          player1: { activePokemon: alive[0], party: alive },
-          player2: { activePokemon: wildPoke,  party: [wildPoke] },
+          player1: { activePokemon: activePoke, party: alive },
+          player2: { activePokemon: wildPoke,   party: [wildPoke] },
           background
         })
       } catch (err) {
@@ -450,15 +500,18 @@ module.exports = {
       }
 
       const scalingPct = (encounterIndex * 15)
+      const fieldLabel  = client.utils.capitalize(fieldType)
       const caption =
         `🏚️ *RUIN — Encounter #${encounterIndex + 1}*  ${DIFF_LABEL[difficulty]}\n\n` +
         flavor + '\n\n' +
         (isBoss ? `⚫ *A mighty BOSS appears!*\n` : `A wild Pokémon blocks your path!\n`) +
         `*${client.utils.capitalize(wildPoke.name)}*\n` +
         `🔥 Type: ${wildPoke.types.map(t => client.utils.capitalize(t)).join(' / ')}\n` +
+        `🌍 *Field:* ${fieldLabel} terrain\n` +
         `📊 Lv. ${wildPoke.level} | ❤️ HP: ${wildPoke.hp} | ⚡ ATK: ${wildPoke.attack} | 🛡 DEF: ${wildPoke.defense}\n` +
-        `📈 Stat scaling: *+${scalingPct}%* from base\n\n` +
-        `• *${prefix}battle fight* — attack\n` +
+        `📈 Stat scaling: *+${scalingPct}%* from base\n` +
+        penaltyLine +
+        `\n• *${prefix}battle fight* — attack\n` +
         `• *${prefix}battle switch* — switch Pokémon\n` +
         `• *${prefix}ruin quit* — abandon the Ruin`
 
