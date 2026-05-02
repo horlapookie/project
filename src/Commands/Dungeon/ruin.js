@@ -459,8 +459,23 @@ module.exports = {
 
         penaltyLine =
           `\n⚠️ *Field Penalty!* Your *${client.utils.capitalize(activePoke.name)}* ` +
-          `is not a *${client.utils.capitalize(fieldType)}*-type — its stats are reduced by *${penaltyPct}%* ` +
-          `(ATK/DEF/SPD) on this battlefield!\n`
+          `is not a *${client.utils.capitalize(fieldType)}*-type — its ATK/DEF/SPD are reduced by *5%* on this battlefield!\n`
+      } else {
+        const bonusPct = 5
+        const applyBonus = stat => Math.floor(stat * (1 + bonusPct / 100))
+        activePoke.attack  = applyBonus(activePoke.attack)
+        activePoke.defense = applyBonus(activePoke.defense)
+        activePoke.speed   = activePoke.speed != null ? applyBonus(activePoke.speed) : activePoke.speed
+
+        // Persist the bonus back to the party
+        alive[0] = activePoke
+        await client.poke.set(`${M.sender}_Party`, party.map(p =>
+          p.name === activePoke.name && p.hp === activePoke.hp ? activePoke : p
+        ))
+
+        penaltyLine =
+          `\n✨ *Field Boost!* Your *${client.utils.capitalize(activePoke.name)}* ` +
+          `is a *${client.utils.capitalize(fieldType)}*-type — its ATK/DEF/SPD are boosted by *5%* on this battlefield!\n`
       }
 
       const battleObj = {
