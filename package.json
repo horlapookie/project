@@ -25,6 +25,9 @@
     "type": "git",
     "url": "https://github.com/Kingshisui00/Aurora-Private.git"
   },
+  "overrides": {
+    "skia-canvas": "3.0.8"
+  },
   "dependencies": {
     "@adiwajshing/keyed-db": "^0.2.4",
     "@consumet/extensions": "^1.5.6",
