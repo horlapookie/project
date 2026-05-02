@@ -113,10 +113,7 @@ module.exports = {
                     'yuch',
                     'yuhelp',
                     'yuspawn',
-                    'yurank',
-                    'yuheal',
-                    'yufuse',
-                    'yuforfeit'
+                    'yurank'
                 ]
 
                 for (const category of commandList) {

@@ -740,8 +740,16 @@ const start = async (authChoice = null) => {
             readdirSync(rootDir).forEach(($dir) => {
                 const commandFiles = readdirSync(join(rootDir, $dir)).filter((file) => file.endsWith('.js'))
                 for (let file of commandFiles) {
-                    const command = require(join(rootDir, $dir, file))
-                    client.cmd.set(command.name, command)
+                    try {
+                        const command = require(join(rootDir, $dir, file))
+                        if (command && command.name) {
+                            client.cmd.set(command.name, command)
+                        } else {
+                            client.log(`⚠️ Command file ${file} has no exported name — skipping`, 'yellow')
+                        }
+                    } catch (err) {
+                        client.log(`⚠️ Failed to load command ${file}: ${err.message}`, 'red')
+                    }
                 }
             })
             client.log('Commands loaded!')

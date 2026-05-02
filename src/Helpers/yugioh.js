@@ -78,45 +78,6 @@ const findByUid = (list, uid) => {
   return { index, card: index >= 0 ? list[index] : null }
 }
 
-// ─── Card HP system ─────────────────────────────────────────
-// Each card has HP derived from ATK+DEF+Level. Fainted = HP 0.
-const calcCardHp = (card) => {
-  const atk = Number(card.atk || 0)
-  const def = Number(card.def || 0)
-  const level = Number(card.level || 0)
-  return Math.max(100, Math.floor((atk + def) / 5) + level * 100)
-}
-
-const getDeckHp = async (client, userKey) =>
-  (await client.DB.get(`yu-card-hp-${userKey}`).catch(() => null)) || {}
-
-const setDeckHp = async (client, userKey, hpMap) =>
-  client.DB.set(`yu-card-hp-${userKey}`, hpMap)
-
-const getCardHp = (hpMap, card) => {
-  const max = calcCardHp(card)
-  const stored = hpMap[card.uid]
-  const current = stored === undefined ? max : Number(stored)
-  return { current, max }
-}
-
-const isCardFainted = (hpMap, card) => {
-  const { current } = getCardHp(hpMap, card)
-  return current <= 0
-}
-
-// ─── Wild battle session ─────────────────────────────────────
-// One active wild battle per group. Session tracks who is fighting
-// and which of their cards have fainted this round.
-const getWildSession = async (client, groupJid) =>
-  (await client.DB.get(`yu-wild-session-${groupJid}`).catch(() => null)) || null
-
-const setWildSession = async (client, groupJid, session) =>
-  client.DB.set(`yu-wild-session-${groupJid}`, session)
-
-const clearWildSession = async (client, groupJid) =>
-  client.DB.delete(`yu-wild-session-${groupJid}`).catch(() => null)
-
 const recordYuResult = async (client, winnerKey, loserKey) => {
   try {
     const realPlayers = [winnerKey, loserKey].filter(k => k && k !== 'wild')
@@ -149,13 +110,5 @@ module.exports = {
   getDeck,
   setDeck,
   findByUid,
-  calcCardHp,
-  getDeckHp,
-  setDeckHp,
-  getCardHp,
-  isCardFainted,
-  getWildSession,
-  setWildSession,
-  clearWildSession,
   recordYuResult
 }
