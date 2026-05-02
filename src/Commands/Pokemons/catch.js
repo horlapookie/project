@@ -40,19 +40,32 @@ module.exports = {
             client.pokemonResponse.delete(M.from);
 
             // Apply ×3 boost to any mega/gmax Pokémon in the player's party
-            let partyUpdated = false
+            const justBoosted = []
             for (const p of availableParty) {
                 const before = p.attack
                 applyMegaGmaxBoost(p)
-                if (p.attack !== before) partyUpdated = true
+                if (p.attack !== before) justBoosted.push(p)
             }
-            if (partyUpdated) {
+            if (justBoosted.length) {
                 const fullParty = await client.poke.get(`${M.sender}_Party`) || []
                 for (const fp of fullParty) {
                     const boosted = availableParty.find(a => a.tag === fp.tag)
                     if (boosted) Object.assign(fp, boosted)
                 }
                 await client.poke.set(`${M.sender}_Party`, fullParty)
+
+                // Announce the boost for each newly boosted Pokémon
+                const lines = justBoosted.map(p =>
+                    `⚡ *${client.utils.capitalize(p.name)}*\n` +
+                    `   ❤️ HP: *${p.maxHp}*  |  ⚡ ATK: *${p.attack}*\n` +
+                    `   🛡 DEF: *${p.defense}*  |  💨 SPD: *${p.speed ?? '—'}*`
+                )
+                await client.sendMessage(M.from, {
+                    text:
+                        `🔥 *Due to Mega Evolution / G-Max Power, stats have been upgraded!*\n\n` +
+                        lines.join('\n\n'),
+                    mentions: [M.sender]
+                })
             }
 
             const wildUser = `wild-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`;
