@@ -59,7 +59,9 @@ const ensureBattleNotExpired = async (client, M, battle) => {
     if (client.unpersistBattleSync) client.unpersistBattleSync(jid);
     else client.pokemonBattleResponse.delete(jid);
 
-    const msg = battle.isDungeon
+    const msg = battle.isRuin
+        ? '🏚️ The Ruin closed because nobody made a move for 10 minutes.'
+        : battle.isDungeon
         ? '🔥 Ashen Sanctum ended because nobody made a move for 10 minutes.'
         : battle.mode === 'wild'
         ? `The wild *${client.utils.capitalize(battle.player2.activePokemon.name)}* fled because nobody made a move for 10 minutes.`
@@ -110,7 +112,9 @@ const buildBattleOptionsText = (client, battle, currentUser) => {
             '',
             `- To switch pokemon use *${client.prefix}battle switch*`
         ];
-        if (battle.isDungeon) {
+        if (battle.isRuin) {
+            lines.push('', `- To quit the Ruin use *${client.prefix}ruin quit*`);
+        } else if (battle.isDungeon) {
             lines.push('', `- To quit the dungeon use *${client.prefix}ashen quit*`);
         } else if (!battle.noCapture) {
             lines.push('', `- To check the pokeballs in your bag use *${client.prefix}battle pokeballs*`);
@@ -248,6 +252,9 @@ module.exports = {
             if (!battle.isDungeon || !battle.awaitingContinue) {
                 return M.reply('Nothing to continue right now.')
             }
+            if (battle.isRuin) {
+                return M.reply(`Use *${client.prefix}ruin fight* to start the next Ruin encounter.`)
+            }
             if (battle.player1?.user !== M.sender) {
                 return M.reply('Only the dungeon challenger can continue.')
             }
@@ -261,6 +268,9 @@ module.exports = {
         // If we're waiting for the dungeon challenger to confirm the next encounter,
         // block other battle actions until they use "battle continue".
         if (data?.isDungeon && data?.awaitingContinue && action !== 'continue') {
+            if (data.isRuin) {
+                return M.reply(`Use *${client.prefix}ruin fight* for the next Ruin encounter, or *${client.prefix}ruin quit* to quit.`)
+            }
             return M.reply(`Use *${client.prefix}battle continue* to face the next guardian, or *${client.prefix}ashen quit* to quit.`)
         }
 
@@ -288,6 +298,9 @@ module.exports = {
         }
 
         if (action === 'forfeit') {
+            if (data.isRuin) {
+                return M.reply(`Use *${client.prefix}ruin quit* to abandon the Ruin.`)
+            }
             if (data.isDungeon) {
                 return M.reply(`You can't forfeit a dungeon battle. Use *${client.prefix}ashen quit*.`)
             }
@@ -835,6 +848,15 @@ const continueSelection = async (client, M) => {
 
             if (!alivePokemon.length) {
                 if (isWildUser(opponent.user)) {
+                    // Ruin: give per-encounter rewards and prompt next fight
+                    if (battle.isRuin) {
+                        try {
+                            const { handleRuinEncounterComplete } = require('../Dungeon/ruin')
+                            return handleRuinEncounterComplete(client, M, battle, currentUser)
+                        } catch (ruinErr) {
+                            console.error('ruin encounter complete error:', ruinErr)
+                        }
+                    }
                     const active = currentUser.activePokemon;
                     if (active && active.level < 100 && battle.lastXpAwardTag !== active.tag) {
                         try {

@@ -1238,9 +1238,22 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
 const drawPokemonBattle = async (data) => {
 
     const backgroundPath = data.background || 'battle.png';
-    const background = await Canvas.loadImage(
-        await readFile(join(__dirname, '..', '..', 'assets', 'Images', backgroundPath))
-    );
+    let background;
+    if (typeof backgroundPath === 'string' && (backgroundPath.startsWith('http://') || backgroundPath.startsWith('https://'))) {
+        try {
+            const resp = await axios.get(backgroundPath, { responseType: 'arraybuffer', timeout: 8000 });
+            background = await Canvas.loadImage(Buffer.from(resp.data));
+        } catch (_) {
+            // fallback to default background
+            background = await Canvas.loadImage(
+                await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'battle.png'))
+            );
+        }
+    } else {
+        background = await Canvas.loadImage(
+            await readFile(join(__dirname, '..', '..', 'assets', 'Images', backgroundPath || 'battle.png'))
+        );
+    }
     const pokeball = await Canvas.loadImage(
         await readFile(join(__dirname, '..', '..', 'assets', 'Images', 'pokeball.png'))
     );
