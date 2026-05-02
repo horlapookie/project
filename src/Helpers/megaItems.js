@@ -1,0 +1,161 @@
+// ─── Mega Stones & GMax Ball definitions ──────────────────────────────────────
+// profile: multipliers applied to the stored stat when stone is equipped
+// 1.0 = no change, 0 = not boosted at all
+
+const MEGA_STONES = [
+  // ── Physical Nukes (ATK ×3, SPD = no boost) ────────────────────────────────
+  { id: 101, key: 'charizardite_x',  name: 'Charizardite X',   pokemon: 'charizard-mega-x',  emoji: '🔴', price: 500000,
+    profile: { hp: 1.5, atk: 3.0, def: 2.0, spd: 1.0 },
+    note: 'Fire / Dragon — boosts ATK & DEF, no SPD change' },
+  { id: 102, key: 'charizardite_y',  name: 'Charizardite Y',   pokemon: 'charizard-mega-y',  emoji: '🟡', price: 500000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.5, spd: 1.5 },
+    note: 'Fire / Flying — ATK boost, slight SPD' },
+  { id: 103, key: 'mewtwonite_x',    name: 'Mewtwonite X',     pokemon: 'mewtwo-mega-x',     emoji: '🟣', price: 600000,
+    profile: { hp: 1.5, atk: 3.0, def: 2.0, spd: 1.0 },
+    note: 'Psychic / Fighting — ATK & DEF, no SPD' },
+  { id: 104, key: 'mewtwonite_y',    name: 'Mewtwonite Y',     pokemon: 'mewtwo-mega-y',     emoji: '🔵', price: 600000,
+    profile: { hp: 1.5, atk: 3.0, def: 2.0, spd: 2.0 },
+    note: 'Psychic — ATK + some SPD' },
+  { id: 105, key: 'tyranitarite',    name: 'Tyranitarite',     pokemon: 'tyranitar-mega',    emoji: '⚫', price: 500000,
+    profile: { hp: 2.0, atk: 3.0, def: 2.5, spd: 1.0 },
+    note: 'Rock / Dark — ATK & DEF tank, no SPD' },
+  { id: 106, key: 'heracronite',     name: 'Heracronite',      pokemon: 'heracross-mega',    emoji: '🟤', price: 450000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.5, spd: 1.0 },
+    note: 'Bug / Fighting — pure ATK, no SPD or DEF' },
+  { id: 107, key: 'mawilite',        name: 'Mawilite',         pokemon: 'mawile-mega',       emoji: '🟥', price: 450000,
+    profile: { hp: 2.0, atk: 3.0, def: 2.5, spd: 1.0 },
+    note: 'Steel / Fairy — ATK & DEF wall, no SPD' },
+  { id: 108, key: 'scizorite',       name: 'Scizorite',        pokemon: 'scizor-mega',       emoji: '🔩', price: 500000,
+    profile: { hp: 2.0, atk: 3.0, def: 2.5, spd: 1.0 },
+    note: 'Bug / Steel — power & bulk, no SPD' },
+  { id: 109, key: 'slowbronite',     name: 'Slowbronite',      pokemon: 'slowbro-mega',      emoji: '🩵', price: 400000,
+    profile: { hp: 2.5, atk: 2.0, def: 3.0, spd: 1.0 },
+    note: 'Water / Psychic — pure bulk wall, no SPD' },
+  { id: 110, key: 'steelixite',      name: 'Steelixite',       pokemon: 'steelix-mega',      emoji: '⚙️', price: 400000,
+    profile: { hp: 2.0, atk: 2.0, def: 3.0, spd: 1.0 },
+    note: 'Steel / Ground — def fortress, no SPD' },
+  { id: 111, key: 'swampertite',     name: 'Swampertite',      pokemon: 'swampert-mega',     emoji: '💧', price: 450000,
+    profile: { hp: 2.0, atk: 2.5, def: 2.5, spd: 1.0 },
+    note: 'Water / Ground — balanced bulk, no SPD' },
+  { id: 112, key: 'venusaurite',     name: 'Venusaurite',      pokemon: 'venusaur-mega',     emoji: '🌿', price: 450000,
+    profile: { hp: 2.0, atk: 2.0, def: 2.5, spd: 1.0 },
+    note: 'Grass / Poison — defensive, no SPD' },
+  { id: 113, key: 'ampharosite',     name: 'Ampharosite',      pokemon: 'ampharos-mega',     emoji: '⚡', price: 450000,
+    profile: { hp: 1.5, atk: 3.0, def: 2.0, spd: 1.0 },
+    note: 'Electric / Dragon — ATK & DEF, loses SPD' },
+  { id: 114, key: 'sableyite',       name: 'Sableyite',        pokemon: 'sableye-mega',      emoji: '💎', price: 450000,
+    profile: { hp: 2.0, atk: 2.5, def: 3.0, spd: 1.0 },
+    note: 'Dark / Ghost — defensive, no SPD' },
+  { id: 115, key: 'sableye_mega',    name: 'sableye_mega',     pokemon: 'sableye-mega',      emoji: '💎', price: 0,
+    profile: { hp: 1.0, atk: 1.0, def: 1.0, spd: 1.0 }, note: '' }, // placeholder, skip ID 115
+
+  // ── Speed Sweepers (ATK ×3 + SPD ×3, DEF & HP = no boost) ─────────────────
+  { id: 116, key: 'gengarite',       name: 'Gengarite',        pokemon: 'gengar-mega',       emoji: '👻', price: 550000,
+    profile: { hp: 1.0, atk: 3.0, def: 1.0, spd: 3.0 },
+    note: 'Ghost / Poison — ATK & SPD only, no bulk' },
+  { id: 117, key: 'blazikenite',     name: 'Blazikenite',      pokemon: 'blaziken-mega',     emoji: '🔥', price: 550000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.0, spd: 3.0 },
+    note: 'Fire / Fighting — ATK & SPD nuke, no DEF' },
+  { id: 118, key: 'absolite',        name: 'Absolite',         pokemon: 'absol-mega',        emoji: '🌙', price: 500000,
+    profile: { hp: 1.0, atk: 3.0, def: 1.0, spd: 3.0 },
+    note: 'Dark — pure ATK & SPD, no bulk at all' },
+  { id: 119, key: 'alakazite',       name: 'Alakazite',        pokemon: 'alakazam-mega',     emoji: '🔮', price: 500000,
+    profile: { hp: 1.0, atk: 3.0, def: 1.0, spd: 3.0 },
+    note: 'Psychic — ATK & SPD, glass cannon' },
+  { id: 120, key: 'beedrillite',     name: 'Beedrillite',      pokemon: 'beedrill-mega',     emoji: '🐝', price: 450000,
+    profile: { hp: 1.0, atk: 3.0, def: 1.0, spd: 3.0 },
+    note: 'Bug / Poison — ATK & SPD, no bulk' },
+  { id: 121, key: 'banettite',       name: 'Banettite',        pokemon: 'banette-mega',      emoji: '🎃', price: 450000,
+    profile: { hp: 1.0, atk: 3.0, def: 1.0, spd: 2.5 },
+    note: 'Ghost — ATK boost + some SPD' },
+  { id: 122, key: 'lopunnite',       name: 'Lopunnite',        pokemon: 'lopunny-mega',      emoji: '🐰', price: 450000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.0, spd: 3.0 },
+    note: 'Normal / Fighting — ATK & SPD, no DEF' },
+  { id: 123, key: 'manectite',       name: 'Manectite',        pokemon: 'manectric-mega',    emoji: '⚡', price: 450000,
+    profile: { hp: 1.0, atk: 2.5, def: 1.0, spd: 3.0 },
+    note: 'Electric — pure speed demon, low ATK vs others' },
+  { id: 124, key: 'sharpedonite',    name: 'Sharpedonite',     pokemon: 'sharpedo-mega',     emoji: '🦈', price: 450000,
+    profile: { hp: 1.0, atk: 3.0, def: 1.0, spd: 3.0 },
+    note: 'Water / Dark — ATK & SPD, glass cannon' },
+  { id: 125, key: 'houndoominite',   name: 'Houndoominite',    pokemon: 'houndoom-mega',     emoji: '🐕', price: 450000,
+    profile: { hp: 1.0, atk: 3.0, def: 1.0, spd: 2.5 },
+    note: 'Dark / Fire — ATK nuke + decent SPD' },
+  { id: 126, key: 'pidgeotite',      name: 'Pidgeotite',       pokemon: 'pidgeot-mega',      emoji: '🦅', price: 400000,
+    profile: { hp: 1.5, atk: 2.0, def: 1.5, spd: 3.0 },
+    note: 'Normal / Flying — SPD nuke, modest ATK' },
+  { id: 127, key: 'aerodactylite',   name: 'Aerodactylite',    pokemon: 'aerodactyl-mega',   emoji: '🦴', price: 450000,
+    profile: { hp: 1.5, atk: 2.5, def: 1.5, spd: 3.0 },
+    note: 'Rock / Flying — ATK & SPD boost' },
+
+  // ── Balanced Powerhouses ────────────────────────────────────────────────────
+  { id: 128, key: 'lucarionite',     name: 'Lucarionite',      pokemon: 'lucario-mega',      emoji: '💙', price: 550000,
+    profile: { hp: 1.5, atk: 3.0, def: 2.0, spd: 2.0 },
+    note: 'Fighting / Steel — strong all-round boost' },
+  { id: 129, key: 'metagrossite',    name: 'Metagrossite',     pokemon: 'metagross-mega',    emoji: '🤖', price: 550000,
+    profile: { hp: 2.0, atk: 3.0, def: 2.5, spd: 2.0 },
+    note: 'Steel / Psychic — powerful & bulky' },
+  { id: 130, key: 'salamencite',     name: 'Salamencite',      pokemon: 'salamence-mega',    emoji: '🐉', price: 550000,
+    profile: { hp: 2.0, atk: 3.0, def: 2.0, spd: 2.5 },
+    note: 'Dragon / Flying — power + speed' },
+  { id: 131, key: 'rayquazite',      name: 'Jade Orb',         pokemon: 'rayquaza-mega',     emoji: '🟢', price: 700000,
+    profile: { hp: 2.0, atk: 3.0, def: 2.0, spd: 2.5 },
+    note: 'Dragon / Flying — near-full boost' },
+  { id: 132, key: 'kangaskhanite',   name: 'Kangaskhanite',    pokemon: 'kangaskhan-mega',   emoji: '🦘', price: 450000,
+    profile: { hp: 2.5, atk: 2.5, def: 2.0, spd: 2.0 },
+    note: 'Normal — well-rounded upgrade' },
+  { id: 133, key: 'garchompite',     name: 'Garchompite',      pokemon: 'garchomp-mega',     emoji: '🦷', price: 550000,
+    profile: { hp: 1.5, atk: 3.0, def: 2.0, spd: 2.0 },
+    note: 'Dragon / Ground — ATK + decent SPD' },
+  { id: 134, key: 'gyaradosite',     name: 'Gyaradosite',      pokemon: 'gyarados-mega',     emoji: '🌊', price: 500000,
+    profile: { hp: 2.0, atk: 3.0, def: 2.0, spd: 1.5 },
+    note: 'Water / Dark — ATK & bulk, less SPD' },
+  { id: 135, key: 'latiasite',       name: 'Latiasite',        pokemon: 'latias-mega',       emoji: '❤️', price: 550000,
+    profile: { hp: 1.5, atk: 2.5, def: 2.5, spd: 2.0 },
+    note: 'Dragon / Psychic — balanced boost' },
+  { id: 136, key: 'latiosite',       name: 'Latiosite',        pokemon: 'latios-mega',       emoji: '💙', price: 550000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.5, spd: 2.5 },
+    note: 'Dragon / Psychic — ATK + SPD forward' },
+  { id: 137, key: 'galladite',       name: 'Galladite',        pokemon: 'gallade-mega',      emoji: '⚔️', price: 450000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.5, spd: 2.0 },
+    note: 'Psychic / Fighting — ATK focus' },
+  { id: 138, key: 'gardevoirite',    name: 'Gardevoirite',     pokemon: 'gardevoir-mega',    emoji: '🌸', price: 450000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.5, spd: 1.0 },
+    note: 'Psychic / Fairy — ATK boost, no SPD' },
+  { id: 139, key: 'blastoisinite',   name: 'Blastoisinite',    pokemon: 'blastoise-mega',    emoji: '🐢', price: 450000,
+    profile: { hp: 2.0, atk: 2.5, def: 2.5, spd: 1.5 },
+    note: 'Water — tanky ATK + DEF' },
+  { id: 140, key: 'medichamite',     name: 'Medichamite',      pokemon: 'medicham-mega',     emoji: '🧘', price: 400000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.5, spd: 1.5 },
+    note: 'Psychic / Fighting — ATK nuke' },
+  { id: 141, key: 'pinsirite',       name: 'Pinsirite',        pokemon: 'pinsir-mega',       emoji: '🦗', price: 400000,
+    profile: { hp: 1.5, atk: 3.0, def: 1.5, spd: 2.5 },
+    note: 'Bug / Flying — ATK + decent SPD' },
+]
+// Remove placeholder entry
+.filter(s => s.price > 0)
+
+const GMAX_BALL = {
+  id: 200, key: 'gmax_ball', name: 'GMax Ball', pokemon: 'gmax', emoji: '🌀', price: 750000,
+  profile: { hp: 3.0, atk: 3.0, def: 3.0, spd: 3.0 },
+  note: 'Universal — all stats ×3 for any GMax Pokémon'
+}
+
+// Fast lookup: pokémon name → stone
+const _stoneMap = new Map()
+for (const s of MEGA_STONES) _stoneMap.set(s.pokemon, s)
+
+const getMegaStoneForPokemon = (pokemonName = '') => {
+  const n = String(pokemonName).toLowerCase().trim()
+  return _stoneMap.get(n) || null
+}
+
+const getMegaStoneByKey = (key) => MEGA_STONES.find(s => s.key === key) || null
+const getMegaStoneById  = (id)  => MEGA_STONES.find(s => s.id  === Number(id)) || null
+
+module.exports = {
+  MEGA_STONES,
+  GMAX_BALL,
+  getMegaStoneForPokemon,
+  getMegaStoneByKey,
+  getMegaStoneById,
+}

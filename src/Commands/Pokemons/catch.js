@@ -1,4 +1,3 @@
-const { applyMegaGmaxBoost } = require('../../Helpers/megaBoost')
 
 module.exports = {
     name: "catch",
@@ -39,30 +38,17 @@ module.exports = {
 
             client.pokemonResponse.delete(M.from);
 
-            // Apply ×3 boost to any mega/gmax Pokémon in the player's party
-            const justBoosted = []
-            for (const p of availableParty) {
-                const before = p.attack
-                applyMegaGmaxBoost(p)
-                if (p.attack !== before) justBoosted.push(p)
-            }
-            if (justBoosted.length) {
-                const fullParty = await client.poke.get(`${M.sender}_Party`) || []
-                for (const fp of fullParty) {
-                    const boosted = availableParty.find(a => a.tag === fp.tag)
-                    if (boosted) Object.assign(fp, boosted)
-                }
-                await client.poke.set(`${M.sender}_Party`, fullParty)
-
-                // Announce the boost for each newly boosted Pokémon
-                const lines = justBoosted.map(p =>
+            // Announce stats for any party member that already has a stone equipped
+            const equippedPokes = availableParty.filter(p => p.stoneEquipped)
+            if (equippedPokes.length) {
+                const lines = equippedPokes.map(p =>
                     `⚡ *${client.utils.capitalize(p.name)}*\n` +
-                    `   ❤️ HP: *${p.maxHp}*  |  ⚡ ATK: *${p.attack}*\n` +
+                    `   ❤️ HP: *${p.maxHp ?? p.hp}*  |  ⚡ ATK: *${p.attack}*\n` +
                     `   🛡 DEF: *${p.defense}*  |  💨 SPD: *${p.speed ?? '—'}*`
                 )
                 await client.sendMessage(M.from, {
                     text:
-                        `🔥 *Due to Mega Evolution / G-Max Power, stats have been upgraded!*\n\n` +
+                        `🔥 *Due to the use of Mega Boost, stats have been upgraded to:*\n\n` +
                         lines.join('\n\n'),
                     mentions: [M.sender]
                 })

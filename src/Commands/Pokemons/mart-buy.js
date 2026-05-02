@@ -48,6 +48,9 @@ module.exports = {
         } else if (item.type === 'potion') {
             const { addPotionQuantity } = require('../../Helpers/potions');
             await addPotionQuantity(client, userKey, item.key, quantity);
+        } else if (item.type === 'megastone' || item.type === 'gmaxball') {
+            const { addMegaStoneQuantity } = require('../../Helpers/megaStoneBag');
+            await addMegaStoneQuantity(client, userKey, item.key, quantity);
         } else {
             economy[item.key] = Number(economy[item.key] || 0) + quantity;
         }

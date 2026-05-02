@@ -1,5 +1,4 @@
 const pokemonChallengeResponse = new Map();
-const { applyMegaGmaxBoost } = require('../../Helpers/megaBoost')
 
 module.exports = {
     name: "challenge",
@@ -102,46 +101,24 @@ module.exports = {
                 const challengerPartyRaw = challengerPartyData ? challengerPartyData : [];
                 const challengerParty = (challengerPartyRaw || []).filter((pkmn) => pkmn.hp > 0);
 
-                // Apply ×3 boost to any mega/gmax Pokémon for both players
-                const boostParty = async (userId, liveParty) => {
-                    const boostedList = []
-                    for (const p of liveParty) {
-                        const before = p.attack; applyMegaGmaxBoost(p)
-                        if (p.attack !== before) boostedList.push(p)
-                    }
-                    if (boostedList.length) {
-                        const full = await client.poke.get(`${userId}_Party`) || []
-                        for (const fp of full) {
-                            const b = liveParty.find(a => a.tag === fp.tag)
-                            if (b) Object.assign(fp, b)
-                        }
-                        await client.poke.set(`${userId}_Party`, full)
-                    }
-                    return boostedList
-                }
-                const challengerBoosted = await boostParty(data.challenger, challengerParty)
-                const acceptorBoosted   = await boostParty(M.sender, acceptorParty)
-
-                // Announce boosted stats for each player
-                const buildBoostMsg = (tag, boostedPokes) => {
-                    if (!boostedPokes.length) return null
-                    const lines = boostedPokes.map(p =>
+                // Announce stats for any party member that already has a stone equipped
+                const announceBoosted = async (tag, liveParty) => {
+                    const equipped = liveParty.filter(p => p.stoneEquipped)
+                    if (!equipped.length) return
+                    const lines = equipped.map(p =>
                         `⚡ *${client.utils.capitalize(p.name)}*\n` +
-                        `   ❤️ HP: *${p.maxHp}*  |  ⚡ ATK: *${p.attack}*\n` +
+                        `   ❤️ HP: *${p.maxHp ?? p.hp}*  |  ⚡ ATK: *${p.attack}*\n` +
                         `   🛡 DEF: *${p.defense}*  |  💨 SPD: *${p.speed ?? '—'}*`
                     )
-                    return {
+                    await client.sendMessage(M.from, {
                         text:
-                            `🔥 *@${tag.split('@')[0]} — Mega Evolution / G-Max Power activated!*\n` +
-                            `*Stats have been upgraded:*\n\n` +
+                            `🔥 *@${tag.split('@')[0]} — Due to the use of Mega Boost, stats have been upgraded to:*\n\n` +
                             lines.join('\n\n'),
                         mentions: [tag]
-                    }
+                    })
                 }
-                const msg1 = buildBoostMsg(data.challenger, challengerBoosted)
-                const msg2 = buildBoostMsg(M.sender, acceptorBoosted)
-                if (msg1) await client.sendMessage(M.from, msg1)
-                if (msg2) await client.sendMessage(M.from, msg2)
+                await announceBoosted(data.challenger, challengerParty)
+                await announceBoosted(M.sender, acceptorParty)
 
                 const battleObj = {
                     player1: {
