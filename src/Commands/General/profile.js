@@ -14,13 +14,18 @@ module.exports = {
         const groupMetadata = await client.groupMetadata(M.from);
         const groupMembers = groupMetadata?.participants || [];
         const groupAdmins = groupMembers.filter((v) => v.admin).map((v) => v.id);
-        const user = M.quoted?.participant || M.mentions[0] || M.sender;
-         const deck = await client.DB.get(`${user}_Deck`) || [];
-        const userId = M.quoted?.participant || M.mentions[0] || M.sender;
-        const economy = await client.getEcon(userId);
+
+        const rawUser = M.quoted?.participant ? M.quoted.participant : M.mentions[0] ? M.mentions[0] : M.sender;
+        const resolved = await client.resolveNumber(rawUser);
+        const number = resolved || client.getUserNumber(rawUser) || String(rawUser).split('@')[0].replace(/\D/g, '');
+        const user = number ? `${number}@s.whatsapp.net` : rawUser;
+        const xpKey = number || rawUser;
+
+        const deck = await client.DB.get(`${user}_Deck`) || [];
+        const economy = await client.getEcon(rawUser);
 
         let wallet = economy ? economy.gem : 0;
-        
+
         let pfp;
         try {
             pfp = await client.profilePictureUrl(user, 'image');
@@ -32,15 +37,20 @@ module.exports = {
         try {
             bio = (await client.fetchStatus(user)).status;
         } catch {
-            bio = 'None'; // Set to 'None' if no bio is available
+            bio = 'None';
         }
 
-        const experience = (await client.exp.get(user)) || 0;
+        const existingLegacy = (await client.exp.get(rawUser)) || 0;
+        let experience = (await client.exp.get(xpKey)) || 0;
+        if (!experience && existingLegacy) {
+            experience = existingLegacy;
+            await client.exp.set(xpKey, existingLegacy).catch(() => null);
+        }
+
         const level = getLevelFromXp(experience);
         await client.DB.set(`${user}_LEVEL`, level);
         const stats = getStats(level);
 
-        // Compute global XP rank (position on the leaderboard)
         let globalPosition = 'Unranked';
         try {
             const all = (await client.exp.all()) || [];
@@ -48,24 +58,22 @@ module.exports = {
                 .filter((x) => x && x.id)
                 .map((x) => ({ id: x.id, value: Number(x.value || 0) }))
                 .sort((a, b) => b.value - a.value);
-            const myDigits = String(user).replace(/\D/g, '');
+            const myDigits = String(xpKey).replace(/\D/g, '');
             const idx = sorted.findIndex((x) => String(x.id).replace(/\D/g, '') === myDigits);
             if (idx >= 0) globalPosition = `#${idx + 1} of ${sorted.length}`;
         } catch (_) {
             globalPosition = 'Unranked';
         }
 
-        // Pokeball totals
         let totalPokeballs = 0;
         try {
-            const userKey = (await client.resolveNumber?.(user)) || String(user).replace(/\D/g, '') || user;
-            const items = await getInventory(client, userKey);
+            const items = await getInventory(client, xpKey);
             totalPokeballs = items.reduce((sum, it) => sum + (it.quantity || 0), 0);
         } catch (_) {
             totalPokeballs = 0;
         }
 
-        const username = M.pushName
+        const username = M.pushName;
         const banned = (await client.DB.get('banned')) || [];
 
         let text = '';
@@ -86,14 +94,10 @@ module.exports = {
         client.sendMessage(
             M.from,
             {
-                image: {
-                    url: pfp
-                },
+                image: { url: pfp },
                 caption: text
             },
-            {
-                quoted: M
-            }
+            { quoted: M }
         );
     }
 };

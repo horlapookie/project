@@ -5,7 +5,7 @@ module.exports = {
     name: 'rank',
     aliases: ['rk'],
     category: 'general',
-    exp: 100,
+    exp: 0,
     cool: 4,
     react: "⚡",
     usage: 'Use {prefix}rank',

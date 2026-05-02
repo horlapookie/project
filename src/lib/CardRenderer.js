@@ -392,10 +392,177 @@ const renderPokemonMovesCard = async ({ pokemon }) => {
     return canvas.toBuffer('image/png')
 }
 
+const renderYuBattleCard = async ({ player1, player2, result }) => {
+    const family = existsSync(fontPath) ? 'Omori' : 'Sans'
+    const width = 1000
+    const height = 580
+    const canvas = createCanvas(width, height)
+    const ctx = canvas.getContext('2d')
+
+    // Background
+    const bg = ctx.createLinearGradient(0, 0, width, height)
+    bg.addColorStop(0, '#0a0015')
+    bg.addColorStop(0.5, '#120a2a')
+    bg.addColorStop(1, '#1a0510')
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, width, height)
+
+    // Field grid lines (arena effect)
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'
+    ctx.lineWidth = 1
+    for (let x = 0; x < width; x += 50) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke()
+    }
+    for (let y = 0; y < height; y += 50) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke()
+    }
+
+    // Center divider glow
+    const divGrad = ctx.createLinearGradient(0, 0, 0, height)
+    divGrad.addColorStop(0, 'rgba(255,215,0,0)')
+    divGrad.addColorStop(0.5, 'rgba(255,215,0,0.7)')
+    divGrad.addColorStop(1, 'rgba(255,215,0,0)')
+    ctx.fillStyle = divGrad
+    ctx.fillRect(488, 0, 24, height)
+
+    // Left player panel
+    ctx.fillStyle = 'rgba(255,60,60,0.12)'
+    roundedRect(ctx, 16, 16, 460, height - 32, 22)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(255,80,80,0.5)'
+    ctx.lineWidth = 2
+    roundedRect(ctx, 16, 16, 460, height - 32, 22)
+    ctx.stroke()
+
+    // Right player panel
+    ctx.fillStyle = 'rgba(60,120,255,0.12)'
+    roundedRect(ctx, 524, 16, 460, height - 32, 22)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(60,120,255,0.5)'
+    ctx.lineWidth = 2
+    roundedRect(ctx, 524, 16, 460, height - 32, 22)
+    ctx.stroke()
+
+    // Player 1 card image
+    const cardW = 200
+    const cardH = 290
+    const p1CardX = 130
+    const p1CardY = 80
+    try {
+        const img = await loadImage(player1.card.image)
+        ctx.save()
+        roundedRect(ctx, p1CardX, p1CardY, cardW, cardH, 12)
+        ctx.clip()
+        ctx.drawImage(img, p1CardX, p1CardY, cardW, cardH)
+        ctx.restore()
+        ctx.strokeStyle = '#ff5050'
+        ctx.lineWidth = 3
+        roundedRect(ctx, p1CardX, p1CardY, cardW, cardH, 12)
+        ctx.stroke()
+    } catch (_) {
+        ctx.fillStyle = 'rgba(255,80,80,0.25)'
+        roundedRect(ctx, p1CardX, p1CardY, cardW, cardH, 12)
+        ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'
+        ctx.font = `bold 16px ${family}`
+        ctx.fillText('No Image', p1CardX + 60, p1CardY + 150)
+    }
+
+    // Player 2 card image
+    const p2CardX = 670
+    const p2CardY = 80
+    try {
+        const img = await loadImage(player2.card.image)
+        ctx.save()
+        roundedRect(ctx, p2CardX, p2CardY, cardW, cardH, 12)
+        ctx.clip()
+        ctx.drawImage(img, p2CardX, p2CardY, cardW, cardH)
+        ctx.restore()
+        ctx.strokeStyle = '#5080ff'
+        ctx.lineWidth = 3
+        roundedRect(ctx, p2CardX, p2CardY, cardW, cardH, 12)
+        ctx.stroke()
+    } catch (_) {
+        ctx.fillStyle = 'rgba(60,120,255,0.25)'
+        roundedRect(ctx, p2CardX, p2CardY, cardW, cardH, 12)
+        ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'
+        ctx.font = `bold 16px ${family}`
+        ctx.fillText('No Image', p2CardX + 60, p2CardY + 150)
+    }
+
+    // Player 1 username
+    ctx.fillStyle = '#ff8080'
+    ctx.font = fitText(ctx, player1.username, 380, 22, family)
+    ctx.fillText(player1.username, 36, 56)
+
+    // Player 2 username
+    ctx.fillStyle = '#80a8ff'
+    ctx.font = fitText(ctx, player2.username, 380, 22, family)
+    ctx.fillText(player2.username, 544, 56)
+
+    // Player 1 card name
+    ctx.fillStyle = '#ffffff'
+    ctx.font = fitText(ctx, player1.card.name, 380, 20, family)
+    ctx.fillText(player1.card.name, 36, 400)
+
+    // Player 2 card name
+    ctx.fillStyle = '#ffffff'
+    ctx.font = fitText(ctx, player2.card.name, 380, 20, family)
+    ctx.fillText(player2.card.name, 544, 400)
+
+    // Stats for player 1
+    ctx.fillStyle = '#ffd166'
+    ctx.font = `bold 20px ${family}`
+    ctx.fillText(`⚔ ATK: ${player1.card.atk ?? 'N/A'}`, 36, 435)
+    ctx.fillText(`🛡 DEF: ${player1.card.def ?? 'N/A'}`, 36, 462)
+
+    // Stats for player 2
+    ctx.fillStyle = '#ffd166'
+    ctx.fillText(`⚔ ATK: ${player2.card.atk ?? 'N/A'}`, 544, 435)
+    ctx.fillText(`🛡 DEF: ${player2.card.def ?? 'N/A'}`, 544, 462)
+
+    // VS text center
+    ctx.fillStyle = '#ffd700'
+    ctx.font = `bold 48px ${family}`
+    ctx.textAlign = 'center'
+    ctx.fillText('VS', 500, 230)
+    ctx.textAlign = 'left'
+
+    // Result bar
+    const resultColor = result.winner === 1 ? '#ff5050' : result.winner === 2 ? '#5080ff' : '#ffd700'
+    ctx.fillStyle = resultColor + '33'
+    roundedRect(ctx, 16, height - 90, width - 32, 72, 16)
+    ctx.fill()
+    ctx.strokeStyle = resultColor
+    ctx.lineWidth = 2
+    roundedRect(ctx, 16, height - 90, width - 32, 72, 16)
+    ctx.stroke()
+
+    const winText = result.winner === 1
+        ? `🏆 WINNER: ${player1.username}`
+        : result.winner === 2
+        ? `🏆 WINNER: ${player2.username}`
+        : `🤝 DRAW`
+
+    ctx.fillStyle = '#ffffff'
+    ctx.font = fitText(ctx, winText, width - 64, 28, family)
+    ctx.textAlign = 'center'
+    ctx.fillText(winText, width / 2, height - 55)
+
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    ctx.font = `bold 18px ${family}`
+    ctx.fillText(result.message || '', width / 2, height - 24)
+    ctx.textAlign = 'left'
+
+    return canvas.toBuffer('image/png')
+}
+
 module.exports = {
     renderRankCard,
     renderSpotifyCard,
     renderPartyOverviewCard,
     renderPokemonDetailCard,
-    renderPokemonMovesCard
+    renderPokemonMovesCard,
+    renderYuBattleCard
 }

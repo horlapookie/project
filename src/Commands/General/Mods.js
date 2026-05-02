@@ -6,43 +6,61 @@ module.exports = {
   cool: 5,
   react: "📢",
   usage: 'Use {prefix}mods',
-  description: 'Get information about moderators',
+  description: 'Get information about moderators and officers',
   async execute(client, arg, M) {
     await client.refreshRoles?.();
-    const owner = String(client.owner || '');
-    const staff = Array.from(
-      new Set([...(client.mods || []), ...(client.officers || [])].map((n) => String(n)).filter(Boolean))
-    ).filter((n) => n !== owner);
-    const lines = [];
-    const mentions = [];
 
-    for (let i = 0; i < staff.length; i++) {
-      const number = staff[i];
+    const normalizeNumber = (v = '') => String(v).replace(/\D/g, '');
+    const owner = normalizeNumber(client.owner || '');
+    const officers = (client.officers || []).map(normalizeNumber).filter(Boolean);
+    const mods = (client.mods || []).map(normalizeNumber).filter(Boolean).filter(n => n !== owner);
+    const pureMods = mods.filter(n => !officers.includes(n));
+
+    const mentions = [];
+    const officerLines = [];
+    const modLines = [];
+
+    if (owner) mentions.push(`${owner}@s.whatsapp.net`);
+
+    for (let i = 0; i < officers.length; i++) {
+      const number = officers[i];
       const jid = `${number}@s.whatsapp.net`;
+      const savedName = await client.roleDB.get(`sudo-name-${number}`).catch(() => null);
       const contact = await client.contact.getContact(jid, client).catch(() => null);
-      const savedName =
-        (await client.roleDB.get(`sudo-name-${number}`).catch(() => null)) ||
-        (await client.roleDB.get(`mod-name-${number}`).catch(() => null));
       const username = savedName && typeof savedName === 'string'
         ? savedName.trim()
         : contact?.username && typeof contact.username === 'string'
         ? contact.username.trim()
         : 'Unknown User';
-
-      lines.push(
-        `*${i + 1}.* ${username} (@${number})`,
-        `wa.me/${number}`
-      );
       mentions.push(jid);
+      officerLines.push(`*${i + 1}.* @${number} — ${username}`);
+    }
+
+    for (let i = 0; i < pureMods.length; i++) {
+      const number = pureMods[i];
+      const jid = `${number}@s.whatsapp.net`;
+      const savedName = await client.roleDB.get(`mod-name-${number}`).catch(() => null);
+      const contact = await client.contact.getContact(jid, client).catch(() => null);
+      const username = savedName && typeof savedName === 'string'
+        ? savedName.trim()
+        : contact?.username && typeof contact.username === 'string'
+        ? contact.username.trim()
+        : 'Unknown User';
+      mentions.push(jid);
+      modLines.push(`*${i + 1}.* @${number} — ${username}`);
     }
 
     const caption = [
-      `*${client.name || 'Eternal'} moderators*`,
+      `*${client.name || 'Eternal'} — Staff List*`,
       '',
-      `Total Staff: ${staff.length}`,
+      `👑 *Owner:* @${owner}`,
       '',
-      lines.join('\n\n')
-    ].join('\n').trim();
+      `🛡 *Officers* (${officers.length}):`,
+      ...(officerLines.length ? officerLines : ['- None']),
+      '',
+      `⚔️ *Moderators* (${pureMods.length}):`,
+      ...(modLines.length ? modLines : ['- None'])
+    ].join('\n');
 
     await client.sendMessage(
       M.from,

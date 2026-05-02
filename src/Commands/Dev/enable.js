@@ -12,25 +12,25 @@ module.exports = {
                 return M.reply('You need to provide the name of the command to enable.');
             }
 
-            const commandName = arg.toLowerCase(); // Ensure case insensitivity
-            const disabledCommands = await client.DB.get('disable-commands') || [];
+            const input = arg.toLowerCase().trim();
+            const disabledCommands = (await client.DB.get('disable-commands')) || [];
 
-            const disabledCmdIndex = disabledCommands.findIndex(cmd => cmd.command === commandName);
-            const disabledCmd = disabledCommands.find(
-                (cmd) => cmd.command === commandName || (cmd.aliases && cmd.aliases.includes(commandName))
+            const idx = disabledCommands.findIndex(cmd =>
+                cmd.command === input ||
+                (cmd.aliases && cmd.aliases.includes(input))
             );
 
-            if (!disabledCmd) {
-                return M.reply('This command is not disabled.');
+            if (idx < 0) {
+                return M.reply(`Command *${input}* is not currently disabled.`);
             }
 
-            // Command is disabled, so remove it from the list of disabled commands
-            disabledCommands.splice(disabledCmdIndex, 1);
-            await client.DB.set('disable-commands', disabledCommands); // Update the disabled commands list
-            M.reply(`Command "${commandName}" has been enabled successfully.`);
+            const cmdName = disabledCommands[idx].command;
+            const updated = disabledCommands.filter((_, i) => i !== idx);
+            await client.DB.set('disable-commands', updated);
+            return M.reply(`Command *${cmdName}* has been enabled successfully.`);
         } catch (error) {
             console.error('Error in enabling command:', error);
-            M.reply('An error occurred while enabling the command.');
+            return M.reply('An error occurred while enabling the command.');
         }
     }
 };
