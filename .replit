@@ -6,6 +6,7 @@ modules = ["nodejs-20"]
 
 [agent]
 expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
 
 [workflows]
 runButton = "Project"
@@ -36,3 +37,12 @@ channel = "stable-25_05"
 [[ports]]
 localPort = 3000
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+NAME = "Eternal by Ven Domain"
+PREFIX = "-"
+OWNER = "2347049044897"
+MODS = "2347066194649,27725133219,2347049044897"
+PORT = "3000"
