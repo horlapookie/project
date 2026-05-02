@@ -536,6 +536,78 @@ module.exports = {
       return client.sendMessage(M.from, { text: caption, mentions: [M.sender] }, { quoted: M })
     }
 
+    // ── PARTY ────────────────────────────────────────────────────────────────
+    if (sub === 'party') {
+      const session = await getSession()
+      if (!session?.active) return M.reply(`🏚️ No active Ruin here. Summon one with *${prefix}ruin summon*.`)
+      if (!session.entered)  return M.reply(`Use *${prefix}ruin enter* first to join the Ruin.`)
+      if (session.entrant && session.entrant !== M.sender)
+        return M.reply(`Only *@${(session.entrant || '').split('@')[0]}* can check the party here.`)
+
+      const party = (await client.poke.get(`${M.sender}_Party`)) || []
+      if (!party.length) return M.reply('Your party is empty.')
+
+      // Try to get the current field type from an ongoing battle
+      const battle   = client.pokemonBattleResponse.get(M.from)
+      const curField = battle?.isRuin ? battle.fieldType : null
+
+      const TYPE_EMOJI = {
+        fire: '🔥', water: '💧', ice: '❄️', electric: '⚡', grass: '🌿',
+        poison: '☠️', flying: '🌬️', dragon: '🐉', psychic: '🔮', ground: '🌍',
+        fairy: '🌸', ghost: '👻', dark: '🌑', rock: '🪨', steel: '⚙️',
+        fighting: '🥊', bug: '🐛', normal: '⬜'
+      }
+
+      let lines = [`🏚️ *RUIN PARTY*`]
+      if (curField) {
+        lines.push(`🌍 *Current Field:* ${client.utils.capitalize(curField)} terrain\n`)
+        lines.push(`✨ = +5% boost  |  ⚠️ = -5% penalty  |  💤 = fainted\n`)
+      } else {
+        lines.push(`_(Use *${prefix}ruin fight* to enter a battle and see field effects)_\n`)
+      }
+
+      for (let i = 0; i < party.length; i++) {
+        const p         = party[i]
+        const isFainted = (p.hp || 0) <= 0
+        const types     = (p.types || []).map(t => t.toLowerCase())
+        const typeNames = types.map(t => client.utils.capitalize(t)).join('/')
+        const typeIcons = types.map(t => TYPE_EMOJI[t] || '').join('')
+
+        let fieldTag = ''
+        if (!isFainted && curField) {
+          fieldTag = types.includes(curField) ? ' ✨' : ' ⚠️'
+        }
+        if (isFainted) fieldTag = ' 💤'
+
+        const hpBar = isFainted
+          ? '░░░░░░░░░░'
+          : (() => {
+              const pct   = Math.max(0, Math.min(1, (p.hp || 0) / (p.maxHp || 1)))
+              const filled = Math.round(pct * 10)
+              return '█'.repeat(filled) + '░'.repeat(10 - filled)
+            })()
+
+        const isActive = !isFainted && i === party.findIndex(q => q.hp > 0)
+        const marker   = isActive ? '▶ ' : `${i + 1}. `
+
+        lines.push(
+          `${marker}*${client.utils.capitalize(p.name)}*${fieldTag}\n` +
+          `   ${typeIcons} ${typeNames}  |  Lv. ${p.level || '?'}\n` +
+          `   ❤️ ${p.hp}/${p.maxHp}  [${hpBar}]\n` +
+          `   ⚡ ATK ${p.attack}  🛡 DEF ${p.defense}`
+        )
+      }
+
+      if (curField) {
+        lines.push(
+          `\n💡 *Tip:* Use *${prefix}battle switch* to put in a ` +
+          `${client.utils.capitalize(curField)}-type Pokémon for a *+5%* field boost!`
+        )
+      }
+
+      return M.reply(lines.join('\n'))
+    }
+
     // ── STATUS ───────────────────────────────────────────────────────────────
     if (sub === 'status') {
       const session = await getSession()
