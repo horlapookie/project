@@ -1,6 +1,14 @@
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const axios = require('axios');
 const { getInventory, setInventoryQuantity, addInventoryQuantity } = require('../../Helpers/pokeballs');
+const {
+    getPotionBag,
+    getPotionById,
+    MAX_POTION_USES,
+    applyPotionToActivePokemon,
+    setPotionQuantity,
+    drawPotionCatalog
+} = require('../../Helpers/potions');
 
 const isWildUser = (user = '') => typeof user === 'string' && user.endsWith('@pokemon');
 
@@ -122,6 +130,7 @@ const buildBattleOptionsText = (client, battle, currentUser) => {
         } else {
             lines.push('', `- To forfeit this battle use *${client.prefix}battle forfeit*`);
         }
+        lines.push('', `- To use a battle potion use *${client.prefix}battle potion*`);
         return lines.join('\n');
     }
 
@@ -464,6 +473,113 @@ module.exports = {
             });
 
             return M.reply(lines.join('\n').trim());
+        }
+
+        if (action === 'potion') {
+            const battle = client.pokemonBattleResponse.get(M.from);
+            if (!battle) return null;
+
+            const userKey = (await client.resolveNumber(M)) || client.getUserNumber(M) || M.sender;
+            const [, subAction, subIndexStr] = context.split(' ');
+
+            // ── List potions in bag ───────────────────────────────────────────
+            if (!subAction || subAction !== 'use') {
+                const bag         = await getPotionBag(client, userKey);
+                const hasSome     = bag.some((p) => p.quantity > 0);
+                const usesLeft    = MAX_POTION_USES - (battle.potionUses || 0);
+                let image = null;
+                try { image = await drawPotionCatalog(bag); } catch (_) {}
+
+                const lines = [
+                    '⚗️ *Battle Potions*',
+                    '',
+                    `⚡ Uses remaining this battle: *${usesLeft}/${MAX_POTION_USES}*`,
+                    ''
+                ];
+                bag.filter((p) => p.quantity > 0).forEach((p) => {
+                    lines.push(`*#${p.id}* ${p.emoji} ${p.name} (x${p.quantity}) — ${p.label}`);
+                });
+                if (!hasSome) {
+                    lines.push(`You have no potions. Buy them with *${client.prefix}mart-buy #ID --quantity=1*.`);
+                    lines.push(`Check the shop with *${client.prefix}shop* to see all potions.`);
+                }
+                lines.push('', `Use *${client.prefix}battle potion use <#>* to apply a potion to your active Pokémon.`);
+
+                if (image) {
+                    return client.sendMessage(M.from, { image, caption: lines.join('\n').trim(), mentions: [M.sender] });
+                }
+                return M.reply(lines.join('\n').trim());
+            }
+
+            // ── Use potion ────────────────────────────────────────────────────
+            const isTurnPotion = M.sender === battle[battle.turn].user;
+            if (!isTurnPotion) return M.reply('It is not your turn to use a potion.');
+
+            const potionUses = battle.potionUses || 0;
+            if (potionUses >= MAX_POTION_USES) {
+                return M.reply(`⚗️ You have already used the maximum of *${MAX_POTION_USES} potions* in this battle.`);
+            }
+
+            const potionId = parseInt(subIndexStr, 10);
+            const potion   = getPotionById(potionId);
+            if (!potion) {
+                return M.reply('Please provide a valid potion number (e.g. *battle potion use 1*). Check *battle potion* for your bag.');
+            }
+
+            const bag   = await getPotionBag(client, userKey);
+            const owned = bag.find((p) => p.key === potion.key);
+            if (!owned || owned.quantity < 1) {
+                return M.reply(
+                    `⚗️ You do not have any *${potion.name}* in your bag.\n` +
+                    `Buy one with *${client.prefix}mart-buy #${potion.id} --quantity=1*.`
+                );
+            }
+
+            touchBattleExpiry(client, battle);
+
+            const actor   = battle[battle.turn];
+            const results = applyPotionToActivePokemon(potion, actor.activePokemon);
+            await updateActivePokemonInParty(client, actor.user, actor.activePokemon);
+
+            await setPotionQuantity(client, userKey, potion.key, owned.quantity - 1);
+            battle.potionUses = potionUses + 1;
+
+            const boostLines = results
+                .map((r) => `• *${r.stat.toUpperCase()}*: ${r.oldVal} → ${r.newVal} (+${r.gain})`)
+                .join('\n');
+
+            await client.sendMessage(M.from, {
+                text:
+                    `⚗️ *@${M.sender.split('@')[0]}* used *${potion.emoji} ${potion.name}*!\n\n` +
+                    `*${client.utils.capitalize(actor.activePokemon.name)}*'s stats boosted:\n${boostLines}\n\n` +
+                    `Potions used this battle: *${battle.potionUses}/${MAX_POTION_USES}*`,
+                mentions: [M.sender]
+            });
+            await delay(2000);
+
+            if (battle.mode === 'wild') {
+                battle.player1.move = 'skipped';
+                battle.player2.move = pickWildMove(battle);
+                battle.turn = 'player1';
+                setBattleData(client, M.from, battle);
+                return handleBattles(client, M);
+            }
+
+            // PvP: mark as action taken (skipped fight), let other player move
+            actor.move = 'skipped';
+            const otherKeyP  = actor.user === battle.player1.user ? 'player2' : 'player1';
+            const otherActorP = battle[otherKeyP];
+            if (!otherActorP.move) {
+                battle.turn = otherKeyP;
+                setBattleData(client, M.from, battle);
+                return client.sendMessage(M.from, {
+                    text: buildBattleOptionsText(client, battle, otherActorP),
+                    mentions: isWildUser(otherActorP.user) ? [] : [otherActorP.user]
+                });
+            }
+            battle.turn = 'player1';
+            setBattleData(client, M.from, battle);
+            return handleBattles(client, M);
         }
 
         if (action === 'switch') {

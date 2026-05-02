@@ -45,6 +45,9 @@ module.exports = {
             }
             await addInventoryQuantity(client, userKey, item.key, quantity);
             await client.DB.set(weekKey, boughtThisWeek + quantity);
+        } else if (item.type === 'potion') {
+            const { addPotionQuantity } = require('../../Helpers/potions');
+            await addPotionQuantity(client, userKey, item.key, quantity);
         } else {
             economy[item.key] = Number(economy[item.key] || 0) + quantity;
         }

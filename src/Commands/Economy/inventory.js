@@ -1,6 +1,7 @@
 // Inventory Command
 const { getInventory } = require('../../Helpers/pokeballs');
 const { getDeck, getCollection } = require('../../Helpers/yugioh');
+const { getPotionBag } = require('../../Helpers/potions');
 
 module.exports = {
     name: 'inventory',
@@ -28,6 +29,9 @@ module.exports = {
             const userKey = (await client.resolveNumber?.(targetUser)) || String(targetUser).replace(/\D/g, '') || targetUser;
             const pokeballItems = await getInventory(client, userKey);
             const totalPokeballs = pokeballItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+            const potionItems = await getPotionBag(client, userKey).catch(() => []);
+            const totalPotions = potionItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
             const ashenWins = Number((await client.DB.get(`ashen-wins-${targetUser}`)) || 0);
 
@@ -66,6 +70,15 @@ module.exports = {
                 text += `*╏   None — visit the mart to buy some!\n`;
             }
 
+            text += `*╏⚗️ ʙᴀᴛᴛʟᴇ ᴘᴏᴛɪᴏɴꜱ (${totalPotions} total):*\n`;
+            for (const p of potionItems) {
+                if (p.quantity > 0) {
+                    text += `*╏   • ${p.emoji} ${p.name}:* ${p.quantity}  (${p.label})\n`;
+                }
+            }
+            if (totalPotions === 0) {
+                text += `*╏   None — buy from the shop with ${client.prefix}mart-buy!\n`;
+            }
             text += `*┗─═─━══─| ɪɴᴠᴇɴᴛᴏʀʏ |─══━─═─∘⦿ꕹ᛫*\n`;
 
             await client.sendMessage(
