@@ -21,9 +21,11 @@ const formatSpawnText = (client, card) => {
   ]
 
   lines.push(
-    `💰 *Price:* ${card.price}`,
+    `💰 *Value:* ${card.price} gems`,
     '',
-    `*[Use ${client.prefix}yuget to get this card for ${card.price} gems]*`
+    `*⚔️ Use ${client.prefix}yuget [deckIndex] to battle this card!*`,
+    `Win = capture it into your collection`,
+    `Lose = your deck card is removed`
   )
 
   return lines.join('\n')

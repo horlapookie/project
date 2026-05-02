@@ -78,6 +78,26 @@ const findByUid = (list, uid) => {
   return { index, card: index >= 0 ? list[index] : null }
 }
 
+const recordYuResult = async (client, winnerKey, loserKey) => {
+  try {
+    const realPlayers = [winnerKey, loserKey].filter(k => k && k !== 'wild')
+    const existing = (await client.DB.get('yu-players').catch(() => null)) || []
+    const players = Array.from(new Set([...existing, ...realPlayers]))
+    await client.DB.set('yu-players', players)
+
+    if (winnerKey && winnerKey !== 'wild') {
+      const wins = Number((await client.DB.get(`yu-wins-${winnerKey}`).catch(() => null)) || 0)
+      await client.DB.set(`yu-wins-${winnerKey}`, wins + 1)
+    }
+    if (loserKey && loserKey !== 'wild') {
+      const losses = Number((await client.DB.get(`yu-losses-${loserKey}`).catch(() => null)) || 0)
+      await client.DB.set(`yu-losses-${loserKey}`, losses + 1)
+    }
+  } catch (err) {
+    console.error('recordYuResult error:', err)
+  }
+}
+
 module.exports = {
   YU_API,
   calcPrice,
@@ -89,5 +109,6 @@ module.exports = {
   setCollection,
   getDeck,
   setDeck,
-  findByUid
+  findByUid,
+  recordYuResult
 }

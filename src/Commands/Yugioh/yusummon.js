@@ -94,15 +94,21 @@ module.exports = {
         : `💨 The wild card escaped. Train harder and try again!`
     ].join('\n')
 
+    const MAX_LP = 8000
+    const wildLp = playerWins ? Math.max(0, MAX_LP - Number(playerCard.atk || 0)) : MAX_LP
+    const playerLp = playerWins ? MAX_LP : (resultMsg.includes('escaped') ? MAX_LP : Math.max(0, MAX_LP - Number(wildCard.atk || 0)))
+
     try {
       const battleImg = await renderYuBattleCard({
         player1: {
           username: `🌑 WILD`,
-          card: wildCard
+          card: wildCard,
+          lp: wildLp
         },
         player2: {
           username: `@${userKey}`,
-          card: playerCard
+          card: playerCard,
+          lp: playerLp
         },
         result: {
           winner: playerWins ? 2 : 1,

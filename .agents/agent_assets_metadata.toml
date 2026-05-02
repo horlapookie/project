@@ -6,3 +6,9 @@ id = "dgc_92e_0cKjkzuR7xuua"
 uri = "file://assets/Images/yubattle_demo.png"
 type = "image"
 title = "Yu-Gi-Oh Battle Image — Dark Magician vs Blue-Eyes White Dragon"
+
+[[outputs]]
+id = "fipRSlGeGw9pko1LEuluX"
+uri = "file://assets/Images/yubattle_v2.png"
+type = "image"
+title = "Updated Battle Image — LP Bars + Angled Cards"

@@ -1,7 +1,9 @@
-const { getDeck } = require('../../Helpers/yugioh')
+const { getDeck, recordYuResult } = require('../../Helpers/yugioh')
 const { getUserKey, resolveTarget } = require('../../Helpers/yugiohCommand')
 const { isGold } = require('../../Helpers/premium')
 const { renderYuBattleCard } = require('../../lib/CardRenderer')
+
+const MAX_LP = 8000
 
 const pickBestCard = (deck) =>
   deck.reduce((best, card) => (Number(card.atk || 0) > Number(best.atk || 0) ? card : best), deck[0])
@@ -69,7 +71,13 @@ module.exports = {
           const winnerEcon = await client.getEcon(winner.jid, { createIfMissing: true })
           if (winnerEcon) { winnerEcon.gem = (winnerEcon.gem || 0) + gemReward; await winnerEcon.save() }
         } catch (_) {}
+        await recordYuResult(client, winner.key, loser.key)
       }
+
+      const p1Win = winner && winner.key === challenge.challenger
+      const p2Win = winner && winner.key === senderKey
+      const challengerLp = p1Win ? MAX_LP : (winner ? Math.max(0, MAX_LP - Number(acceptorCard.atk || 0)) : MAX_LP)
+      const acceptorLp = p2Win ? MAX_LP : (winner ? Math.max(0, MAX_LP - Number(challengerCard.atk || 0)) : MAX_LP)
 
       const caption = [
         `⚔️ *Quick Duel Results!*`,
@@ -91,8 +99,8 @@ module.exports = {
 
       try {
         const battleImg = await renderYuBattleCard({
-          player1: { username: `@${challenge.challenger}`, card: challengerCard },
-          player2: { username: `@${senderKey}`, card: acceptorCard },
+          player1: { username: `@${challenge.challenger}`, card: challengerCard, lp: challengerLp },
+          player2: { username: `@${senderKey}`, card: acceptorCard, lp: acceptorLp },
           result: { winner: winner ? (winner.key === challenge.challenger ? 1 : 2) : 0, message: resultMsg }
         })
         return client.sendMessage(M.from, { image: battleImg, caption, mentions }, { quoted: M })

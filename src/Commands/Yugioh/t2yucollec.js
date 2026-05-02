@@ -3,7 +3,7 @@ const { getUserKey } = require('../../Helpers/yugiohCommand')
 
 module.exports = {
   name: 't2yucollec',
-  aliases: [],
+  aliases: ['t2yucoll'],
   exp: 0,
   cool: 4,
   react: '📥',

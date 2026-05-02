@@ -26,7 +26,7 @@ const setPremium = async (client, userKey, updates) => {
   return updated
 }
 
-const MAX_DECK_SIZE = (gold) => gold ? 60 : 40
+const MAX_DECK_SIZE = (gold) => gold ? 8 : 6
 const MAX_PARTY_SIZE = (hasPremium) => hasPremium ? 12 : 6
 
 module.exports = { getPremium, isGold, hasMaxParty, setPremium, MAX_DECK_SIZE, MAX_PARTY_SIZE }

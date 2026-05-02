@@ -1,7 +1,9 @@
-const { getDeck } = require('../../Helpers/yugioh')
+const { getDeck, recordYuResult } = require('../../Helpers/yugioh')
 const { getUserKey } = require('../../Helpers/yugiohCommand')
 const { renderYuBattleCard } = require('../../lib/CardRenderer')
 const { isGold } = require('../../Helpers/premium')
+
+const MAX_LP = 8000
 
 module.exports = {
   name: 'yuaccept',
@@ -75,17 +77,25 @@ module.exports = {
           await winnerEcon.save()
         }
       } catch (_) { }
+      await recordYuResult(client, winner.key, loser.key)
     }
+
+    const p1IsWinner = winner && winner.key === challenge.challenger
+    const p2IsWinner = winner && winner.key === acceptorKey
+    const challengerLp = p1IsWinner ? MAX_LP : (winner ? Math.max(0, MAX_LP - Number(acceptorCard.atk || 0)) : MAX_LP)
+    const acceptorLp = p2IsWinner ? MAX_LP : (winner ? Math.max(0, MAX_LP - Number(challengerCard.atk || 0)) : MAX_LP)
 
     try {
       const battleImg = await renderYuBattleCard({
         player1: {
           username: `@${challenge.challenger}`,
-          card: challengerCard
+          card: challengerCard,
+          lp: challengerLp
         },
         player2: {
           username: `@${acceptorKey}`,
-          card: acceptorCard
+          card: acceptorCard,
+          lp: acceptorLp
         },
         result: {
           winner: winner ? (winner.key === challenge.challenger ? 1 : 2) : 0,
