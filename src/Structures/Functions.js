@@ -1,4 +1,5 @@
 const axios = require('axios').default
+const { isMegaOrGmax } = require('../Helpers/megaBoost')
 const { tmpdir } = require('os')
 const { promisify } = require('util')
 const moment = require('moment-timezone')
@@ -1137,10 +1138,22 @@ const handlePokemonStats = async (client, M, pkmn, inBattle, player, user) => {
  * @param {string} user - ID of the user interacting with the bot.
  * @returns {Promise<void>}
  */
+// Strip form suffixes so PokeAPI species lookups never 404 on regional/form names.
+const getBaseSpeciesName = (name) => {
+    return String(name).toLowerCase().replace(
+        /-(mega(-[xy])?|primal|gmax|gigantamax|alolan?|galarian?|hisuian?|paldean?|origin|therian|sky|pirouette|resolute|black|white|complete|ultra|crowned|dusk|midnight|dawn|ash|zen|eternamax|unbound|confined|single-strike|rapid-strike|ice|shadow|blood-moon|aqua|blaze|combat|wellspring|hearthflame|cornerstone)$/i,
+        ''
+    );
+};
+
 const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) => {
     try {
+        // Mega / GMax / Primal forms never level-evolve — skip to avoid PokeAPI 404.
+        if (isMegaOrGmax(pkmn.name)) return;
+
         const previousName = pkmn.name;
-        const speciesResponse = await axios.get(`https://pokeapi.co/api/v2/pokemon-species/${pkmn.name}`);
+        const speciesName = getBaseSpeciesName(pkmn.name);
+        const speciesResponse = await axios.get(`https://pokeapi.co/api/v2/pokemon-species/${speciesName}`);
         const speciesData = speciesResponse.data;
         const chainResponse = await axios.get(speciesData.evolution_chain.url);
         const evolutionChain = chainResponse.data;
