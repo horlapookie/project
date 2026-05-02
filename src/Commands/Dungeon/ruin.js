@@ -2,25 +2,35 @@ const axios = require('axios')
 const { PokemonClient } = require('pokenode-ts')
 const { addInventoryQuantity } = require('../../Helpers/pokeballs')
 
-// ─── Type → battlefield background (direct image URL) ────────────────────────
+// ─── Type → local battlefield background (under assets/Images/ruin/) ─────────
+// Primary images (exact type matches)
 const TYPE_BACKGROUNDS = {
-  poison:   'https://i.ibb.co/Kz53N8Q/image.jpg',
-  flying:   'https://i.ibb.co/nM497B2/image.jpg',
-  dragon:   'https://i.ibb.co/V0ZBnMY/image.jpg',
-  dark:     'https://i.ibb.co/tPLk6wy/image.jpg',
-  ground:   'https://i.ibb.co/b56DGqB/image.jpg',
-  ice:      'https://i.ibb.co/MxbybQf/image.jpg',
-  electric: 'https://i.ibb.co/hRwSjFr/image.jpg',
-  grass:    'https://i.ibb.co/213PwcQ/image.jpg',
-  water:    'https://i.ibb.co/fzbTHqb/image.jpg',
-  psychic:  'https://i.ibb.co/xqMFxpg/image.jpg',
+  poison:   'ruin/poison.jpg',    // toxic pool, mushrooms, flytraps
+  flying:   'ruin/flying.jpg',    // floating sky islands, birds
+  dragon:   'ruin/dragon.jpg',    // dragons, ruins, magic circle
+  psychic:  'ruin/psychic.jpg',   // aurora, crystals, glowing orbs
+  ground:   'ruin/ground.jpg',    // desert, cacti, cracked earth
+  ice:      'ruin/ice.jpg',       // snow, frozen ponds, aurora
+  electric: 'ruin/electric.jpg',  // lightning, storm field
+  fairy:    'ruin/fairy.jpg',     // flowers, hearts, cheerful meadow
+  water:    'ruin/water.jpg',     // ocean, beach, coral
+  fire:     'ruin/fire.jpg',      // volcanoes, lava
+  // Thematic fallbacks for uncovered types:
+  grass:    'ruin/fairy.jpg',     // lush meadow shares the fairy field
+  bug:      'ruin/poison.jpg',    // insect hollow ~ toxic swamp
+  rock:     'ruin/ground.jpg',    // stone/desert terrain
+  fighting: 'ruin/ground.jpg',    // dusty arena
+  dark:     'ruin/dragon.jpg',    // shadowy dragon lair
+  ghost:    'ruin/psychic.jpg',   // eerie psychic realm
+  steel:    'ruin/dragon.jpg',    // iron fortress ~ dragon ruins
+  normal:   'ruin/fairy.jpg',     // plain cheerful meadow
 }
 
 const getBackgroundForTypes = (types = []) => {
   for (const type of types) {
     if (TYPE_BACKGROUNDS[type]) return TYPE_BACKGROUNDS[type]
   }
-  return 'battle.png'
+  return 'battle.png'  // final fallback
 }
 
 // ─── Scaling & difficulty ─────────────────────────────────────────────────────
