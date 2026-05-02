@@ -1,6 +1,7 @@
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const axios = require('axios');
 const { getInventory, setInventoryQuantity, addInventoryQuantity } = require('../../Helpers/pokeballs');
+const { applyBaseBoost } = require('../../Helpers/megaBoost');
 const {
     getPotionBag,
     getPotionById,
@@ -20,10 +21,51 @@ const formatBattleActor = (client, user, pokemonName) =>
 const formatBattleTrainer = (user = '') =>
     isWildUser(user) ? 'the wild Pokemon' : `*@${user.split('@')[0]}*`;
 
-const getPartyForUser = async (client, user) => (await client.poke.get(`${user}_Party`)) || [];
+const getPartyForUser = async (client, user) => {
+    const party = (await client.poke.get(`${user}_Party`)) || [];
+    if (isWildUser(user)) return party;
+    // Lazy ×1.5 base-stat migration for any Pokémon not yet boosted
+    let changed = false;
+    for (const p of party) {
+        if (!p.baseStatsBoosted) {
+            applyBaseBoost(p);
+            if (p.baseStatsBoosted) changed = true;
+        }
+    }
+    if (changed) await client.poke.set(`${user}_Party`, party);
+    return party;
+};
 
 const savePartyForUser = async (client, user, party) => {
     await client.poke.set(`${user}_Party`, party);
+};
+
+// Revert any active temporary mega-stone boost for all non-wild players in a battle.
+// Must be called before battle cleanup at every exit path.
+const revertStoneBoosts = async (client, battle) => {
+    const userList = [battle?.player1?.user, battle?.player2?.user].filter(u => u && !isWildUser(u));
+    for (const userId of userList) {
+        const party = (await client.poke.get(`${userId}_Party`)) || [];
+        let changed = false;
+        for (const poke of party) {
+            if (!poke._stonePreBoost) continue;
+            const pre = poke._stonePreBoost;
+            if (poke.hp > 0) {
+                const ratio = (poke.maxHp || 1) > 0 ? (poke.hp / (poke.maxHp || 1)) : 0;
+                poke.hp = Math.max(1, Math.floor((pre.maxHp ?? pre.hp) * ratio));
+            }
+            poke.attack  = pre.attack;
+            poke.defense = pre.defense;
+            if (pre.speed      != null) poke.speed      = pre.speed;
+            if (pre.maxHp      != null) poke.maxHp      = pre.maxHp;
+            if (pre.maxAttack  != null) poke.maxAttack  = pre.maxAttack;
+            if (pre.maxDefense != null) poke.maxDefense = pre.maxDefense;
+            if (pre.maxSpeed   != null) poke.maxSpeed   = pre.maxSpeed;
+            delete poke._stonePreBoost;
+            changed = true;
+        }
+        if (changed) await client.poke.set(`${userId}_Party`, party);
+    }
 };
 
 const cleanupWildBattle = async (client, battle) => {
@@ -43,6 +85,7 @@ const ensureBattleNotExpired = async (client, M, battle) => {
             if (!p || isWildUser(p)) continue;
             client.pokemonBattlePlayerMap.delete(p);
         }
+        await revertStoneBoosts(client, battle);
         await cleanupWildBattle(client, battle);
         if (client.unpersistBattleSync) client.unpersistBattleSync(jid);
         else client.pokemonBattleResponse.delete(jid);
@@ -63,6 +106,7 @@ const ensureBattleNotExpired = async (client, M, battle) => {
         client.pokemonBattlePlayerMap.delete(p);
     }
 
+    await revertStoneBoosts(client, battle);
     await cleanupWildBattle(client, battle);
     if (client.unpersistBattleSync) client.unpersistBattleSync(jid);
     else client.pokemonBattleResponse.delete(jid);
@@ -183,6 +227,8 @@ const tryCatchWildPokemon = async (client, M, battle, ball) => {
             // ignore xp errors
         }
 
+        await revertStoneBoosts(client, battle);
+
         const capturedPokemon = { ...wildPokemon, hp: Math.max(1, wildPokemon.hp) };
         const party = await getPartyForUser(client, M.sender);
         const pc = client.getPc ? await client.getPc(M.sender) : (await client.poke.get(`${M.sender}_PSS`)) || [];
@@ -296,6 +342,7 @@ module.exports = {
                 return M.reply(`You can't run from this battle. Use *${client.prefix}battle forfeit*.`)
             }
             touchBattleExpiry(client, data);
+            await revertStoneBoosts(client, data);
             if (client.unpersistBattleSync) client.unpersistBattleSync(M.from);
             else client.pokemonBattleResponse.delete(M.from);
             client.pokemonBattlePlayerMap.delete(data.player1.user);
@@ -316,6 +363,7 @@ module.exports = {
             // Works even when it's not the user's turn.
             if (data.mode === 'wild') {
                 touchBattleExpiry(client, data);
+                await revertStoneBoosts(client, data);
                 if (client.unpersistBattleSync) client.unpersistBattleSync(M.from);
                 else client.pokemonBattleResponse.delete(M.from);
                 client.pokemonBattlePlayerMap.delete(data.player1.user);
@@ -328,6 +376,8 @@ module.exports = {
 
             client.pokemonBattlePlayerMap.delete(data.player2.user);
             client.pokemonBattlePlayerMap.delete(data.player1.user);
+
+            await revertStoneBoosts(client, data);
 
             const user = data.player1.user === M.sender ? data.player1.user : data.player2.user;
             const winner = data.player1.user === M.sender ? data.player2.user : data.player1.user;
@@ -1074,6 +1124,9 @@ const endBattle = async (client, M, winner, loser) => {
         });
 
         setTimeout(async () => {
+            // Revert any active temporary mega-stone boosts before finalising the battle
+            await revertStoneBoosts(client, battle);
+
             if (battle.mode === 'wild') {
                 await cleanupWildBattle(client, battle);
                 client.pokemonBattleResponse.delete(M.from);

@@ -48,6 +48,8 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
         female = genders[Math.floor(Math.random() * genders.length)] === 'female';
     }
 
+    const { applyBaseBoost } = require('../Helpers/megaBoost');
+
     const wildPokemon = {
         spawnedBy: options.spawnedBy || null,
         catchLockedUntil: options.spawnedBy ? Date.now() + 60 * 1000 : 0,
@@ -78,6 +80,9 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
         female,
         tag: client.utils.generateRandomUniqueTag(10)
     }
+
+    // Apply ×1.5 base boost to all non-mega/gmax wild Pokémon
+    applyBaseBoost(wildPokemon);
 
     await client.pokemonResponse.set(jid, wildPokemon);
 

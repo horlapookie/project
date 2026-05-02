@@ -1,4 +1,32 @@
 const pokemonChallengeResponse = new Map();
+const { applyBaseBoost } = require('../../Helpers/megaBoost')
+const { getMegaStoneByKey, GMAX_BALL } = require('../../Helpers/megaItems')
+
+// Apply temporary stone boost to a party in-place. Returns list of boosted Pokémon.
+const applyTemporaryStoneBoosts = (party) => {
+    const boosted = []
+    for (const p of party) {
+        if (!p.stoneEquipped || p._stonePreBoost) continue
+        const profile = p.stoneEquipped === GMAX_BALL.key
+            ? GMAX_BALL.profile
+            : getMegaStoneByKey(p.stoneEquipped)?.profile
+        if (!profile) continue
+        p._stonePreBoost = {
+            hp: p.hp, attack: p.attack, defense: p.defense, speed: p.speed,
+            maxHp: p.maxHp, maxAttack: p.maxAttack, maxDefense: p.maxDefense, maxSpeed: p.maxSpeed
+        }
+        p.hp      = Math.floor((p.hp      || 0) * profile.hp)
+        p.attack  = Math.floor((p.attack  || 0) * profile.atk)
+        p.defense = Math.floor((p.defense || 0) * profile.def)
+        if (p.speed      != null) p.speed      = Math.floor(p.speed      * profile.spd)
+        if (p.maxHp      != null) p.maxHp      = Math.floor(p.maxHp      * profile.hp)
+        if (p.maxAttack  != null) p.maxAttack  = Math.floor(p.maxAttack  * profile.atk)
+        if (p.maxDefense != null) p.maxDefense = Math.floor(p.maxDefense * profile.def)
+        if (p.maxSpeed   != null) p.maxSpeed   = Math.floor(p.maxSpeed   * profile.spd)
+        boosted.push(p)
+    }
+    return boosted
+}
 
 module.exports = {
     name: "challenge",
@@ -77,7 +105,6 @@ module.exports = {
             }, 6 * 1000 * 60);
         } else {
           
-
             if (arg == '--accept' || arg == '--a') {
                 const data = pokemonChallengeResponse.get(M.from);
                 if (!data || data.challengee !== M.sender) {
@@ -86,39 +113,62 @@ module.exports = {
 
                 pokemonChallengeResponse.delete(M.from);
 
-                const acceptorPartyData = await client.poke.get(`${M.sender}_Party`);
-                const acceptorPartyRaw = acceptorPartyData ? acceptorPartyData : [];
-                if (!acceptorPartyRaw || acceptorPartyRaw.length === 0) {
+                // Load acceptor's full party
+                const acceptorPartyRaw = (await client.poke.get(`${M.sender}_Party`)) || []
+                if (!acceptorPartyRaw.length) {
                     return M.reply("🟥 *Pokemon challenge cancelled as you don't have any Pokemon capable of battling right now as all of them have fainted.*");
                 }
 
-                const acceptorParty = acceptorPartyRaw.filter((pkmn) => pkmn.hp > 0);
+                // Load challenger's full party
+                const challengerPartyRaw = (await client.poke.get(`${data.challenger}_Party`)) || []
+
+                // ── Lazy base-boost migration + temporary stone boost ──────────────
+                const migrateAndBoost = async (party, userId) => {
+                    let dirty = false
+                    for (const p of party) {
+                        if (!p.baseStatsBoosted) {
+                            applyBaseBoost(p)
+                            if (p.baseStatsBoosted) dirty = true
+                        }
+                    }
+                    const stoneBoosted = applyTemporaryStoneBoosts(party)
+                    if (stoneBoosted.length) dirty = true
+                    if (dirty) await client.poke.set(`${userId}_Party`, party)
+                    return stoneBoosted
+                }
+
+                const [challengerStoneBoosted, acceptorStoneBoosted] = await Promise.all([
+                    migrateAndBoost(challengerPartyRaw, data.challenger),
+                    migrateAndBoost(acceptorPartyRaw, M.sender)
+                ])
+
+                // Filter to alive Pokémon after boost applied
+                const challengerParty = challengerPartyRaw.filter((pkmn) => pkmn.hp > 0)
+                const acceptorParty   = acceptorPartyRaw.filter((pkmn) => pkmn.hp > 0)
+
                 if (acceptorParty.length === 0) {
                     return M.reply("🟥 *Pokemon challenge cancelled as you don't have any Pokemon capable of battling right now as all of them have fainted.*");
                 }
 
-                const challengerPartyData = await client.poke.get(`${data.challenger}_Party`);
-                const challengerPartyRaw = challengerPartyData ? challengerPartyData : [];
-                const challengerParty = (challengerPartyRaw || []).filter((pkmn) => pkmn.hp > 0);
-
-                // Announce stats for any party member that already has a stone equipped
-                const announceBoosted = async (tag, liveParty) => {
-                    const equipped = liveParty.filter(p => p.stoneEquipped)
-                    if (!equipped.length) return
-                    const lines = equipped.map(p =>
+                // Announce stone boost activations
+                const announceBoosted = async (tag, stoneBoosted) => {
+                    if (!stoneBoosted.length) return
+                    const lines = stoneBoosted.map(p =>
                         `⚡ *${client.utils.capitalize(p.name)}*\n` +
                         `   ❤️ HP: *${p.maxHp ?? p.hp}*  |  ⚡ ATK: *${p.attack}*\n` +
                         `   🛡 DEF: *${p.defense}*  |  💨 SPD: *${p.speed ?? '—'}*`
                     )
                     await client.sendMessage(M.from, {
                         text:
-                            `🔥 *@${tag.split('@')[0]} — Due to the use of Mega Boost, stats have been upgraded to:*\n\n` +
-                            lines.join('\n\n'),
+                            `🔥 *Mega Boost activated! Battle stats for @${tag.split('@')[0]}:*\n\n` +
+                            lines.join('\n\n') +
+                            `\n\n_(Stats revert after battle ends)_`,
                         mentions: [tag]
                     })
                 }
-                await announceBoosted(data.challenger, challengerParty)
-                await announceBoosted(M.sender, acceptorParty)
+
+                await announceBoosted(data.challenger, challengerStoneBoosted)
+                await announceBoosted(M.sender, acceptorStoneBoosted)
 
                 const battleObj = {
                     player1: {

@@ -26,7 +26,8 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
 
   const maxPpMoves = moves.map((m) => ({ ...m, pp: m.maxPp || m.pp }))
 
-  return {
+  const { applyBaseBoost } = require('../../Helpers/megaBoost')
+  const poke = {
     name: data.name,
     level,
     exp,
@@ -49,6 +50,9 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
     female: false,
     tag: tagOverride || client.utils.generateRandomUniqueTag(10)
   }
+  // Apply ×1.5 base boost for all non-mega/gmax Pokémon
+  applyBaseBoost(poke)
+  return poke
 }
 
 module.exports = {

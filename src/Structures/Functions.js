@@ -1027,7 +1027,14 @@ const handlePokemonStats = async (client, M, pkmn, inBattle, player, user) => {
     if (!learnableMove) return await handlePokemonEvolution(client, M, pkmn, inBattle, player, user);
     const party = await client.poke.get(`${jid}_Party`) || [];
     const i = party.findIndex((x) => x.tag === pkmn.tag);
-    const { hp, speed, defense, attack } = await client.utils.getPokemonStats(pkmn.id, pkmn.level);
+    let { hp, speed, defense, attack } = await client.utils.getPokemonStats(pkmn.id, pkmn.level);
+    // Apply the ×1.5 base boost to level-up stats for non-mega Pokémon
+    if (pkmn.baseStatsBoosted) {
+        hp      = Math.floor(hp      * 1.5);
+        attack  = Math.floor(attack  * 1.5);
+        defense = Math.floor(defense * 1.5);
+        speed   = Math.floor(speed   * 1.5);
+    }
     pkmn.hp += hp - pkmn.maxHp;
     pkmn.speed += speed - pkmn.speed;
     pkmn.defense += defense - pkmn.defense;
@@ -1185,7 +1192,14 @@ const handlePokemonEvolution = async (client, M, pkmn, inBattle, player, user) =
             pkmn.image = pData.sprites.other['official-artwork'].front_default;
             pkmn.name = pData.name;
  
-            const { hp, attack, defense, speed } = await client.utils.getPokemonStats(pkmn.id, pkmn.level);
+            let { hp, attack, defense, speed } = await client.utils.getPokemonStats(pkmn.id, pkmn.level);
+            // Carry forward the ×1.5 base boost through evolution
+            if (pkmn.baseStatsBoosted) {
+                hp      = Math.floor(hp      * 1.5);
+                attack  = Math.floor(attack  * 1.5);
+                defense = Math.floor(defense * 1.5);
+                speed   = Math.floor(speed   * 1.5);
+            }
             pkmn.hp += hp - pkmn.maxHp;
             pkmn.speed += speed - pkmn.speed;
             pkmn.defense += defense - pkmn.defense;
