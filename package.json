@@ -12,6 +12,7 @@
   ],
   "license": "SEE LICENSE IN LICENSE.md",
   "scripts": {
+    "preinstall": "node scripts/preinstall.js",
     "format": "prettier --write --config .prettierrc.json \"src/**/*.js\"",
     "start": "node src/aurora.js",
     "restore": "node restore.js"
