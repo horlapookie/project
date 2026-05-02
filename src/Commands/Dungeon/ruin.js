@@ -729,22 +729,87 @@ module.exports = {
     if (sub === 'status') {
       const session = await getSession()
       if (!session?.active) return M.reply(`🏚️ No active Ruin here. Summon one with *${prefix}ruin summon*.`)
-      const battle   = client.pokemonBattleResponse.get(M.from)
-      const inBattle = Boolean(battle?.isRuin)
-      return M.reply(
+
+      const battle       = client.pokemonBattleResponse.get(M.from)
+      const inBattle     = Boolean(battle?.isRuin)
+      const encIdx       = session.encounterIndex || 0
+      const bossAt       = session.bossAt || 12
+      const untilBoss    = Math.max(0, bossAt - encIdx)
+      const scaling      = encIdx * 15
+      const difficulty   = getEncounterDifficulty(encIdx, bossAt)
+      const diffLabel    = DIFF_LABEL[difficulty] || difficulty
+
+      // Progress bar (10 cells, boss marker at end)
+      const barLen    = 10
+      const filled    = Math.min(barLen, Math.round((encIdx / bossAt) * barLen))
+      const progBar   = '█'.repeat(filled) + '░'.repeat(barLen - filled) + ' 👹'
+
+      // HP bar helper
+      const hpBar = (cur, max) => {
+        const pct = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0
+        const f   = Math.round(pct * 8)
+        const bar = '█'.repeat(f) + '░'.repeat(8 - f)
+        const col = pct > 0.5 ? '🟩' : pct > 0.2 ? '🟨' : '🟥'
+        return `${col} ${bar} ${Math.max(0, cur).toLocaleString()}/${(max || 0).toLocaleString()}`
+      }
+
+      // Load party for HP display
+      const challId = session.entrant || session.summoner
+      const party   = challId ? ((await client.poke.get(`${challId}_Party`)) || []) : []
+
+      const partyLines = party.length
+        ? party.map((p, i) => {
+            const statusIcon = p.hp <= 0 ? '💀' : p.state?.status === 'poisoned' ? '☠️' : p.state?.status === 'sleeping' ? '💤' : p.state?.status === 'paralyzed' ? '⚡' : '✅'
+            return (
+              `  *#${i + 1}* ${statusIcon} *${client.utils.capitalize(p.name)}* Lv.${p.level}\n` +
+              `        ❤️ ${hpBar(p.hp, p.maxHp)}`
+            )
+          }).join('\n')
+        : '  _(No party data)_'
+
+      // Active enemy if in battle
+      const enemyLine = inBattle
+        ? (
+            `\n👾 *Current Enemy*\n` +
+            `  *${client.utils.capitalize(battle.player2.activePokemon.name)}*\n` +
+            `  ❤️ ${hpBar(battle.player2.activePokemon.hp, battle.player2.activePokemon.maxHp)}\n`
+          )
+        : ''
+
+      const actionLine = inBattle
+        ? `⚔️ Battle in progress → *${prefix}ruin fight* to attack`
+        : session.entered
+        ? `📌 Use *${prefix}ruin fight* to face the next encounter`
+        : `📌 Use *${prefix}ruin enter* to begin`
+
+      const caption =
         `🏚️ *RUIN STATUS*\n\n` +
-        `👤 Challenger: @${(session.entrant || session.summoner || '?').split('@')[0]}\n` +
-        `⚔️ Encounters defeated: *${session.encounterIndex || 0}*\n` +
-        `👹 Boss after: *${session.bossAt}* encounters\n` +
-        `📈 Current scaling: *+${(session.encounterIndex || 0) * 15}%*\n` +
-        `💰 Gems earned: *${(session.totalGoldEarned || 0).toLocaleString()}*\n` +
-        `🎯 Pokéballs earned: *${session.totalBallsEarned || 0}*\n\n` +
-        (inBattle
-          ? `⚔️ Battle in progress → *${prefix}battle fight* to attack`
-          : session.entered
-          ? `📌 → *${prefix}ruin fight* for the next encounter`
-          : `📌 → *${prefix}ruin enter* to begin`)
-      )
+        `👤 Challenger: *@${(challId || '?').split('@')[0]}*\n\n` +
+        `━━━ Progress ━━━\n` +
+        `⚔️  Defeated:    *${encIdx}* encounter${encIdx !== 1 ? 's' : ''}\n` +
+        `👹  Boss at:     encounter *#${bossAt}*\n` +
+        `📍  Until boss:  *${untilBoss}* left\n` +
+        `📊  ${progBar}\n` +
+        `📈  Scaling:     *+${scaling}%* stronger\n` +
+        `🎮  Next diff:   *${diffLabel}*\n\n` +
+        `━━━ Rewards ━━━\n` +
+        `💰  Gems:        *${(session.totalGoldEarned || 0).toLocaleString()}*\n` +
+        `🎯  Pokéballs:   *${session.totalBallsEarned || 0}*\n` +
+        enemyLine +
+        `\n━━━ Your Party ━━━\n` +
+        partyLines +
+        `\n\n${actionLine}`
+
+      const imagePath = `${process.cwd()}/assets/Images/dungeon.jpg`
+      try {
+        return await client.sendMessage(M.from, {
+          image: { url: imagePath },
+          caption,
+          mentions: challId ? [challId] : []
+        }, { quoted: M })
+      } catch (_) {
+        return client.sendMessage(M.from, { text: caption, mentions: challId ? [challId] : [] }, { quoted: M })
+      }
     }
 
     // ── LEADERBOARD ──────────────────────────────────────────────────────────
