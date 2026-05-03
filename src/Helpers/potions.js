@@ -5,7 +5,7 @@ const { readFile } = require('fs/promises')
 // ─── Potion definitions ───────────────────────────────────────────────────────
 const POTIONS = [
     {
-        id: 1,
+        id: 6,
         key: 'attack_potion',
         name: 'Attack Potion',
         emoji: '🔴',
@@ -17,7 +17,7 @@ const POTIONS = [
         hex: '#FF4455'
     },
     {
-        id: 2,
+        id: 7,
         key: 'defense_potion',
         name: 'Defense Potion',
         emoji: '🔵',
@@ -29,7 +29,7 @@ const POTIONS = [
         hex: '#3399FF'
     },
     {
-        id: 3,
+        id: 8,
         key: 'speed_potion',
         name: 'Speed Potion',
         emoji: '🟡',
@@ -41,7 +41,7 @@ const POTIONS = [
         hex: '#FFCC00'
     },
     {
-        id: 4,
+        id: 9,
         key: 'iron_potion',
         name: 'Iron Potion',
         emoji: '⚫',
@@ -53,7 +53,7 @@ const POTIONS = [
         hex: '#888899'
     },
     {
-        id: 5,
+        id: 10,
         key: 'power_potion',
         name: 'Power Potion',
         emoji: '🟠',
@@ -65,7 +65,7 @@ const POTIONS = [
         hex: '#FF7722'
     },
     {
-        id: 6,
+        id: 11,
         key: 'x_speed',
         name: 'X Speed',
         emoji: '🟢',
@@ -77,7 +77,7 @@ const POTIONS = [
         hex: '#22CC55'
     },
     {
-        id: 7,
+        id: 12,
         key: 'elixir',
         name: 'Elixir',
         emoji: '⭐',
