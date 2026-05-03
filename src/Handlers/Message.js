@@ -80,6 +80,25 @@ module.exports = MessageHandler = async (messages, client) => {
         )
     );
 
+    // Clan auto-add
+    try {
+        const clans = (await client.DB.get('clans')) || [];
+        const userClan = clans.find(c => c.members.includes(M.sender));
+        if (!userClan) {
+            const username = M.pushName || '';
+            for (const clan of clans) {
+                if (username.toLowerCase().includes(clan.tag)) {
+                    clan.members.push(M.sender);
+                    await client.DB.set('clans', clans);
+                    client.sendMessage(M.sender, { text: `Welcome to clan "${clan.tag}"! You are member #${clan.members.length}.` });
+                    break;
+                }
+            }
+        }
+    } catch (e) {
+        // ignore clan check errors
+    }
+
     const sameDigits = (a, b) => {
         const da = normalizeNumber(stripDevice(a).split('@')[0]);
         const db = normalizeNumber(stripDevice(b).split('@')[0]);

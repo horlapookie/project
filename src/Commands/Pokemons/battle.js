@@ -918,6 +918,17 @@ const handleBattles = async (client, M) => {
                     mentions: isWildUser(opponent.user) ? [] : [opponent.user]
                 });
                 await delay(5000);
+
+                // For wild battles, end immediately if no alive Pokemon
+                if (isWildUser(opponent.user)) {
+                    const party2 = await getPartyForUser(client, opponent.user);
+                    const alive = party2.filter(p => p.hp > 0);
+                    if (!alive.length) {
+                        await endBattle(client, M, current.user, opponent.user);
+                        return;
+                    }
+                }
+
                 await sendBattleState(client, M, battle);
                 // For wild battles, keep the turn on player1 so replacement logic runs correctly.
                 battle.turn = battle.mode === 'wild' ? 'player1' : (current.user === battle.player1.user ? 'player2' : 'player1');

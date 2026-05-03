@@ -6,7 +6,7 @@ module.exports = {
     category: 'economy',
     exp: 5,
     // Casino cooldown
-    cool: 30,
+    cool: 15,
     react: "✅",
     usage: 'Use {prefix}gamble <amount> <direction>',
     description: 'Gambles your credits to increase or decrease',

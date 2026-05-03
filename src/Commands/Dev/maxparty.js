@@ -62,10 +62,19 @@ module.exports = {
   exp: 0,
   cool: 4,
   react: '⚡',
-  usage: 'Use {prefix}maxparty (owner only)',
-  description: 'Maxes your party for testing (level 100, full HP, refreshed moves, full PP).',
+  usage: 'Use {prefix}maxparty [enable|disable] (owner/officers)',
+  description: 'Maxes your party for testing (level 100, full HP, refreshed moves, full PP). Owner can enable/disable for officers.',
   async execute(client, arg, M) {
-    if (!client.isOwner(M)) return M.reply('Only the owner can use this command.')
+    if (arg === 'enable' || arg === 'disable') {
+      if (!client.isOwner(M)) return M.reply('Only owner can toggle maxparty access for officers.')
+      const allow = arg === 'disable'; // disable means allow officers, enable means disallow
+      await client.DB.set('maxparty-officers-allowed', allow);
+      return M.reply(`Maxparty ${arg}d for officers.`)
+    }
+
+    // normal usage
+    const officersAllowed = (await client.DB.get('maxparty-officers-allowed')) !== false;
+    if (!client.isOwner(M) && (!officersAllowed || !client.isOfficer(M))) return M.reply('Only the owner can use this command.')
 
     const target = M.mentions?.[0] || M.quoted?.participant || M.sender
     const level = 100

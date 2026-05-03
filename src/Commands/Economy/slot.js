@@ -59,7 +59,7 @@ module.exports = {
     aliases: ['bet'],
     category: 'economy',
     exp: 5,
-    cool: 5,
+    cool: 15,
     react: '🤑',
     usage: 'Use: !slot <amount>',
     description: 'High win-rate slot with animation.',

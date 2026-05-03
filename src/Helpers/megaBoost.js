@@ -10,21 +10,17 @@ const isMegaOrGmax = (name = '') => {
 }
 
 /**
- * Multiply all stats of a mega/gmax Pokémon by 3.
+ * Multiply hp and attack of a mega/gmax Pokémon by 2.
  * Guards against double-application via `poke.megaBoosted`.
  * Mutates the object in place and returns it.
  */
 const applyMegaGmaxBoost = (poke) => {
   if (!poke || !isMegaOrGmax(poke.name) || poke.megaBoosted) return poke
-  const M = 3
+  const M = 2
   poke.hp      = Math.floor((poke.hp      || 0) * M)
   poke.attack  = Math.floor((poke.attack  || 0) * M)
-  poke.defense = Math.floor((poke.defense || 0) * M)
-  if (poke.speed      != null) poke.speed      = Math.floor(poke.speed      * M)
   if (poke.maxHp      != null) poke.maxHp      = Math.floor(poke.maxHp      * M)
   if (poke.maxAttack  != null) poke.maxAttack  = Math.floor(poke.maxAttack  * M)
-  if (poke.maxDefense != null) poke.maxDefense = Math.floor(poke.maxDefense * M)
-  if (poke.maxSpeed   != null) poke.maxSpeed   = Math.floor(poke.maxSpeed   * M)
   poke.megaBoosted = true
   return poke
 }
