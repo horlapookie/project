@@ -13,7 +13,39 @@ module.exports = {
         // Check if bot is admin in group
         if (M.isGroup) {
             const groupMetadata = await client.groupMetadata(M.from);
-            const botParticipant = groupMetadata.participants.find(p => p.id === client.user.id);
+            const normalizeNumber = (value = '') => String(value).replace(/\D/g, '');
+            const stripDevice = (jid = '') => String(jid || '').replace(/:\d+(?=@)/, '');
+            const { areJidsSameUser } = require('@whiskeysockets/baileys');
+
+            const botBase = normalizeNumber(String(client.user?.id || '').split('@')[0]);
+            const botCandidates = Array.from(
+                new Set(
+                    [
+                        client.user?.id,
+                        stripDevice(client.user?.id),
+                        client.meLid,
+                        stripDevice(client.meLid),
+                        client.user?.lid,
+                        stripDevice(client.user?.lid),
+                        botBase ? `${botBase}@s.whatsapp.net` : null,
+                        botBase ? `${botBase}@lid` : null,
+                        botBase || null
+                    ].filter(Boolean)
+                )
+            );
+
+            const findParticipant = (jid) =>
+                groupMetadata.participants.find((p) => {
+                    const pid = stripDevice(p?.id || p?.jid || '');
+                    const candidate = stripDevice(jid);
+                    return (
+                        (pid && candidate && areJidsSameUser(pid, candidate)) ||
+                        (pid && candidate && pid === candidate) ||
+                        (pid && candidate && normalizeNumber(pid.split('@')[0]) === normalizeNumber(candidate.split('@')[0]))
+                    );
+                });
+
+            const botParticipant = botCandidates.map(findParticipant).find(Boolean);
             const botIsAdmin = Boolean(botParticipant?.admin);
             if (!botIsAdmin) return M.reply('I need to be an admin in this group to delete messages.');
         }

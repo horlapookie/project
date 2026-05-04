@@ -66,7 +66,7 @@ module.exports = {
             let mp4Buffer = null;
             try {
                 const converted = await client.utils.gifToMp4(rawBuffer);
-                if (client.utils.isLikelyMp4 ? client.utils.isLikelyMp4(converted) : converted?.length > 1000) {
+                if (client.utils.isLikelyMp4(converted)) {
                     mp4Buffer = converted;
                 }
             } catch (_) {}
@@ -79,7 +79,31 @@ module.exports = {
                 );
             }
 
-            // Fallback: send as image (first frame) if MP4 failed
+            if (client.utils.isLikelyGif(rawBuffer)) {
+                try {
+                    return await client.sendMessage(
+                        M.from,
+                        { video: rawBuffer, gifPlayback: true, caption, mentions },
+                        { quoted: M }
+                    );
+                } catch (_) {
+                    // try remote URL fallback
+                }
+            }
+
+            if (url) {
+                try {
+                    return await client.sendMessage(
+                        M.from,
+                        { video: { url }, gifPlayback: true, caption, mentions },
+                        { quoted: M }
+                    );
+                } catch (_) {
+                    // ignore and continue to image fallback
+                }
+            }
+
+            // Fallback: send as image (first frame) if MP4 and video failed
             try {
                 const png = await client.utils.gifToPng(rawBuffer);
                 return await client.sendMessage(
