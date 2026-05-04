@@ -53,6 +53,8 @@ module.exports = {
         try {
             const quotedKey = M.quoted?.key || {}
             const quotedId = quotedKey.id || M.quoted?.id
+            if (!quotedId) return M.reply('Unable to locate the quoted message to delete.')
+
             const remoteJid = quotedKey.remoteJid || M.from
             const fromMe = Boolean(quotedKey.fromMe || M.quoted?.fromMe)
             const participant = quotedKey.participant || M.quoted?.participant || M.quoted?.sender
@@ -64,9 +66,7 @@ module.exports = {
                 ...(participant ? { participant: String(participant) } : {})
             }
 
-            // Use rawSendMessage to bypass the media-normalization wrapper
-            const rawSend = client._rawSendMessage || client.sendMessage
-            await rawSend(M.from, { delete: key })
+            await client.deleteMessage(M.from, key)
             return M.reply('Message deleted successfully!')
         } catch (error) {
             console.error('Error deleting message:', error)
