@@ -58,7 +58,8 @@ module.exports = {
         const mentions = [M.sender, reactant].filter(Boolean);
 
         try {
-            const { url } = await client.utils.fetch(`https://api.waifu.pics/sfw/${reaction}`);
+            const response = await client.utils.fetch(`https://nekos.best/api/v2/${reaction}`);
+            const { url } = response.results[0];
             const rawBuffer = await client.utils.getBuffer(url);
 
             // Try converting to MP4 for proper GIF playback

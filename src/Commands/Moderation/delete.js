@@ -9,6 +9,15 @@ module.exports = {
     description: 'Deletes the quoted message',
     async execute(client, arg, M) {
         if (!M.quoted) return M.reply('Quote the message that you want me to delete, Baka!')
+        
+        // Check if bot is admin in group
+        if (M.isGroup) {
+            const groupMetadata = await client.groupMetadata(M.from);
+            const botParticipant = groupMetadata.participants.find(p => p.id === client.user.id);
+            const botIsAdmin = Boolean(botParticipant?.admin);
+            if (!botIsAdmin) return M.reply('I need to be an admin in this group to delete messages.');
+        }
+        
         try {
             const quotedKey = M.quoted?.key || {}
             const quotedId = quotedKey.id || M.quoted?.id
