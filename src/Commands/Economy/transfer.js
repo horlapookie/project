@@ -6,42 +6,50 @@ module.exports = {
     exp: 5,
     cool: 4,
     react: "🖇️",
-    usage: 'Use {prefix}transfer <amount> @taguser',
-    description: 'Transfer gems to your friend',
+    usage: 'Use {prefix}transfer <amount> @taguser or {prefix}transfer --clan <amount>',
+    description: 'Transfer gems to a friend or to your clan treasury.',
     async execute(client, arg, M) {
         try {
-            const recipient = M.mentions[0] || (M.quoted && M.quoted.participant);
-
-            if (!recipient) return M.reply('You must mention someone to transfer credits to.');
-
-            const amount = parseInt(arg.split(' ')[0]);
+            const isClanTransfer = /--clan(?:=|\b)/i.test(arg);
+            const cleaned = arg.replace(/--clan(?:=|\b)/gi, '').trim();
+            const amountMatch = cleaned.match(/\d+/)
+            const amount = amountMatch ? Number(amountMatch[0]) : NaN
             if (isNaN(amount) || amount <= 0) return M.reply('Please provide a valid positive amount.');
 
-            if (recipient === M.sender) return M.reply("You can't transfer gems to yourself.");
-
-            // Use the bot's stable economy resolver (handles @lid -> phone mapping + auto-migration).
             const senderEconomy = await client.getEcon(M, { createIfMissing: true });
             if (!senderEconomy) return M.reply(`Use ${client.prefix}bonus to get started.`);
-
-            const senderWallet = senderEconomy.gem || 0;
+            const senderWallet = Number(senderEconomy.gem || 0);
             if (senderWallet < amount) return M.reply("You don't have enough gems in your wallet.");
+
+            if (isClanTransfer) {
+                const clans = (await client.DB.get('clans')) || [];
+                const clan = clans.find((c) => Array.isArray(c.members) && c.members.includes(M.sender));
+                if (!clan) return M.reply('You must be a member of a clan to send gems to clan treasury.');
+
+                clan.treasury = Number(clan.treasury || 0) + amount;
+                senderEconomy.gem = senderWallet - amount;
+                await senderEconomy.save();
+                await client.DB.set('clans', clans);
+
+                return M.reply(`Transferred *${amount}* gems to clan *${clan.tag}* treasury. New clan treasury: *${clan.treasury}* gems.`);
+            }
+
+            const recipient = M.mentions[0] || (M.quoted && M.quoted.participant);
+            if (!recipient) return M.reply('You must mention someone to transfer credits to.');
+            if (recipient === M.sender) return M.reply("You can't transfer gems to yourself.");
 
             const recipientEconomy = await client.getEcon(recipient, { createIfMissing: true });
             if (!recipientEconomy) return M.reply('Could not open the recipient wallet right now.');
 
-            senderEconomy.gem -= amount;
+            senderEconomy.gem = senderWallet - amount;
             await senderEconomy.save();
 
-            recipientEconomy.gem += amount;
+            recipientEconomy.gem = Number(recipientEconomy.gem || 0) + amount;
             await recipientEconomy.save();
 
             const senderName = M.sender.split('@')[0];
             const recipientName = recipient.split('@')[0];
-
-            const message = `*@${senderName}* transferred *${amount}* gems to *@${recipientName}*`;
-
-            await client.sendMessage(M.from, { text: message, mentions: [M.sender, recipient] });
-          
+            await client.sendMessage(M.from, { text: `*@${senderName}* transferred *${amount}* gems to *@${recipientName}*`, mentions: [M.sender, recipient] });
         } catch (err) {
             console.error(err);
             M.reply('An error occurred while processing the transfer.');

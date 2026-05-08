@@ -9,6 +9,88 @@ const { join } = require('path');
 const cool = new Collection();
 const normalizeNumber = (value = '') => String(value).replace(/\D/g, '');
 const stripDevice = (jid = '') => String(jid || '').replace(/:\d+(?=@)/, '');
+let lastClanTaxCheck = 0;
+const getNextTaxRun = (frequency, from = Date.now()) => {
+    const freq = String(frequency || '').toLowerCase();
+    switch (freq) {
+        case 'weekly':
+            return from + 7 * 24 * 60 * 60 * 1000;
+        case 'monthly':
+            return from + 30 * 24 * 60 * 60 * 1000;
+        case 'daily':
+        default:
+            return from + 24 * 60 * 60 * 1000;
+    }
+};
+const processClanTaxes = async (client) => {
+    try {
+        const now = Date.now();
+        if (now - lastClanTaxCheck < 60 * 1000) return;
+        lastClanTaxCheck = now;
+
+        const clans = (await client.DB.get('clans')) || [];
+        if (!Array.isArray(clans)) return;
+
+        let changed = false;
+        for (const clan of clans) {
+            const tax = clan.tax || {};
+            const frequency = String(tax.frequency || '').toLowerCase();
+            const amount = Number(tax.amount || 0);
+            if (!amount || !['daily', 'weekly', 'monthly'].includes(frequency)) continue;
+
+            if (!tax.nextRun) {
+                clan.tax = { ...tax, nextRun: getNextTaxRun(frequency, now) };
+                changed = true;
+                continue;
+            }
+
+            if (now < tax.nextRun) continue;
+            clan.taxDebt = clan.taxDebt || {};
+            clan.treasury = Number(clan.treasury || 0);
+
+            const members = Array.from(new Set([...(Array.isArray(clan.members) ? clan.members : []), clan.leader].filter(Boolean)));
+            for (const member of members) {
+                const economy = await client.getEcon(member, { createIfMissing: true });
+                if (!economy) continue;
+
+                let owed = Number(clan.taxDebt[member] || 0);
+                let wallet = Number(economy.gem || 0);
+                if (owed > 0) {
+                    if (wallet >= owed) {
+                        wallet -= owed;
+                        clan.treasury += owed;
+                        owed = 0;
+                    } else {
+                        clan.taxDebt[member] = owed;
+                        continue;
+                    }
+                }
+
+                if (wallet >= amount) {
+                    wallet -= amount;
+                    clan.treasury += amount;
+                    owed = 0;
+                } else {
+                    owed = amount;
+                }
+
+                economy.gem = wallet;
+                clan.taxDebt[member] = owed;
+                await economy.save().catch(() => null);
+                changed = true;
+            }
+
+            clan.tax = { ...tax, nextRun: getNextTaxRun(frequency, now) };
+            changed = true;
+        }
+
+        if (changed) {
+            await client.DB.set('clans', clans);
+        }
+    } catch (error) {
+        console.error('Clan tax processor error:', error);
+    }
+};
 
 module.exports = MessageHandler = async (messages, client) => {
     try {
@@ -129,6 +211,7 @@ module.exports = MessageHandler = async (messages, client) => {
         const banned = (await client.DB.get('banned')) || [];
         const companion = await client.poke.get(`${sender}_Companion`);
         const economy = await client.getEcon(M);
+        await processClanTaxes(client);
         const senderIsStaff = client.isStaff ? client.isStaff(M) : client.isMod(M);
         const nsfwGroups = (await client.DB.get('nsfw')) || [];
 

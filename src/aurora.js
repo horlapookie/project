@@ -373,7 +373,7 @@ const start = async (authChoice = null) => {
         if (alreadyMigrated) return
 
         const localEntries = await client.roleDB.all().catch(() => [])
-        const skipPatterns = [/^owner$/, /^mods$/, /^sudo$/, /^mods-removed$/, /^mod-name-/, /^sudo-name-/]
+        const skipPatterns = [/^owner$/, /^mods$/, /^sudo$/, /^coowner$/, /^mods-removed$/, /^mod-name-/, /^sudo-name-/, /^coowner-name-/]
         let migrated = 0
 
         if (Array.isArray(localEntries)) {
@@ -429,6 +429,7 @@ const start = async (authChoice = null) => {
     const storedOwner = normalizeNumber((await client.roleDB.get('owner')) || OWNER_NUMBER)
     const storedMods = ((await client.roleDB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
     const storedOfficers = ((await client.roleDB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
+    const storedCoOwners = ((await client.roleDB.get('coowner')) || []).map(normalizeNumber).filter(Boolean)
     const removedMods = new Set(((await client.roleDB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
     client.owner = storedOwner
     // `mods` remain the "mods" role. Officers are a separate role with limited privileges.
@@ -438,9 +439,11 @@ const start = async (authChoice = null) => {
         .filter((n) => n === client.owner || !removedMods.has(n))
     client.mods = mergedMods
     client.officers = Array.from(new Set(storedOfficers.filter((x) => x && x !== client.owner)))
+    client.coOwners = Array.from(new Set(storedCoOwners.filter((x) => x && x !== client.owner && !client.officers.includes(x))))
     await client.roleDB.set('owner', client.owner)
     await client.roleDB.set('mods', client.mods)
     await client.roleDB.set('sudo', client.officers)
+    await client.roleDB.set('coowner', client.coOwners)
     client.normalizeNumber = normalizeNumber
     client.getIdentityNumbers = (value = '') => {
         const candidates = Array.isArray(value)
@@ -463,11 +466,15 @@ const start = async (authChoice = null) => {
         const identities = client.getIdentityNumbers(value)
         return identities.some((identity) => (client.officers || []).includes(identity))
     }
+    client.isCoOwner = (value = '') => {
+        const identities = client.getIdentityNumbers(value)
+        return identities.some((identity) => (client.coOwners || []).includes(identity))
+    }
     client.isMod = (value = '') => {
         const identities = client.getIdentityNumbers(value)
         return identities.some((identity) => client.mods.includes(identity))
     }
-    client.isStaff = (value = '') => client.isOwner(value) || client.isMod(value) || client.isOfficer(value)
+    client.isStaff = (value = '') => client.isOwner(value) || client.isMod(value) || client.isOfficer(value) || client.isCoOwner(value)
     client.getUserNumber = (value = '') => {
         if (value && typeof value === 'object') {
             const digits = normalizeNumber(value.senderNumber || value.sender || value.userId || '')
@@ -559,12 +566,18 @@ const start = async (authChoice = null) => {
         const owner = normalizeNumber((await client.roleDB.get('owner')) || client.owner || OWNER_NUMBER)
         const mods = ((await client.roleDB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
         const sudo = ((await client.roleDB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
+        const coowner = ((await client.roleDB.get('coowner')) || []).map(normalizeNumber).filter(Boolean)
         const removed = new Set(((await client.roleDB.get('mods-removed')) || []).map(normalizeNumber).filter(Boolean))
         client.owner = owner
         client.mods = Array.from(new Set([owner, ...DEFAULT_MODS, ...mods]))
             .filter((n) => n === owner || !removed.has(n))
         client.officers = Array.from(new Set(sudo.filter((x) => x && x !== owner)))
-        return { owner: client.owner, mods: client.mods, officers: client.officers }
+        client.coOwners = Array.from(new Set(coowner.filter((x) => x && x !== owner && !client.officers.includes(x))))
+        await client.roleDB.set('owner', client.owner)
+        await client.roleDB.set('mods', client.mods)
+        await client.roleDB.set('sudo', client.officers)
+        await client.roleDB.set('coowner', client.coOwners)
+        return { owner: client.owner, mods: client.mods, officers: client.officers, coOwners: client.coOwners }
     }
 
     //Utils

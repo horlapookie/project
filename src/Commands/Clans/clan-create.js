@@ -23,7 +23,12 @@ module.exports = {
         const newClan = {
             tag: rawTag,
             leader: M.sender,
-            members: [M.sender]
+            members: [M.sender],
+            treasury: 0,
+            roles: {},
+            tax: { frequency: null, amount: 0, nextRun: null },
+            taxDebt: {},
+            createdAt: Date.now()
         };
         clans.push(newClan);
 

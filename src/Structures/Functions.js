@@ -803,7 +803,58 @@ const isLikelyGif = (buffer) =>
         }
         return array;
     };
-    
+
+    const isGmaxForm = (name = '') => /-(gmax|gigantamax)$/i.test(String(name).trim())
+    const getGmaxSpeciesName = (name = '') => String(name || '').replace(/-(gmax|gigantamax)$/i, '').trim()
+
+    const getMaxMoveName = (type = '') => {
+        const lookup = {
+            normal: 'max strike',
+            fire: 'max flare',
+            water: 'max geyser',
+            electric: 'max lightning',
+            grass: 'max overgrowth',
+            ice: 'max hailstorm',
+            fighting: 'max knuckle',
+            flying: 'max airstream',
+            poison: 'max ooze',
+            ground: 'max quake',
+            rock: 'max rockfall',
+            bug: 'max flutterby',
+            ghost: 'max phantasm',
+            dark: 'max darkness',
+            steel: 'max steelspike',
+            dragon: 'max wyrmwind',
+            fairy: 'max starfall'
+        }
+        return lookup[String(type).toLowerCase()] || 'max move'
+    }
+
+    const getGmaxMoveName = (species = '', type = '') => {
+        const normalizedSpecies = String(species || '').toLowerCase()
+        const special = {
+            'charizard': { fire: 'g-max wildfire' },
+            'corviknight': { flying: 'g-max wind rage' },
+            'kingler': { water: 'g-max foam burst' },
+            'coalossal': { rock: 'g-max volcalith' },
+            'butterfree': { bug: 'g-max befuddle' },
+            'alcremie': { fairy: 'g-max finale' },
+            'rillaboom': { grass: 'g-max drum solo' },
+            'inteleon': { water: 'g-max hydrosnipe' },
+            'dragapult': { dragon: 'g-max sundancer' },
+            'grimmsnarl': { fairy: 'g-max malodor' },
+            'centiskorch': { fire: 'g-max volcanion' },
+            'lapras': { water: 'g-max resonance' },
+            'snorlax': { normal: 'g-max resonance' },
+            'pikachu': { electric: 'g-max volt crash' },
+            'urshifu': { fighting: 'g-max one blow' }
+        }
+        if (special[normalizedSpecies] && special[normalizedSpecies][type]) {
+            return special[normalizedSpecies][type]
+        }
+        return getMaxMoveName(type)
+    }
+
     /**
      * @param {string} pokemon - The name of the Pokémon.
      * @param {number} level - The level of the Pokémon.
@@ -871,6 +922,9 @@ const isLikelyGif = (buffer) =>
         const result = [];
         const rejectedMoves = [];
     
+        const isGmax = isGmaxForm(pokemon)
+        const gmaxSpecies = isGmax ? getGmaxSpeciesName(pokemon) : ''
+
         for (const { move } of moves) {
             if (result.length >= 4) {
                 rejectedMoves.push(move.name);
@@ -882,8 +936,24 @@ const isLikelyGif = (buffer) =>
             const descriptions = data.flavor_text_entries.filter((x) => x.language.name === 'en');
             for (const change of data.stat_changes)
                 stat_change.push({ target: change.stat.name, change: change.change });
+
+            let moveName = data.name
+            let description = descriptions[0] ? descriptions[0].flavor_text : ''
+            if (isGmax) {
+                const gmaxName = getGmaxMoveName(gmaxSpecies, data.type.name)
+                moveName = gmaxName
+                if (gmaxName !== data.name) {
+                    const prettyName = gmaxName
+                        .split('-')
+                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                        .join(' ')
+                    description = `${prettyName} — G-Max move derived from ${data.name}. ${description}`.trim()
+                }
+            }
+
             result.push({
-                name: data.name,
+                name: moveName,
+                originalName: data.name,
                 accuracy: data.accuracy || 0,
                 pp: data.pp || 5,
                 maxPp: data.pp || 5,
@@ -895,7 +965,7 @@ const isLikelyGif = (buffer) =>
                 effect,
                 drain: data.meta ? data.meta.drain : 0,
                 healing: data.meta ? data.meta.healing : 0,
-                description: descriptions[0] ? descriptions[0].flavor_text : ''
+                description
             });
         }
     

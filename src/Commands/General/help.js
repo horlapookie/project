@@ -29,8 +29,8 @@ module.exports = {
     exp: 50,
     cool: 5,
     react: "💐",
-    usage: 'Use -help for helplist or -help <command_name> to get command info',
-    description: 'Displays the command list or specific command info',
+    usage: 'Use -help for helplist, -help --sub for a subcommand list, or -help <command_name> to get command info',
+    description: 'Displays the command list, subcommand list, or specific command info',
     async execute(client, arg, M) {
         try {
             if (arg === '--owner') {
@@ -58,6 +58,23 @@ module.exports = {
                 ].join('\n').trim();
 
                 return M.reply(message);
+            }
+
+            if (arg === '--sub') {
+                const categories = client.cmd.reduce((obj, cmd) => {
+                    if (cmd.hidden) return obj
+                    const category = cmd.category || 'Uncategorized'
+                    obj[category] = obj[category] || []
+                    obj[category].push(cmd.name)
+                    return obj
+                }, {})
+
+                let commands = ''
+                for (const category of Object.keys(categories)) {
+                    commands += `*𓊈𒆜 ${client.utils.capitalize(category, true)} 𒆜𓊉*\n\`\`\`${categories[category].join(', ')}\`\`\`\n\n`
+                }
+
+                return M.reply(`*Command Sublist*\n\n${commands.trim()}`)
             }
 
             if (!arg) {
