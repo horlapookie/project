@@ -1,5 +1,5 @@
 // ─── Mega Stone Bag helpers ────────────────────────────────────────────────────
-const { MEGA_STONES, GMAX_BALL, getMegaStoneByKey } = require('./megaItems')
+const { MEGA_STONES, getMegaStoneByKey } = require('./megaItems')
 
 const _bagKey = (userKey) => `megastonebag_${userKey}`
 
@@ -17,7 +17,7 @@ const saveRawBag = (client, userKey, raw) =>
  */
 const getMegaStoneBag = async (client, userKey) => {
   const raw  = await getRawBag(client, userKey)
-  const all  = [...MEGA_STONES, GMAX_BALL]
+  const all  = [...MEGA_STONES]
   const items = []
   for (const stone of all) {
     const qty = Number(raw[stone.key] || 0)

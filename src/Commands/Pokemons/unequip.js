@@ -8,10 +8,11 @@ module.exports = {
   cool: 3,
   react: '🔓',
   category: 'pokemon',
-  usage: 'Use {prefix}unequip',
-  description: 'Remove equipped Mega Stone or GMax Ball from your active party Pokémon',
+  usage: 'DISABLED - Stones now auto-apply in battle',
+  description: 'DISABLED - Stones now automatically apply when your Pokémon enters battle',
 
   async execute(client, arg, M) {
+    return M.reply('⚠️ Stone unequipping has been disabled. Stones now automatically apply when your Pokémon enters battle!')
     const prefix  = client.prefix || '-'
     const userKey = (await client.resolveNumber?.(M)) || client.getUserNumber?.(M) || M.sender.split('@')[0]
     const party   = (await client.poke.get(`${M.sender}_Party`)) || []

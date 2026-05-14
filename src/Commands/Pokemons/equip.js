@@ -1,5 +1,5 @@
 const { getMegaStoneBag, removeMegaStoneQuantity } = require('../../Helpers/megaStoneBag')
-const { GMAX_BALL, getMegaStoneByKey } = require('../../Helpers/megaItems')
+const { getMegaStoneByKey } = require('../../Helpers/megaItems')
 
 module.exports = {
   name: 'equip',
@@ -8,10 +8,11 @@ module.exports = {
   cool: 3,
   react: '💎',
   category: 'pokemon',
-  usage: 'Use {prefix}equip  OR  {prefix}equip #N',
-  description: 'Equip a Mega Stone or GMax Ball — boost activates when your next battle starts',
+  usage: 'DISABLED - Stones now auto-apply in battle',
+  description: 'DISABLED - Stones now automatically apply when your Pokémon enters battle',
 
   async execute(client, arg, M) {
+    return M.reply('⚠️ Stone equipping has been disabled. Stones now automatically apply when your Pokémon enters battle!')
     const prefix  = client.prefix || '-'
     const userKey = (await client.resolveNumber?.(M)) || client.getUserNumber?.(M) || M.sender.split('@')[0]
     const bag     = await getMegaStoneBag(client, userKey)

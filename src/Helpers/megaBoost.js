@@ -45,4 +45,66 @@ const applyBaseBoost = (poke) => {
   return poke
 }
 
-module.exports = { isMegaOrGmax, applyMegaGmaxBoost, applyBaseBoost }
+/**
+ * List of Pokémon species that can perform Gigantamax.
+ * Note: In actual gameplay, individuals must have the G-Max factor,
+ * but we'll use random chance for implementation purposes.
+ */
+const GIGANTAMAX_CAPABLE_SPECIES = [
+  'pikachu', 'charizard', 'butterfree', 'corviknight', 'orbeetle',
+  'drednaw', 'melmetal', 'gengar', 'kingler', 'lapras',
+  'eevee', 'grimmsnarl', 'alcremie', 'machamp', 'golem',
+  'arcanine', 'lapras', 'gengar', 'kingler', 'centiskorch',
+  'coalossal', 'flapple', 'appletun', 'sandaconda', 'toxtricity',
+  'hatterene', 'grimmsnarl', 'copperajah', 'duraludon',
+  'urshifu', 'rillaboom', 'cinderace', 'inteleon', 'dragapult',
+  'snorlax', 'pikachu', 'bolthound', 'silicobra'
+]
+
+/**
+ * Check if a Pokémon can perform Gigantamax.
+ * In real Pokémon, only specific individuals with the G-Max factor can do it.
+ * For implementation, we'll check if the species is in our list.
+ */
+const canGigantamax = (pokemonName = '') => {
+  const baseName = String(pokemonName || '')
+    .toLowerCase()
+    .replace(/-(gmax|gigantamax)?$/i, '')
+    .trim()
+  return GIGANTAMAX_CAPABLE_SPECIES.includes(baseName)
+}
+
+/**
+ * Activate Dynamax on a Pokémon.
+ * - Doubles HP
+ * - Stores original moves
+ * - Converts moves to Max/G-Max moves based on type
+ * - Sets dynamaxTurns to 3
+ */
+const activateDynamax = (poke, isGigantamax = false) => {
+  if (!poke || !poke.state) return poke
+  if (poke.state.dynamaxActive) return poke // Already active
+
+  // Double HP
+  poke.state.baseHp = poke.hp
+  poke.hp = poke.maxHp ? Math.floor(poke.maxHp * 2) : Math.floor(poke.hp * 2)
+
+  // Store original moves (in case revert needed)
+  poke.state.baseMoves = [...(poke.moves || [])]
+
+  // Activate state
+  poke.state.dynamaxActive = true
+  poke.state.dynamaxTurns = 3
+  poke.isGigantamax = isGigantamax
+
+  return poke
+}
+
+module.exports = {
+  isMegaOrGmax,
+  applyMegaGmaxBoost,
+  applyBaseBoost,
+  canGigantamax,
+  activateDynamax,
+  GIGANTAMAX_CAPABLE_SPECIES
+}

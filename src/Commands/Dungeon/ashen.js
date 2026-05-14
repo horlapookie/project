@@ -167,25 +167,23 @@ const sendAnnouncement = async (client, M, ownerSpawned = false) => {
 }
 
 // Dungeon composition:
-// - 2 Mega Pokemon
+// - 2 Mega Pokemon (normal forms, will auto-evolve in battle)
 // - 2 Legendary Pokemon
 // - 1 very high HP "tank"
 // - 1 poison/status style Pokemon
 const megaPool = [
-  'charizard-mega-x',
-  'charizard-mega-y',
-  'mewtwo-mega-x',
-  'mewtwo-mega-y',
-  'gengar-mega',
-  'lucario-mega',
-  'gardevoir-mega',
-  'metagross-mega',
-  'salamence-mega',
-  'tyranitar-mega',
-  'blaziken-mega',
-  'kangaskhan-mega',
-  'banette-mega',
-  'rayquaza-mega'
+  'charizard',
+  'mewtwo',
+  'gengar',
+  'lucario',
+  'gardevoir',
+  'metagross',
+  'salamence',
+  'tyranitar',
+  'blaziken',
+  'kangaskhan',
+  'banette',
+  'rayquaza'
 ]
 const legendaryPool = [
   'mewtwo',
@@ -264,6 +262,7 @@ const buildPokemonFromName = async (client, name, level) => {
     String(data?.name || '')
       .replace(/-mega(-x|-y)?$/i, '')
       .replace(/-primal$/i, '')
+      .replace(/-(gmax|gigantamax)$/i, '')
       .trim()
   let gender_rate = 4
   try {
@@ -279,8 +278,15 @@ const buildPokemonFromName = async (client, name, level) => {
     female = genders[Math.floor(Math.random() * genders.length)] === 'female'
   }
 
+  // Ensure dungeon spawns are base forms only
+  const baseName = String(data.name || '')
+    .replace(/-mega(-x|-y)?$/i, '')
+    .replace(/-primal$/i, '')
+    .replace(/-(gmax|gigantamax)$/i, '')
+    .trim()
+
   return {
-    name: data.name,
+    name: baseName,
     level,
     exp,
     image,
@@ -298,7 +304,7 @@ const buildPokemonFromName = async (client, name, level) => {
     types: data.types.map((type) => type.type.name),
     moves,
     rejectedMoves,
-    state: { status: '', movesUsed: 0 },
+    state: { status: '', movesUsed: 0, dynamaxActive: false, dynamaxTurns: 0, baseHp: hp, baseMoves: [] },
     female,
     tag: client.utils.generateRandomUniqueTag(10)
   }
@@ -587,7 +593,7 @@ module.exports = {
         ...p,
         hp: p.maxHp ?? p.hp,
         tag: client.utils.generateRandomUniqueTag(10),
-        state: { status: '', movesUsed: 0 }
+        state: { status: '', movesUsed: 0, dynamaxActive: false, dynamaxTurns: 0, baseHp: p.maxHp ?? p.hp, baseMoves: [] }
       }))
       dungeonDifficulty = prebuilt.difficulty || null
       await client.DB.delete(`ashen-prebuilt-${M.from}`).catch(() => null)

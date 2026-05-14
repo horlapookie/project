@@ -1,7 +1,7 @@
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const axios = require('axios');
 const { getInventory, setInventoryQuantity, addInventoryQuantity } = require('../../Helpers/pokeballs');
-const { applyBaseBoost } = require('../../Helpers/megaBoost');
+const { applyBaseBoost, activateDynamax, canGigantamax, isMegaOrGmax } = require('../../Helpers/megaBoost');
 const {
     getPotionBag,
     getPotionById,
@@ -670,6 +670,12 @@ module.exports = {
             battle[switcherKey].activePokemon = party[number];
             await updateActivePokemonInParty(client, battle[switcherKey].user, battle[switcherKey].activePokemon);
 
+            // Auto-activate Dynamax for G-Max Pokémon
+            if (/-gmax$/i.test(battle[switcherKey].activePokemon.name)) {
+                activateDynamax(battle[switcherKey].activePokemon, true);
+                await updateActivePokemonInParty(client, battle[switcherKey].user, battle[switcherKey].activePokemon);
+            }
+
             if (wasFainted) {
                 // Forced switch: the switching player moves first next (your requested behavior).
                 battle.turn = switcherKey;
@@ -913,8 +919,13 @@ const handleBattles = async (client, M) => {
 
             if (target.hp <= 0) {
                 target.hp = 0;
+                // Show base name for Mega/G-Max forms when they faint
+                const displayName = String(target.name || '')
+                    .replace(/-mega(-x|-y)?$/i, '')
+                    .replace(/-(gmax|gigantamax)$/i, '')
+                    .trim()
                 await client.sendMessage(M.from, {
-                    text: `${formatBattleActor(client, opponent.user, target.name)} fainted`,
+                    text: `${formatBattleActor(client, opponent.user, target.name)} fainted and reverted to ${client.utils.capitalize(displayName)}`,
                     mentions: isWildUser(opponent.user) ? [] : [opponent.user]
                 });
                 await delay(5000);
@@ -980,6 +991,68 @@ const handleBattles = async (client, M) => {
         }
 
         clearQueuedMoves(battle);
+
+        // DYNAMAX TURN DECREMENT: After both players move, decrement Dynamax turns
+        const dynamaxDecrementAndRevert = async () => {
+            const player1Party = await getPartyForUser(client, battle.player1.user);
+            const player2Party = await getPartyForUser(client, battle.player2.user);
+            const messages = []
+
+            // Process Player 1
+            for (const poke of player1Party) {
+                if (poke.state && poke.state.dynamaxActive && poke.state.dynamaxTurns > 0) {
+                    poke.state.dynamaxTurns--;
+                    if (poke.state.dynamaxTurns === 0) {
+                        // Dynamax ended
+                        poke.state.dynamaxActive = false;
+                        poke.hp = Math.max(1, Math.floor((poke.hp / 2))); // Revert HP doubling
+                        if (poke.state.baseMoves && poke.state.baseMoves.length > 0) {
+                            poke.moves = poke.state.baseMoves;
+                            poke.state.baseMoves = [];
+                        }
+                        // Update active pokemon if it's this one
+                        if (battle.player1.activePokemon && battle.player1.activePokemon.name === poke.name) {
+                            battle.player1.activePokemon = poke;
+                        }
+                        messages.push(`${formatBattleActor(client, battle.player1.user, poke.name)}'s Dynamax ended`)
+                    }
+                }
+            }
+
+            // Process Player 2
+            for (const poke of player2Party) {
+                if (poke.state && poke.state.dynamaxActive && poke.state.dynamaxTurns > 0) {
+                    poke.state.dynamaxTurns--;
+                    if (poke.state.dynamaxTurns === 0) {
+                        // Dynamax ended
+                        poke.state.dynamaxActive = false;
+                        poke.hp = Math.max(1, Math.floor((poke.hp / 2))); // Revert HP doubling
+                        if (poke.state.baseMoves && poke.state.baseMoves.length > 0) {
+                            poke.moves = poke.state.baseMoves;
+                            poke.state.baseMoves = [];
+                        }
+                        // Update active pokemon if it's this one
+                        if (battle.player2.activePokemon && battle.player2.activePokemon.name === poke.name) {
+                            battle.player2.activePokemon = poke;
+                        }
+                        messages.push(`${formatBattleActor(client, battle.player2.user, poke.name)}'s Dynamax ended`)
+                    }
+                }
+            }
+
+            await savePartyForUser(client, battle.player1.user, player1Party);
+            await savePartyForUser(client, battle.player2.user, player2Party);
+            setBattleData(client, M.from, battle);
+
+            // Send Dynamax end messages
+            for (const msg of messages) {
+                await client.sendMessage(M.from, { text: msg });
+                await delay(2000);
+            }
+        };
+
+        await dynamaxDecrementAndRevert();
+
         setBattleData(client, M.from, battle);
 
         await continueSelection(client, M);
@@ -1238,7 +1311,7 @@ const endBattle = async (client, M, winner, loser) => {
                                 types: pdata.types.map((t) => t.type.name),
                                 moves,
                                 rejectedMoves,
-                                state: { status: '', movesUsed: 0 },
+                                state: { status: '', movesUsed: 0, dynamaxActive: false, dynamaxTurns: 0, baseHp: p.maxHp, baseMoves: [] },
                                 female: false,
                                 tag: client.utils.generateRandomUniqueTag(10)
                             };

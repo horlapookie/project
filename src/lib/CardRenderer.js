@@ -322,7 +322,8 @@ const renderPokemonDetailCard = async ({ pokemon, requiredXp }) => {
         `HP: ${pokemon.hp}/${pokemon.maxHp}`,
         `Attack: ${pokemon.attack}/${pokemon.maxAttack}`,
         `Defense: ${pokemon.defense}/${pokemon.maxDefense}`,
-        `Speed: ${pokemon.speed}/${pokemon.maxSpeed}`
+        `Speed: ${pokemon.speed}/${pokemon.maxSpeed}`,
+        ...(pokemon.hasGmaxFactor ? ['G-Max Factor: Yes'] : [])
     ]
 
     ctx.fillStyle = 'rgba(255,255,255,0.86)'

@@ -831,9 +831,9 @@ const isLikelyGif = (buffer) =>
     }
 
     const getGmaxMoveName = (species = '', type = '') => {
-        const normalizedSpecies = String(species || '').toLowerCase()
+        const normalizedSpecies = String(species || '').toLowerCase().replace(/-gmax|-gigantamax$/, '').trim()
         const special = {
-            'charizard': { fire: 'g-max wildfire' },
+            'charizard': { fire: 'g-max wildfire', flying: 'g-max wildfire' },
             'corviknight': { flying: 'g-max wind rage' },
             'kingler': { water: 'g-max foam burst' },
             'coalossal': { rock: 'g-max volcalith' },
@@ -844,10 +844,20 @@ const isLikelyGif = (buffer) =>
             'dragapult': { dragon: 'g-max sundancer' },
             'grimmsnarl': { fairy: 'g-max malodor' },
             'centiskorch': { fire: 'g-max volcanion' },
-            'lapras': { water: 'g-max resonance' },
-            'snorlax': { normal: 'g-max resonance' },
+            'lapras': { water: 'g-max resonance', ice: 'g-max resonance' },
+            'snorlax': { normal: 'g-max replenish' },
             'pikachu': { electric: 'g-max volt crash' },
-            'urshifu': { fighting: 'g-max one blow' }
+            'urshifu': { fighting: 'g-max one blow', water: 'g-max rapid flow' },
+            'machamp': { fighting: 'g-max chi strike' },
+            'gengar': { ghost: 'g-max terror', poison: 'g-max terror' },
+            'drednaw': { water: 'g-max stonesurge', rock: 'g-max stonesurge' },
+            'hatterene': { psychic: 'g-max smite', fairy: 'g-max smite' },
+            'bolthound': { electric: 'g-max volt assault' },
+            'gigantamax-toxtricity': { electric: 'g-max stun shock' },
+            'silicobra': { ground: 'g-max sandblast' },
+            'orbeetle': { bug: 'g-max befuddle', psychic: 'g-max befuddle' },
+            'copperajah': { steel: 'g-max steelsurge' },
+            'duraludon': { steel: 'g-max depletion', dragon: 'g-max depletion' }
         }
         if (special[normalizedSpecies] && special[normalizedSpecies][type]) {
             return special[normalizedSpecies][type]

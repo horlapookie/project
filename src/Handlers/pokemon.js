@@ -34,6 +34,7 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
         String(data?.name || '')
             .replace(/-mega(-x|-y)?$/i, '')
             .replace(/-primal$/i, '')
+            .replace(/-(gmax|gigantamax)$/i, '')
             .trim();
     let gender_rate = 4;
     try {
@@ -50,12 +51,19 @@ const spawnWildPokemon = async (client, jid, options = {}) => {
 
     const { applyBaseBoost } = require('../Helpers/megaBoost');
 
+    // Ensure spawned Pokémon are base forms only
+    const baseName = String(data.name || '')
+        .replace(/-mega(-x|-y)?$/i, '')
+        .replace(/-primal$/i, '')
+        .replace(/-(gmax|gigantamax)$/i, '')
+        .trim();
+
     const wildPokemon = {
         spawnedBy: options.spawnedBy || null,
         catchLockedUntil: options.spawnedBy ? Date.now() + 60 * 1000 : 0,
         spawnedAt: Date.now(),
         expiresAt: Date.now() + 5 * 60 * 1000,
-        name: data.name,
+        name: baseName,
         level,
         exp,
         image,

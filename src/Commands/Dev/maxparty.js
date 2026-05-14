@@ -46,7 +46,7 @@ const buildPokemon = async (client, name, level, tagOverride = null) => {
     types: data.types.map((t) => t.type.name),
     moves: maxPpMoves,
     rejectedMoves,
-    state: { status: '', movesUsed: 0 },
+    state: { status: '', movesUsed: 0, dynamaxActive: false, dynamaxTurns: 0, baseHp: hp, baseMoves: [] },
     female: false,
     tag: tagOverride || client.utils.generateRandomUniqueTag(10)
   }
@@ -98,7 +98,7 @@ module.exports = {
           attack: p.maxAttack || p.attack,
           defense: p.maxDefense || p.defense,
           speed: p.maxSpeed || p.speed,
-          state: { status: '', movesUsed: 0 },
+          state: { status: '', movesUsed: 0, dynamaxActive: false, dynamaxTurns: 0, baseHp: p.maxHp || p.hp, baseMoves: [] },
           moves: (p.moves || []).map((m) => ({ ...m, pp: m.maxPp || m.pp }))
         }
         updated.push(healed)

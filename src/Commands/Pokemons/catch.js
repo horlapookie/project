@@ -1,15 +1,13 @@
 
-const { applyBaseBoost } = require('../../Helpers/megaBoost')
-const { getMegaStoneByKey, GMAX_BALL } = require('../../Helpers/megaItems')
+const { applyBaseBoost, activateDynamax } = require('../../Helpers/megaBoost')
+const { getMegaStoneByKey } = require('../../Helpers/megaItems')
 
 // Apply a temporary stone boost to a party in-place. Returns list of boosted Pokémon.
 const applyTemporaryStoneBoosts = (party) => {
     const boosted = []
     for (const p of party) {
         if (!p.stoneEquipped || p._stonePreBoost) continue
-        const profile = p.stoneEquipped === GMAX_BALL.key
-            ? GMAX_BALL.profile
-            : getMegaStoneByKey(p.stoneEquipped)?.profile
+        const profile = getMegaStoneByKey(p.stoneEquipped)?.profile
         if (!profile) continue
         p._stonePreBoost = {
             hp: p.hp, attack: p.attack, defense: p.defense, speed: p.speed,
@@ -103,6 +101,31 @@ module.exports = {
             const wildUser = `wild-${M.from.replace(/[^a-zA-Z0-9]/g, '')}@pokemon`;
             const wildParty = [{ ...data }];
             await client.poke.set(`${wildUser}_Party`, wildParty);
+
+            // Auto-activate Dynamax for G-Max Pokémon
+            const dynamaxed = []
+            for (const p of availableParty) {
+                if (/-gmax$/i.test(p.name)) {
+                    activateDynamax(p, true);
+                    dynamaxed.push(p);
+                }
+            }
+
+            // Announce Dynamax activations
+            if (dynamaxed.length) {
+                const lines = dynamaxed.map(p =>
+                    `🌀 *${client.utils.capitalize(p.name)}* Dynamaxed!\n` +
+                    `   ❤️ Max HP: *${p.hp}*  |  ⚡ ATK: *${p.attack}*\n` +
+                    `   🛡 DEF: *${p.defense}*  |  💨 SPD: *${p.speed ?? '—'}*`
+                )
+                await client.sendMessage(M.from, {
+                    text:
+                        `🌟 *Gigantamax activated! @${M.sender.split('@')[0]}'s Pokémon Dynamaxed:*\n\n` +
+                        lines.join('\n\n') +
+                        `\n\n_(Dynamax lasts until faint or battle ends)_`,
+                    mentions: [M.sender]
+                })
+            }
 
             const battleObj = {
                 mode: 'wild',

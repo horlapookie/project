@@ -1,5 +1,5 @@
 const { POTIONS } = require('../../Helpers/potions')
-const { MEGA_STONES, GMAX_BALL } = require('../../Helpers/megaItems')
+const { MEGA_STONES } = require('../../Helpers/megaItems')
 
 module.exports = {
     name: 'shop',
@@ -40,14 +40,7 @@ module.exports = {
                 )
             }
 
-            lines.push(
-                '━━━━━━━━━━━━━━━━━━━━',
-                `🌀 *#${GMAX_BALL.id}*  ${GMAX_BALL.emoji} *${GMAX_BALL.name}*`,
-                `  🎯 Works on: *Any GMax Pokémon*`,
-                `  📊 ${GMAX_BALL.note}`,
-                `  💎 *${GMAX_BALL.price.toLocaleString()}* gems`,
-                `  ➤ *${prefix}mart-buy #${GMAX_BALL.id}*`,
-            )
+            // GMax Ball removed - GMax Pokémon auto-Dynamax in battle
 
             return M.reply(lines.join('\n').trim())
         }
@@ -92,11 +85,10 @@ module.exports = {
 
         lines.push(
             '━━━━━━━━━━━━━━━━━━━━',
-            '💎 *Mega Stones & GMax Ball*',
+            '💎 *Mega Stones*',
             '━━━━━━━━━━━━━━━━━━━━',
             `  Equip Mega Stones to permanently boost your Mega Pokémon's stats.`,
-            `  One GMax Ball works on *all* GMax Pokémon.`,
-            `  ➤ *${prefix}shop megastones* — browse all ${MEGA_STONES.length} Mega Stones + GMax Ball`,
+            `  ➤ *${prefix}shop megastones* — browse all ${MEGA_STONES.length} Mega Stones`,
             '',
             '━━━━━━━━━━━━━━━━━━━━',
             `💡 Battle potions: *${prefix}battle potion*  |  Use: *${prefix}battle potion use <#>*`,

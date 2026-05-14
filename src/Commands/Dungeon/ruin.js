@@ -69,6 +69,42 @@ const getEncounterDifficulty = (encounterIndex, bossAt) => {
 
 const DIFF_LABEL = { easy: '🟢 Easy', normal: '🟡 Normal', hard: '🔴 Hard', boss: '⚫ Boss' }
 
+const BOSS_AT_RANGES = {
+  easy:   [18, 24],
+  normal: [12, 18],
+  hard:   [8, 14],
+  boss:   [6, 10]
+}
+
+const CHALLENGE_LABEL = {
+  easy:   'Easy Ruin',
+  normal: 'Normal Ruin',
+  hard:   'Hard Ruin',
+  boss:   'Boss Rush Ruin'
+}
+
+const randomBossAt = (difficulty = 'normal') => {
+  const [min, max] = BOSS_AT_RANGES[difficulty] || BOSS_AT_RANGES.normal
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+const parseRuinSummonOptions = (rawArg = '') => {
+  const tokens = String(rawArg || '').trim().toLowerCase().split(/\s+/).slice(1)
+  const result = { difficulty: 'normal' }
+
+  for (const token of tokens) {
+    if (token.startsWith('--challenge=')) {
+      const value = token.split('=')[1]
+      if (value && BOSS_AT_RANGES[value]) result.difficulty = value
+    }
+    if (BOSS_AT_RANGES[token]) {
+      result.difficulty = token
+    }
+  }
+
+  return result
+}
+
 const REWARDS = {
   easy:   { gold: 5000,   balls: 0 },
   normal: { gold: 15000,  balls: 1 },
@@ -111,27 +147,21 @@ const BOSS_POOL = [
 ]
 
 // 60% of non-boss encounters pull from this pool
+// These are NORMAL forms - they will auto-evolve to Mega/GMax in battle if applicable
 const MEGA_GMAX_POOL = [
-  // ── Mega forms ──────────────────────────────────────────────────────────
-  'charizard-mega-x','charizard-mega-y',
-  'mewtwo-mega-x','mewtwo-mega-y',
-  'gengar-mega','lucario-mega','gardevoir-mega',
-  'metagross-mega','salamence-mega','tyranitar-mega',
-  'blaziken-mega','kangaskhan-mega','banette-mega','rayquaza-mega',
-  'absol-mega','alakazam-mega','ampharos-mega','aerodactyl-mega',
-  'beedrill-mega','blastoise-mega','gallade-mega','garchomp-mega',
-  'gyarados-mega','heracross-mega','houndoom-mega',
-  'latias-mega','latios-mega','lopunny-mega',
-  'manectric-mega','mawile-mega','medicham-mega',
-  'pidgeot-mega','pinsir-mega','sableye-mega',
-  'scizor-mega','sharpedo-mega','slowbro-mega',
-  'steelix-mega','swampert-mega','venusaur-mega',
-  // ── GMax forms ──────────────────────────────────────────────────────────
-  'charizard-gmax','pikachu-gmax','machamp-gmax',
-  'gengar-gmax','lapras-gmax','snorlax-gmax',
-  'grimmsnarl-gmax','drednaw-gmax','kingler-gmax',
-  'coalossal-gmax','centiskorch-gmax','hatterene-gmax',
-  'alcremie-gmax','inteleon-gmax','rillaboom-gmax','cinderace-gmax',
+  'charizard', 'mewtwo', 'gengar', 'lucario', 'gardevoir',
+  'metagross', 'salamence', 'tyranitar', 'blaziken', 'kangaskhan',
+  'banette', 'rayquaza', 'absol', 'alakazam', 'ampharos',
+  'aerodactyl', 'beedrill', 'blastoise', 'gallade', 'garchomp',
+  'gyarados', 'heracross', 'houndoom', 'latias', 'latios',
+  'lopunny', 'manectric', 'mawile', 'medicham', 'pidgeot',
+  'pinsir', 'sableye', 'scizor', 'sharpedo', 'slowbro',
+  'steelix', 'swampert', 'venusaur', 'pikachu', 'machamp',
+  'lapras', 'snorlax', 'grimmsnarl', 'drednaw', 'kingler',
+  'coalossal', 'centiskorch', 'hatterene', 'alcremie', 'inteleon',
+  'rillaboom', 'cinderace', 'urshifu', 'orbeetle', 'copperajah',
+  'duraludon', 'toxtricity', 'bolthound', 'flapple', 'appletun',
+  'sandaconda', 'silicobra'
 ]
 
 const pickEncounterName = (encounterIndex, bossAt) => {
@@ -261,13 +291,19 @@ const buildPokemonForRuin = async (client, nameOrId, encounterIndex) => {
   } catch (_) { gender_rate = 4 }
   const female = gender_rate >= 8 ? true : gender_rate > 0 ? Math.random() < 0.5 : false
 
+  // Ensure dungeon spawns are base forms only
+  const baseName = String(data.name || '')
+    .replace(/-mega(-x|-y)?$/i, '')
+    .replace(/-(gmax|gigantamax|primal)$/i, '')
+    .trim()
+
   return {
-    name: data.name, level, exp, image, id: data.id, displayExp: 0, tier,
+    name: baseName, level, exp, image, id: data.id, displayExp: 0, tier,
     hp, attack, defense, speed,
     maxHp: hp, maxDefense: defense, maxAttack: attack, maxSpeed: speed,
     types: data.types.map(t => t.type.name),
     moves, rejectedMoves,
-    state: { status: '', movesUsed: 0 },
+    state: { status: '', movesUsed: 0, dynamaxActive: false, dynamaxTurns: 0, baseHp: hp, baseMoves: [] },
     female,
     megaBoosted: isMegaOrGmax(data.name) ? true : undefined,
     tag: client.utils.generateRandomUniqueTag(10)
@@ -409,12 +445,13 @@ module.exports = {
     }
 
     // ── SUMMON ───────────────────────────────────────────────────────────────
-    if (sub === 'summon') {
+    if (sub.startsWith('summon')) {
       const existing = await getSession()
       if (existing?.active) {
         return M.reply('🏚️ A Ruin is already active here. Use *ruin enter* to enter or *ruin quit* to close it.')
       }
 
+      const { difficulty } = parseRuinSummonOptions(sub)
       const econ = await client.getEcon(M, { createIfMissing: false })
       const COST = 400000
       if (!econ || (econ.gem || 0) < COST) {
@@ -428,11 +465,12 @@ module.exports = {
       econ.gem = (econ.gem || 0) - COST
       await econ.save().catch(() => null)
 
-      const bossAt  = Math.floor(Math.random() * 13) + 12  // 12–24
+      const bossAt  = randomBossAt(difficulty)
       const session = {
         summoner: M.sender, summonedAt: Date.now(),
         active: true, entered: false, entrant: null,
         encounterIndex: 0, bossAt,
+        ruinDifficulty: difficulty,
         totalGoldEarned: 0, totalBallsEarned: 0,
         defeatedNames: []
       }
@@ -440,13 +478,14 @@ module.exports = {
 
       const meta     = await client.groupMetadata(M.from).catch(() => null)
       const mentions = (meta?.participants || []).map(p => p?.id).filter(Boolean)
+      const challengeLabel = CHALLENGE_LABEL[difficulty] || CHALLENGE_LABEL.normal
 
       return client.sendMessage(M.from, {
         image: { url: `${process.cwd()}/assets/Images/dungeon.jpg` },
         caption:
           `🏚️ *A RUIN HAS APPEARED!* 🏚️\n\n` +
           `*@${M.sender.split('@')[0]}* discovered an ancient Ruin.\n\n` +
-          `⚔️ *Endless battles with scaling difficulty!*\n` +
+          `⚔️ *${challengeLabel} activated!*\n` +
           `Each enemy is *+15% stronger* than the last.\n` +
           `A *Boss Pokémon* lurks after *${bossAt}* encounters.\n\n` +
           `🎁 *Rewards per victory:*\n` +
@@ -458,7 +497,8 @@ module.exports = {
           `• *${prefix}ruin enter* — enter with your full party\n` +
           `• *${prefix}ruin fight* — start the next encounter\n` +
           `• *${prefix}ruin status* — view progress\n` +
-          `• *${prefix}ruin quit* — abandon the Ruin`,
+          `• *${prefix}ruin quit* — abandon the Ruin\n\n` +
+          `💡 Use *${prefix}ruin summon --challenge=easy|normal|hard|boss* to choose difficulty.`,
         mentions
       }, { quoted: M })
     }
@@ -639,7 +679,8 @@ module.exports = {
         (isBoss ? `⚫ *A mighty BOSS appears!*\n` : `A wild Pokémon blocks your path!\n`) +
         `*${client.utils.capitalize(wildPoke.name)}*\n` +
         `🔥 Type: ${wildPoke.types.map(t => client.utils.capitalize(t)).join(' / ')}\n` +
-        `🌍 *Field:* ${fieldLabel} terrain\n` +
+        `� Ruin mode: ${CHALLENGE_LABEL[session.ruinDifficulty] || CHALLENGE_LABEL.normal}\n` +
+        `�🌍 *Field:* ${fieldLabel} terrain\n` +
         `📊 Lv. ${wildPoke.level} | ❤️ HP: ${wildPoke.hp} | ⚡ ATK: ${wildPoke.attack} | 🛡 DEF: ${wildPoke.defense}\n` +
         `📈 Stat scaling: *+${scalingPct}%* from base\n` +
         penaltyLine +
@@ -791,7 +832,8 @@ module.exports = {
         `📍  Until boss:  *${untilBoss}* left\n` +
         `📊  ${progBar}\n` +
         `📈  Scaling:     *+${scaling}%* stronger\n` +
-        `🎮  Next diff:   *${diffLabel}*\n\n` +
+        `🎮  Next diff:   *${diffLabel}*\n` +
+        `🔧  Ruin mode:   *${CHALLENGE_LABEL[session.ruinDifficulty] || CHALLENGE_LABEL.normal}*\n\n` +
         `━━━ Rewards ━━━\n` +
         `💰  Gems:        *${(session.totalGoldEarned || 0).toLocaleString()}*\n` +
         `🎯  Pokéballs:   *${session.totalBallsEarned || 0}*\n` +
@@ -862,12 +904,13 @@ module.exports = {
       `Each enemy is *15% stronger* than the last.\n\n` +
       `📌 *Commands:*\n` +
       `• *${prefix}ruin summon* — open a Ruin (costs 400,000 💎)\n` +
+      `• *${prefix}ruin summon --challenge=easy|normal|hard|boss* — choose your Ruin difficulty\n` +
       `• *${prefix}ruin enter* — enter with your party (requires 6 Pokémon)\n` +
       `• *${prefix}ruin fight* — face the next encounter\n` +
       `• *${prefix}ruin status* — view progress\n` +
       `• *${prefix}ruin quit* — leave with your rewards\n` +
       `• *${prefix}ruin leaderboard* — top ruin clearers\n\n` +
-      `👹 A *Boss* awaits after 12–24 encounters!`
+      `👹 A *Boss* awaits after 6–24 encounters, depending on the chosen difficulty!`
     )
   }
 }

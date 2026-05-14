@@ -134,27 +134,11 @@ const MEGA_STONES = [
 // Remove placeholder entry
 .filter(s => s.price > 0)
 
-const GMAX_BALL = {
-  id: 200, key: 'gmax_ball', name: 'GMax Ball', pokemon: 'gmax', emoji: '🌀', price: 750000,
-  profile: { hp: 3.0, atk: 3.0, def: 3.0, spd: 3.0 },
-  note: 'Universal — all stats ×3 for any GMax Pokémon'
-}
-
-// Fast lookup: pokémon name → stone
-const _stoneMap = new Map()
-for (const s of MEGA_STONES) _stoneMap.set(s.pokemon, s)
-
-const getMegaStoneForPokemon = (pokemonName = '') => {
-  const n = String(pokemonName).toLowerCase().trim()
-  return _stoneMap.get(n) || null
-}
-
 const getMegaStoneByKey = (key) => MEGA_STONES.find(s => s.key === key) || null
 const getMegaStoneById  = (id)  => MEGA_STONES.find(s => s.id  === Number(id)) || null
 
 module.exports = {
   MEGA_STONES,
-  GMAX_BALL,
   getMegaStoneForPokemon,
   getMegaStoneByKey,
   getMegaStoneById,

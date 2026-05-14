@@ -1,5 +1,6 @@
 const axios = require('axios')
 const { PokemonClient } = require('pokenode-ts')
+const { canGigantamax } = require('../../Helpers/megaBoost')
 const {
     renderPartyOverviewCard,
     renderPokemonDetailCard,
@@ -53,7 +54,7 @@ module.exports = {
                         types: data.types.map((type) => type.type.name),
                         moves,
                         rejectedMoves: [],
-                        state: { status: '', movesUsed: 0 },
+                        state: { status: '', movesUsed: 0, dynamaxActive: false, dynamaxTurns: 0, baseHp: pokemon.maxHp, baseMoves: [] },
                         female,
                         tag: '0'
                     }
@@ -72,6 +73,7 @@ module.exports = {
                 const pokemon = party[index - 1];
                 const k = pokemon.level + 1;
                 const required = await client.utils.getExpByLevel(k, pokemon.tier || 'normal');
+                const hasGmaxFactor = canGigantamax(pokemon.name);
                 const detailCard = await renderPokemonDetailCard({
                     pokemon: {
                         ...pokemon,
@@ -89,7 +91,8 @@ module.exports = {
                             ...move,
                             name: move.name.split('-').map(client.utils.capitalize).join(' '),
                             type: client.utils.capitalize(move.type)
-                        }))
+                        })),
+                        hasGmaxFactor
                     },
                     requiredXp: required
                 })
