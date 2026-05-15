@@ -1128,6 +1128,15 @@ const continueSelection = async (client, M) => {
                             return handleRuinEncounterComplete(client, M, battle, currentUser)
                         } catch (ruinErr) {
                             console.error('ruin encounter complete error:', ruinErr)
+                            // Clean up battle so user can continue with ruin fight
+                            if (client.unpersistBattleSync) client.unpersistBattleSync(M.from)
+                            else client.pokemonBattleResponse.delete(M.from)
+                            client.pokemonBattlePlayerMap.delete(currentUser.user)
+                            await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
+                            return client.sendMessage(M.from, {
+                                text: `🏚️ Ruin encountered an error. Use *${client.prefix}ruin fight* to continue or *${client.prefix}ruin quit* to exit.`,
+                                mentions: [currentUser.user]
+                            }).catch(() => null)
                         }
                     }
                     const active = currentUser.activePokemon;
@@ -1239,6 +1248,16 @@ const endBattle = async (client, M, winner, loser) => {
                 client.pokemonBattleResponse.delete(M.from);
                 client.pokemonBattlePlayerMap.delete(winner);
 
+                if (battle.isDungeon && battle.isRuin) {
+                    // Ruin battle reached endBattle as a safety fallback — clean up without ashen rewards
+                    await client.DB.delete(`ruin-session-${M.from}`).catch(() => null)
+                    await client.DB.delete(`ruin-active-${M.from}`).catch(() => null)
+                    return client.sendMessage(M.from, {
+                        text: `🏚️ The Ruin has ended. Use *${client.prefix}ruin summon* to start a new one.`,
+                        mentions: [winner]
+                    })
+                }
+
                 if (battle.isDungeon) {
                     const diffScale = { easy: 0.5, normal: 1, hard: 2, boss: 4 }[battle.dungeonDifficulty] || 1;
                     const rewardGems = Math.round(500000 * diffScale);
@@ -1251,7 +1270,7 @@ const endBattle = async (client, M, winner, loser) => {
                     const winnerKey = (await client.resolveNumber(winner)) || client.getUserNumber(winner) || winner;
                     await addInventoryQuantity(client, winnerKey, 'master_ball', rewardBalls);
 
-                    // Track ashen sanctum wins
+                    // Track ashen sanctum wins (only real ashen battles, not ruin)
                     const prevWins = Number((await client.DB.get(`ashen-wins-${winner}`)) || 0);
                     await client.DB.set(`ashen-wins-${winner}`, prevWins + 1).catch(() => null);
 
@@ -1397,7 +1416,18 @@ const handleStats = async (client, M, exp, user, pokemon, player) => {
         const gainMultiplier = client.utils.getTierXpGainMultiplier
             ? client.utils.getTierXpGainMultiplier(tier)
             : 1;
-        const resultExp = Math.max(1, Math.round((expValue / 50) * gainMultiplier));
+
+        // Premium battle XP boost (1.5×)
+        let premiumExpMult = 1
+        if (user && !isWildUser(user)) {
+            try {
+                const { hasPremiumBattle } = require('../../Helpers/premium')
+                const userKey = String(user.split('@')[0])
+                if (await hasPremiumBattle(client, userKey)) premiumExpMult = 1.5
+            } catch (_) {}
+        }
+
+        const resultExp = Math.max(1, Math.round((expValue / 50) * gainMultiplier * premiumExpMult));
 
         await client.sendMessage(M.from, {
             text: `${formatBattleActor(client, user, pokemon.name)} gained *${resultExp} XP*`,

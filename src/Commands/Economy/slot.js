@@ -1,4 +1,6 @@
-// Slot Command (75% win feel + animation + 3x/6x/9x/18x)
+// Slot Command — Normal: x18 max, 75% win | Premium: x36 max, 85% win
+
+const { hasPremiumCasino } = require('../../Helpers/premium')
 
 const SYMBOLS = [
     { display: '🍒', weight: 14 },
@@ -22,8 +24,8 @@ const spinSymbol = () => {
     return SYMBOLS[0].display;
 };
 
-// 🎯 Controlled reels (win-rate tuned)
-const spinReels = () => {
+// winRate: 0.0–1.0 desired win probability
+const spinReels = (winRate = 0.75) => {
     const grid = [
         [spinSymbol(), spinSymbol(), spinSymbol()],
         [spinSymbol(), spinSymbol(), spinSymbol()],
@@ -32,19 +34,19 @@ const spinReels = () => {
 
     const roll = Math.random();
 
-    if (roll < 0.45) {
-        // 45% → force pair
-        const sym = spinSymbol();
-        grid[1][0] = sym;
-        grid[1][1] = sym;
-    } else if (roll < 0.60) {
-        // 15% → triple (big win chance)
+    if (roll < winRate * 0.6) {
+        // Force triple (big win)
         const sym = spinSymbol();
         grid[1][0] = sym;
         grid[1][1] = sym;
         grid[1][2] = sym;
+    } else if (roll < winRate) {
+        // Force pair
+        const sym = spinSymbol();
+        grid[1][0] = sym;
+        grid[1][1] = sym;
     }
-    // remaining ~40% = natural RNG (loss or lucky)
+    // else natural RNG (may still produce a win)
 
     return grid;
 };
@@ -61,11 +63,11 @@ module.exports = {
     exp: 5,
     cool: 15,
     react: '🤑',
-    usage: 'Use: !slot <amount>',
-    description: 'High win-rate slot with animation.',
+    usage: 'Use: {prefix}slot <amount>',
+    description: 'Slot machine — Premium users earn up to ×36!',
 
     async execute(client, arg, M) {
-        if (!arg) return M.reply('Please provide the amount.');
+        if (!arg) return M.reply('Please provide an amount.');
 
         const amount = parseInt(arg);
         if (isNaN(amount) || amount <= 0) return M.reply('Enter a valid amount.');
@@ -76,10 +78,15 @@ module.exports = {
         if (!economy) return M.reply(`Use ${client.prefix}bonus to get started.`);
 
         const credits = economy.gem || 0;
-
         if (amount > credits) return M.reply("You don't have enough credits.");
         if (amount > 1000000) return M.reply('Max bet is 1,000,000.');
         if (amount < 300) return M.reply('Minimum bet is 300.');
+
+        // Check premium status
+        const userKey = String(M.sender.split('@')[0])
+        const premium = await hasPremiumCasino(client, userKey).catch(() => false)
+        const winRate  = premium ? 0.85 : 0.75
+        const jackpotMult = premium ? 36 : 18
 
         // 🎰 fake spinning animation
         const spinMsg = await M.reply('🎰 Spinning...');
@@ -93,68 +100,58 @@ module.exports = {
             await client.sendMessage(M.from, { text: visualize(tempGrid), edit: spinMsg.key });
         }
 
-        const grid = spinReels();
+        const grid   = spinReels(winRate);
         const middle = grid[1];
+        const [a, b, c] = middle;
 
-        const a = middle[0];
-        const b = middle[1];
-        const c = middle[2];
-
-        let multiplier = 0;
+        let multiplier  = 0;
         let outcomeText = '';
 
-        // 🎯 triple
+        // Triple
         if (a === b && b === c) {
             if (a === '💎') {
-                multiplier = 18;
-                outcomeText = '💎 MEGA JACKPOT! 18x!';
+                multiplier  = jackpotMult;
+                outcomeText = premium
+                    ? `💎👑 PREMIUM MEGA JACKPOT! ${jackpotMult}x!`
+                    : `💎 MEGA JACKPOT! ${jackpotMult}x!`;
             } else if (a === '⭐') {
-                multiplier = 9;
-                outcomeText = '⭐ 9x WIN!';
+                multiplier  = premium ? 18 : 9;
+                outcomeText = `⭐ ${multiplier}x WIN!`;
             } else if (a === '🔔') {
-                multiplier = 6;
-                outcomeText = '🔔 6x WIN!';
+                multiplier  = premium ? 12 : 6;
+                outcomeText = `🔔 ${multiplier}x WIN!`;
             } else {
-                multiplier = 3;
-                outcomeText = '🎉 3x WIN!';
+                multiplier  = premium ? 6 : 3;
+                outcomeText = `🎉 ${multiplier}x WIN!`;
             }
-
-        // 🎯 pair
+        // Pair
         } else if (a === b || b === c || a === c) {
-            multiplier = 2;
-            outcomeText = '✨ 2x WIN!';
-
-        // 🍀 lucky fallback (~15%)
-        } else if (Math.random() < 0.15) {
-            multiplier = 1.2;
+            multiplier  = premium ? 3 : 2;
+            outcomeText = `✨ ${multiplier}x WIN!`;
+        // Lucky fallback
+        } else if (Math.random() < (premium ? 0.30 : 0.15)) {
+            multiplier  = 1.2;
             outcomeText = '🍀 Lucky 1.2x!';
         }
 
-        let resultAmount;
-
         if (multiplier > 0) {
-            resultAmount = Math.floor(amount * multiplier);
+            const resultAmount = Math.floor(amount * multiplier);
             economy.gem += (resultAmount - amount);
+            let text = '*☆::. 🎰 SLOT MACHINE 🎰 .::.☆*\n\n'
+            text += visualize(grid)
+            text += `\n\n${outcomeText}\n📈 You won *${resultAmount.toLocaleString()}* credits!`
+            text += `\n\n💰 Wallet: *${economy.gem.toLocaleString()}*`
+            if (premium) text += `\n👑 _Premium Casino active_`
+            await economy.save();
+            return client.sendMessage(M.from, { text, edit: spinMsg.key });
         } else {
-            resultAmount = amount;
             economy.gem -= amount;
+            let text = '*☆::. 🎰 SLOT MACHINE 🎰 .::.☆*\n\n'
+            text += visualize(grid)
+            text += `\n\n📉 You lost *${amount.toLocaleString()}* credits.`
+            text += `\n\n💰 Wallet: *${economy.gem.toLocaleString()}*`
+            await economy.save();
+            return client.sendMessage(M.from, { text, edit: spinMsg.key });
         }
-
-        await economy.save();
-
-        let text = '*☆::. 🎰 SLOT MACHINE 🎰 .::.☆*\n\n';
-        text += visualize(grid);
-        text += '\n\n';
-
-        if (multiplier > 0) {
-            text += `${outcomeText}\n📈 You won *${resultAmount.toLocaleString()}* credits!`;
-        } else {
-            text += `📉 You lost *${amount.toLocaleString()}* credits.`;
-        }
-
-        text += `\n\n💰 Wallet: *${economy.gem.toLocaleString()}*`;
-
-        // final edit (replace spinning)
-        await client.sendMessage(M.from, { text, edit: spinMsg.key });
     }
 };

@@ -279,6 +279,16 @@ const buildPokemonForRuin = async (client, nameOrId, encounterIndex) => {
     hp      *= 3; attack  *= 3; defense *= 3; speed *= 3
   }
 
+  // Cap eternatus forms — their defense is impossibly high otherwise
+  if (/eternatus/i.test(data.name)) {
+    defense = Math.min(defense, 1000)
+    if (/eternal/i.test(data.name)) {
+      // eternamax form: also cap HP and attack to reasonable levels
+      hp     = Math.min(hp,     12000)
+      attack = Math.min(attack,  5000)
+    }
+  }
+
   const { moves, rejectedMoves } = await assignRuinMoves(data.name, level)
 
   const server = new PokemonClient()
@@ -315,25 +325,58 @@ const ruinWildUser = (jid) => `ruin-${String(jid).replace(/[^a-zA-Z0-9]/g, '')}@
 
 // ─── Exported helper (called by battle.js after an encounter is won) ──────────
 const handleRuinEncounterComplete = async (client, M, battle, currentUser) => {
+  // ── Step 1: Clean up the battle FIRST so the state is never stuck ─────
+  await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
+  if (client.unpersistBattleSync) client.unpersistBattleSync(M.from)
+  else client.pokemonBattleResponse.delete(M.from)
+  client.pokemonBattlePlayerMap.delete(currentUser.user)
+
   try {
     const sessionKey = battle.ruinSessionKey
     const session    = await client.DB.get(sessionKey).catch(() => null)
     if (!session) {
-      // Session gone — just clean up the battle silently
-      await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
-      if (client.unpersistBattleSync) client.unpersistBattleSync(M.from)
-      else client.pokemonBattleResponse.delete(M.from)
-      client.pokemonBattlePlayerMap.delete(currentUser.user)
+      // Session gone (already cleaned or timed out) — battle was already cleaned above
       return null
     }
 
     const encounterIndex = Number(battle.ruinEncounterIndex || 0)
-    const bossAt         = Number(battle.ruinBossAt || 12)
+    const bossAt         = Number(battle.ruinBossAt || session.bossAt || 12)
+    const isBoss         = encounterIndex >= bossAt
     const difficulty     = getEncounterDifficulty(encounterIndex, bossAt)
-    const { gold, balls } = REWARDS[difficulty] || REWARDS.normal
     const prefix         = client.prefix || '-'
 
-    // ── Give encounter rewards ────────────────────────────────────────────
+    // ── Check if user has premium ruin bonus ─────────────────────────────
+    let premiumMult = 1
+    try {
+      const { hasPremiumRuin } = require('../../Helpers/premium')
+      const userKey = client.getUserNumber(currentUser.user) || currentUser.user.split('@')[0]
+      if (await hasPremiumRuin(client, userKey)) premiumMult = 1.25
+    } catch (_) {}
+
+    const baseRewards  = REWARDS[difficulty] || REWARDS.normal
+    const gold         = Math.floor(baseRewards.gold * premiumMult)
+    const balls        = baseRewards.balls
+
+    // ── Step 2: Update session encounterIndex BEFORE rewards ─────────────
+    const newEncounterIndex = encounterIndex + 1
+    session.encounterIndex    = newEncounterIndex
+    session.totalGoldEarned   = (session.totalGoldEarned  || 0) + gold
+    session.totalBallsEarned  = (session.totalBallsEarned || 0) + balls
+    session.defeatedNames     = [...(session.defeatedNames || []),
+      client.utils.capitalize(battle.wildPokemon?.name || '')]
+
+    if (!isBoss) {
+      // Save the updated session so the next ruin fight uses the correct encounterIndex
+      try {
+        await client.DB.set(sessionKey, session)
+      } catch (saveErr) {
+        console.error('ruin session save error:', saveErr)
+        // Retry once
+        await client.DB.set(sessionKey, session).catch(() => null)
+      }
+    }
+
+    // ── Step 3: Give encounter rewards ───────────────────────────────────
     try {
       const econ = await client.getEcon(currentUser.user, { createIfMissing: true })
       if (econ) { econ.gem = (econ.gem || 0) + gold; await econ.save() }
@@ -346,26 +389,11 @@ const handleRuinEncounterComplete = async (client, M, battle, currentUser) => {
       } catch (_) {}
     }
 
-    // ── Update session ────────────────────────────────────────────────────
-    session.encounterIndex    = encounterIndex + 1
-    session.totalGoldEarned   = (session.totalGoldEarned  || 0) + gold
-    session.totalBallsEarned  = (session.totalBallsEarned || 0) + balls
-    session.defeatedNames     = [...(session.defeatedNames || []),
-      client.utils.capitalize(battle.wildPokemon?.name || '')]
-    await client.DB.set(sessionKey, session).catch(() => null)
-
-    // ── Cleanup battle ────────────────────────────────────────────────────
-    await client.poke.delete(`${battle.wildUser}_Party`).catch(() => null)
-    if (client.unpersistBattleSync) client.unpersistBattleSync(M.from)
-    else client.pokemonBattleResponse.delete(M.from)
-    client.pokemonBattlePlayerMap.delete(currentUser.user)
-
-    const isBoss      = encounterIndex >= bossAt
-    const nextScaling = session.encounterIndex * 15
+    const nextScaling = newEncounterIndex * 15
 
     // ── Boss cleared → end ruin with big rewards ──────────────────────────
     if (isBoss) {
-      const bonusGold  = 500000
+      const bonusGold  = Math.floor(500000 * premiumMult)
       const bonusBalls = 10
       try {
         const econ = await client.getEcon(currentUser.user, { createIfMissing: true })
@@ -384,21 +412,24 @@ const handleRuinEncounterComplete = async (client, M, battle, currentUser) => {
       const prevClrs = Number((await client.DB.get(clrKey).catch(() => null)) || 0)
       await client.DB.set(clrKey, prevClrs + 1).catch(() => null)
 
+      const premiumNote = premiumMult > 1 ? `\n👑 *Premium Bonus* applied — +25% rewards!` : ''
       return client.sendMessage(M.from, {
         text:
           `🏚️🎉 *RUIN CLEARED!* 🎉🏚️\n\n` +
           `*@${currentUser.user.split('@')[0]}* defeated the Boss and emerged victorious!\n\n` +
           `📊 *Final Stats:*\n` +
-          `⚔️ Encounters cleared: *${session.encounterIndex}*\n\n` +
+          `⚔️ Encounters cleared: *${newEncounterIndex}*\n\n` +
           `🏆 *Total Rewards:*\n` +
           `💰 *${session.totalGoldEarned.toLocaleString()}* gems\n` +
-          `🎯 *${session.totalBallsEarned}* Pokéballs\n\n` +
-          `🌟 Total Ruin Clears: *${prevClrs + 1}*`,
+          `🎯 *${session.totalBallsEarned}* Pokéballs` +
+          premiumNote +
+          `\n\n🌟 Total Ruin Clears: *${prevClrs + 1}*`,
         mentions: [currentUser.user]
       })
     }
 
     // ── Regular encounter cleared → prompt next ───────────────────────────
+    const premiumNote = premiumMult > 1 ? `\n👑 *Premium Ruin* — rewards boosted by 25%!` : ''
     return client.sendMessage(M.from, {
       text:
         `🏚️ *Encounter #${encounterIndex + 1} Defeated!*\n\n` +
@@ -406,6 +437,7 @@ const handleRuinEncounterComplete = async (client, M, battle, currentUser) => {
         `🎁 *Rewards:*\n` +
         `💰 *+${gold.toLocaleString()}* gems\n` +
         (balls > 0 ? `🎯 *+${balls}* Ultra Ball${balls !== 1 ? 's' : ''}\n` : '') +
+        premiumNote +
         `\n📈 Next encounter stat scaling: *+${nextScaling}%*\n\n` +
         `• *${prefix}ruin fight* — face the next encounter\n` +
         `• *${prefix}ruin quit* — leave with your rewards`,

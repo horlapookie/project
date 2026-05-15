@@ -750,8 +750,16 @@ const start = async (authChoice = null) => {
     //Command Loader
     const loadCommands = async () => {
         const readCommand = (rootDir) => {
-            readdirSync(rootDir).forEach(($dir) => {
-                const commandFiles = readdirSync(join(rootDir, $dir)).filter((file) => file.endsWith('.js'))
+            let dirs
+            try { dirs = readdirSync(rootDir) } catch (_) { dirs = [] }
+            for (const $dir of dirs) {
+                let commandFiles
+                try {
+                    commandFiles = readdirSync(join(rootDir, $dir)).filter((file) => file.endsWith('.js'))
+                } catch (_) {
+                    // $dir is a file (e.g. README.md at root) — skip silently
+                    continue
+                }
                 for (let file of commandFiles) {
                     try {
                         const command = require(join(rootDir, $dir, file))
@@ -761,10 +769,10 @@ const start = async (authChoice = null) => {
                             client.log(`⚠️ Command file ${file} has no exported name — skipping`, 'yellow')
                         }
                     } catch (err) {
-                        client.log(`⚠️ Failed to load command ${file}: ${err.message}`, 'red')
+                        client.log(`⚠️ Failed to load command ${file}: ${err.message} — ${err.stack?.split('\n')[1] || ''}`, 'red')
                     }
                 }
-            })
+            }
             client.log('Commands loaded!')
         }
         readCommand(join(__dirname, '.', 'Commands'))

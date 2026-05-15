@@ -1,3 +1,5 @@
+const { getMaxPartySize } = require('../../Helpers/premium')
+
 module.exports = {
     name: 't2party',
     aliases: ['toparty'],
@@ -19,7 +21,15 @@ module.exports = {
         }
 
         const party = (await client.poke.get(`${M.sender}_Party`)) || []
-        if (party.length >= 6) return M.reply('Your party is full (6). Move something to PC first.')
+        const userKey = String(M.sender.split('@')[0])
+        const maxSize = await getMaxPartySize(client, userKey).catch(() => 6)
+
+        if (party.length >= maxSize) {
+            const tierMsg = maxSize < 12
+                ? ` Get Premium Gold for 12 slots!`
+                : ''
+            return M.reply(`Your party is full (${maxSize} slots).${tierMsg} Move something to PC first.`)
+        }
 
         const pc = client.getPc ? await client.getPc(M.sender) : ((await client.poke.get(`${M.sender}_PSS`)) || [])
         if (!pc.length) return M.reply('Your PC is empty.')
@@ -32,6 +42,6 @@ module.exports = {
         if (client.setPc) await client.setPc(M.sender, pc)
         else await client.poke.set(`${M.sender}_PSS`, pc)
 
-        return M.reply(`Transferred *${client.utils.capitalize(pokemon.name)}* to your party. Party: ${party.length}/6, PC: ${pc.length}.`)
+        return M.reply(`Transferred *${client.utils.capitalize(pokemon.name)}* to your party. Party: ${party.length}/${maxSize}, PC: ${pc.length}.`)
     }
 }

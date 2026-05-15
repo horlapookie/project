@@ -1,3 +1,5 @@
+const { getMaxPartySize } = require('../../Helpers/premium')
+
 module.exports = {
     name: "pokemongive",
     aliases: ["pg", "gpm"],
@@ -31,17 +33,18 @@ async function handleConfirmationOrRejection(client, action, M) {
                 return M.reply("The Pokémon index is invalid or the Pokémon is no longer available.");
             }
 
+            const targetKey = String(mentionedUser.split('@')[0])
+            const targetMax = await getMaxPartySize(client, targetKey).catch(() => 6)
             const pokemon = senderParty[pokemonIndex];
-            if (targetParty.length >= 6) {
+
+            if (targetParty.length >= targetMax) {
                 await client.poke.delete(`${M.sender}_Confirm`);
-                return M.reply('Receiver does not have space in their party.');
+                return M.reply(`Receiver's party is full (${targetMax} slots). Pokémon was not transferred.`);
             }
 
-            // Remove the Pokémon from sender's party
             senderParty.splice(pokemonIndex, 1);
             await client.poke.set(`${sender}_Party`, senderParty);
 
-            // Add the Pokémon to the target user's party
             targetParty.push(pokemon);
             await client.poke.set(`${mentionedUser}_Party`, targetParty);
 
@@ -84,6 +87,8 @@ async function initiatePokemonGive(client, args, M) {
         }
 
         const targetParty = await client.poke.get(`${mentionedUser}_Party`) || [];
+        const targetKey = String(mentionedUser.split('@')[0])
+        const targetMax = await getMaxPartySize(client, targetKey).catch(() => 6)
 
         if (senderParty.length === 0) {
             return M.reply("Your Pokémon party is empty!");
@@ -94,7 +99,9 @@ async function initiatePokemonGive(client, args, M) {
         }
 
         const pokemon = senderParty[index - 1];
-        if (targetParty.length >= 6) {
+
+        if (targetParty.length >= targetMax) {
+            // Party full — send to PC instead
             const targetPc = client.getPc ? await client.getPc(mentionedUser) : (await client.poke.get(`${mentionedUser}_PSS`)) || [];
             targetPc.push(pokemon);
             if (client.setPc) await client.setPc(mentionedUser, targetPc);
@@ -103,7 +110,7 @@ async function initiatePokemonGive(client, args, M) {
             senderParty.splice(index - 1, 1);
             await client.poke.set(`${sender}_Party`, senderParty);
 
-            const text = `✔ @${sender.split('@')[0]} has transferred *${pokemon.name}* (Level: ${pokemon.level}) to @${mentionedUser.split('@')[0]}. It was sent to their PC.`;
+            const text = `✔ @${sender.split('@')[0]} transferred *${pokemon.name}* (Lv. ${pokemon.level}) to @${mentionedUser.split('@')[0]}. Their party is full (${targetMax}) — sent to PC instead.`;
             await client.sendMessage(M.from, { text: text, mentions: [sender, mentionedUser] });
 
             if (client.groups?.adminsGroup) {
@@ -112,11 +119,9 @@ async function initiatePokemonGive(client, args, M) {
             return;
         }
 
-        // Remove the Pokémon from sender's party
         senderParty.splice(index - 1, 1);
         await client.poke.set(`${sender}_Party`, senderParty);
 
-        // Add the Pokémon to the target user's party
         targetParty.push(pokemon);
         await client.poke.set(`${mentionedUser}_Party`, targetParty);
 
