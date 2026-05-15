@@ -1034,21 +1034,63 @@ module.exports = {
 
     // ── LEADERBOARD ──────────────────────────────────────────────────────────
     if (sub === 'leaderboard' || sub === 'lb') {
-      const players    = (await client.DB.get('ruin-players').catch(() => null)) || []
-      if (!players.length) return M.reply('No ruin clears recorded yet.')
+      const registry = (await client.DB.get('ruin-players').catch(() => null)) || []
+
+      // Also pull from ruin-tier DB keys directly for anyone who has a tier
+      const tierKeys = []
+      // We rely on the clears registry; tier is derived from it
+      if (!registry.length) return M.reply('🏚️ No ruin clears recorded yet. Be the first!')
+
       const entries = []
-      for (const p of players.slice(0, 10)) {
-        const clears = Number((await client.DB.get(`ruin-clears-${p}`).catch(() => null)) || 0)
-        if (clears > 0) entries.push({ p, clears })
+      for (const p of registry) {
+        const clears   = Number((await client.DB.get(`ruin-clears-${p}`).catch(() => null)) || 0)
+        const tierIdx  = await getUserRuinTier(client, p).catch(() => 0)
+        if (clears > 0 || tierIdx > 0) entries.push({ p, clears, tierIdx })
       }
-      entries.sort((a, b) => b.clears - a.clears)
-      const lines = entries.slice(0, 10).map((e, i) =>
-        `${i + 1}. @${e.p.split('@')[0]} — *${e.clears}* clear${e.clears !== 1 ? 's' : ''}`
-      )
-      return client.sendMessage(M.from, {
-        text: `🏚️ *RUIN LEADERBOARD*\n\n${lines.join('\n')}`,
-        mentions: entries.map(e => e.p)
+
+      if (!entries.length) return M.reply('🏚️ No ruin clears recorded yet. Be the first!')
+
+      // Board 1: Top by total clears
+      const byClears = [...entries].sort((a, b) => b.clears - a.clears).slice(0, 10)
+      // Board 2: Top by highest tier reached
+      const byTier   = [...entries].sort((a, b) => b.tierIdx - a.tierIdx || b.clears - a.clears).slice(0, 10)
+
+      const medals = ['🥇', '🥈', '🥉']
+      const tierEmojis = ['🟢', '🟡', '🔴', '⚫', '🔥', '🔥', '🔥', '🔥', '🔥', '🔥']
+
+      const clearLines = byClears.map((e, i) => {
+        const tier   = getRuinTierInfo(e.tierIdx)
+        const emoji  = tierEmojis[Math.min(e.tierIdx, tierEmojis.length - 1)]
+        const medal  = medals[i] || `*${i + 1}.*`
+        return `${medal} @${e.p.split('@')[0].replace(/\D/g,'')}\n   ` +
+               `🏆 *${e.clears}* clear${e.clears !== 1 ? 's' : ''}  ${emoji} ${tier.label}`
       })
+
+      const tierLines = byTier.map((e, i) => {
+        const tier   = getRuinTierInfo(e.tierIdx)
+        const emoji  = tierEmojis[Math.min(e.tierIdx, tierEmojis.length - 1)]
+        const medal  = medals[i] || `*${i + 1}.*`
+        return `${medal} @${e.p.split('@')[0].replace(/\D/g,'')}\n   ` +
+               `${emoji} *${tier.label}*  (×${tier.statMult.toFixed(1)} stats)  🏆 ${e.clears} clear${e.clears !== 1 ? 's' : ''}`
+      })
+
+      const allMentions = [...new Set([...byClears, ...byTier].map(e => e.p))]
+
+      return client.sendMessage(M.from, {
+        text: [
+          `🏚️ *RUIN LEADERBOARD* 🏚️`,
+          ``,
+          `━━━ 🏆 Most Clears ━━━`,
+          clearLines.join('\n'),
+          ``,
+          `━━━ 🔥 Highest Tier ━━━`,
+          tierLines.join('\n'),
+          ``,
+          `━━━━━━━━━━━━━━━━━━━━`,
+          `Use *${prefix}ruin status* to see your own progression.`
+        ].join('\n'),
+        mentions: allMentions
+      }, { quoted: M })
     }
 
     // ── QUIT ─────────────────────────────────────────────────────────────────

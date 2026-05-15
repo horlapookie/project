@@ -134,11 +134,25 @@ const MEGA_STONES = [
 // Remove placeholder entry
 .filter(s => s.price > 0)
 
-const getMegaStoneByKey = (key) => MEGA_STONES.find(s => s.key === key) || null
-const getMegaStoneById  = (id)  => MEGA_STONES.find(s => s.id  === Number(id)) || null
+// ─── GMax Ball (applies Gigantamax boost to any GMax form Pokémon) ────────────
+const GMAX_BALL = {
+  id:      200,
+  key:     'gmax_ball',
+  name:    'GMax Ball',
+  emoji:   '🔮',
+  pokemon: 'gmax',
+  price:   800000,
+  note:    'Any GMax Pokémon — ×2.5 HP, ×3 ATK & DEF, ×2 SPD',
+  profile: { hp: 2.5, atk: 3.0, def: 3.0, spd: 2.0 }
+}
+
+const getMegaStoneByKey        = (key)     => MEGA_STONES.find(s => s.key === key) || null
+const getMegaStoneById         = (id)      => MEGA_STONES.find(s => s.id  === Number(id)) || null
+const getMegaStoneForPokemon   = (pokemon) => MEGA_STONES.find(s => s.pokemon === pokemon) || null
 
 module.exports = {
   MEGA_STONES,
+  GMAX_BALL,
   getMegaStoneForPokemon,
   getMegaStoneByKey,
   getMegaStoneById,
