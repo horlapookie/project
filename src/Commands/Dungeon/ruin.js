@@ -877,24 +877,7 @@ module.exports = {
 
     // ── STATUS ───────────────────────────────────────────────────────────────
     if (sub === 'status') {
-      const session = await getSession()
-      if (!session?.active) return M.reply(`🏚️ No active Ruin here. Summon one with *${prefix}ruin summon*.`)
-
-      const battle       = client.pokemonBattleResponse.get(M.from)
-      const inBattle     = Boolean(battle?.isRuin)
-      const encIdx       = session.encounterIndex || 0
-      const bossAt       = session.bossAt || 12
-      const untilBoss    = Math.max(0, bossAt - encIdx)
-      const scaling      = encIdx * 15
-      const difficulty   = getEncounterDifficulty(encIdx, bossAt)
-      const diffLabel    = DIFF_LABEL[difficulty] || difficulty
-
-      // Progress bar (10 cells, boss marker at end)
-      const barLen    = 10
-      const filled    = Math.min(barLen, Math.round((encIdx / bossAt) * barLen))
-      const progBar   = '█'.repeat(filled) + '░'.repeat(barLen - filled) + ' 👹'
-
-      // HP bar helper
+      // ── Shared helpers ────────────────────────────────────────────────────
       const hpBar = (cur, max) => {
         const pct = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0
         const f   = Math.round(pct * 8)
@@ -903,63 +886,149 @@ module.exports = {
         return `${col} ${bar} ${Math.max(0, cur).toLocaleString()}/${(max || 0).toLocaleString()}`
       }
 
-      // Load party for HP display
-      const challId = session.entrant || session.summoner
-      const party   = challId ? ((await client.poke.get(`${challId}_Party`)) || []) : []
+      const waveBar = (current, total) => {
+        const barLen = 12
+        const filled = Math.min(barLen, Math.round((current / Math.max(1, total)) * barLen))
+        return '█'.repeat(filled) + '░'.repeat(barLen - filled) + ' 👹'
+      }
 
-      const partyLines = party.length
-        ? party.map((p, i) => {
-            const statusIcon = p.hp <= 0 ? '💀' : p.state?.status === 'poisoned' ? '☠️' : p.state?.status === 'sleeping' ? '💤' : p.state?.status === 'paralyzed' ? '⚡' : '✅'
-            return (
-              `  *#${i + 1}* ${statusIcon} *${client.utils.capitalize(p.name)}* Lv.${p.level}\n` +
-              `        ❤️ ${hpBar(p.hp, p.maxHp)}`
-            )
-          }).join('\n')
-        : '  _(No party data)_'
+      // ── The target whose status to check ─────────────────────────────────
+      // If a user tagged themselves, show their progression even if no active ruin
+      const checkUser  = M.mentions?.[0] || M.sender
+      const checkKey   = checkUser.split('@')[0].replace(/\D/g, '')
 
-      // Active enemy if in battle
-      const enemyLine = inBattle
-        ? (
-            `\n👾 *Current Enemy*\n` +
-            `  *${client.utils.capitalize(battle.player2.activePokemon.name)}*\n` +
-            `  ❤️ ${hpBar(battle.player2.activePokemon.hp, battle.player2.activePokemon.maxHp)}\n`
-          )
+      // ── Always show the user's progression card ───────────────────────────
+      const userTierIdx  = await getUserRuinTier(client, checkUser)
+      const userTierInfo = getRuinTierInfo(userTierIdx)
+      const nextTierInfo = getRuinTierInfo(userTierIdx + 1)
+      const prevTierInfo = userTierIdx > 0 ? getRuinTierInfo(userTierIdx - 1) : null
+      const clears       = Number((await client.DB.get(`ruin-clears-${checkUser}`).catch(() => null)) || 0)
+
+      const tierEmojis = ['🟢', '🟡', '🔴', '⚫', '🔥', '🔥', '🔥', '🔥', '🔥', '🔥']
+      const tierEmoji  = tierEmojis[Math.min(userTierIdx, tierEmojis.length - 1)]
+
+      // Stat comparison between previous and current tier
+      const statDiff = prevTierInfo
+        ? ` _(×${userTierInfo.statMult.toFixed(1)} vs ×${prevTierInfo.statMult.toFixed(1)} prev)_`
+        : ` _(base tier)_`
+
+      const rewardDiff = prevTierInfo
+        ? ` _(+${((userTierInfo.rewards.gem / prevTierInfo.rewards.gem - 1) * 100).toFixed(0)}% more gems)_`
         : ''
 
-      const actionLine = inBattle
-        ? `⚔️ Battle in progress → *${prefix}ruin fight* to attack`
-        : session.entered
-        ? `📌 Use *${prefix}ruin fight* to face the next encounter`
-        : `📌 Use *${prefix}ruin enter* to begin`
+      // Tier ladder: show 3 tiers around the current one
+      const ladderStart = Math.max(0, userTierIdx - 1)
+      const ladderTiers = [ladderStart, ladderStart + 1, ladderStart + 2].map(i => {
+        const t   = getRuinTierInfo(i)
+        const cur = i === userTierIdx ? ' ◀ *YOU*' : i < userTierIdx ? ' ✅' : ' 🔒'
+        return `  ${tierEmojis[Math.min(i, tierEmojis.length - 1)]} *${t.label}* — ×${t.statMult.toFixed(1)} stats | ${t.rewards.gem.toLocaleString()} gems${cur}`
+      })
 
-      const caption =
-        `🏚️ *RUIN STATUS*\n\n` +
-        `👤 Challenger: *@${(challId || '?').split('@')[0]}*\n\n` +
-        `━━━ Progress ━━━\n` +
-        `⚔️  Defeated:    *${encIdx}* encounter${encIdx !== 1 ? 's' : ''}\n` +
-        `👹  Boss at:     encounter *#${bossAt}*\n` +
-        `📍  Until boss:  *${untilBoss}* left\n` +
-        `📊  ${progBar}\n` +
-        `📈  Scaling:     *+${scaling}%* stronger\n` +
-        `🎮  Next diff:   *${diffLabel}*\n` +
-        `🔧  Ruin mode:   *${CHALLENGE_LABEL[session.ruinDifficulty] || CHALLENGE_LABEL.normal}*\n\n` +
-        `━━━ Rewards ━━━\n` +
-        `💰  Gems:        *${(session.totalGoldEarned || 0).toLocaleString()}*\n` +
-        `🎯  Pokéballs:   *${session.totalBallsEarned || 0}*\n` +
-        enemyLine +
-        `\n━━━ Your Party ━━━\n` +
-        partyLines +
-        `\n\n${actionLine}`
+      let progressCard =
+        `🏚️ *RUIN PROGRESSION — @${checkKey}*\n\n` +
+        `━━━ Your Tier ━━━\n` +
+        `${tierEmoji} *${userTierInfo.label}*\n` +
+        `🏆 Total Ruin Clears: *${clears}*\n` +
+        `⚡ Stat Multiplier:   *×${userTierInfo.statMult.toFixed(1)}*${statDiff}\n` +
+        `👹 Boss Wave:         *${userTierInfo.waveRange[0]}–${userTierInfo.waveRange[1]} encounters*\n` +
+        `💰 Gem Reward:        *${userTierInfo.rewards.gem.toLocaleString()}* per encounter${rewardDiff}\n` +
+        `🎯 Ball Reward:       *${userTierInfo.rewards.ball}* Ultra Ball${userTierInfo.rewards.ball !== 1 ? 's' : ''} per encounter\n\n` +
+        `━━━ Tier Ladder ━━━\n` +
+        ladderTiers.join('\n') + `\n\n` +
+        `🔓 *Next unlock:* ${nextTierInfo.label}\n` +
+        `   ×${nextTierInfo.statMult.toFixed(1)} stats | Boss at ${nextTierInfo.waveRange[0]}–${nextTierInfo.waveRange[1]} waves | ${nextTierInfo.rewards.gem.toLocaleString()} gems/enc\n` +
+        `   _Clear a Ruin to progress!_\n`
 
+      // ── Active ruin section (if one is running in this group) ─────────────
+      const session = await getSession()
+      if (session?.active) {
+        const battle    = client.pokemonBattleResponse.get(M.from)
+        const inBattle  = Boolean(battle?.isRuin)
+        const encIdx    = session.encounterIndex || 0
+        const bossAt    = session.bossAt || 12
+        const untilBoss = Math.max(0, bossAt - encIdx)
+        const scaling   = encIdx * 15
+        const difficulty  = getEncounterDifficulty(encIdx, bossAt)
+        const diffLabel   = DIFF_LABEL[difficulty] || difficulty
+        const challId     = session.entrant || session.summoner
+        const party       = challId ? ((await client.poke.get(`${challId}_Party`)) || []) : []
+
+        const partyLines = party.length
+          ? party.map((p, i) => {
+              const si = p.hp <= 0 ? '💀'
+                : p.state?.status === 'poisoned'  ? '☠️'
+                : p.state?.status === 'sleeping'  ? '💤'
+                : p.state?.status === 'paralyzed' ? '⚡'
+                : '✅'
+              return (
+                `  *#${i + 1}* ${si} *${client.utils.capitalize(p.name)}* Lv.${p.level}\n` +
+                `        ❤️ ${hpBar(p.hp, p.maxHp)}`
+              )
+            }).join('\n')
+          : '  _(No party data)_'
+
+        const enemyLine = inBattle
+          ? (
+              `\n👾 *Current Enemy*\n` +
+              `  *${client.utils.capitalize(battle.player2.activePokemon.name)}*\n` +
+              `  ❤️ ${hpBar(battle.player2.activePokemon.hp, battle.player2.activePokemon.maxHp)}\n`
+            )
+          : ''
+
+        const actionLine = inBattle
+          ? `⚔️ Battle in progress → *${prefix}ruin fight* to attack`
+          : session.entered
+          ? `📌 Use *${prefix}ruin fight* to face the next encounter`
+          : `📌 Use *${prefix}ruin enter* to begin`
+
+        const sessionTierInfo = session.ruinTierIndex != null
+          ? getRuinTierInfo(session.ruinTierIndex)
+          : { label: CHALLENGE_LABEL[session.ruinDifficulty] || CHALLENGE_LABEL.normal }
+
+        progressCard +=
+          `\n━━━ Active Ruin ━━━\n` +
+          `🏚️ Mode: *${sessionTierInfo.label}*\n` +
+          `👤 Challenger: *@${(challId || '?').split('@')[0]}*\n\n` +
+          `⚔️  Defeated:    *${encIdx}* encounter${encIdx !== 1 ? 's' : ''}\n` +
+          `👹  Boss at:     encounter *#${bossAt}*\n` +
+          `📍  Until boss:  *${untilBoss}* left\n` +
+          `📊  ${waveBar(encIdx, bossAt)}\n` +
+          `📈  Scaling:     *+${scaling}%* stronger\n` +
+          `🎮  Next diff:   *${diffLabel}*\n\n` +
+          `━━━ Session Rewards ━━━\n` +
+          `💰 Gems:      *${(session.totalGoldEarned || 0).toLocaleString()}*\n` +
+          `🎯 Pokéballs: *${session.totalBallsEarned || 0}*\n` +
+          enemyLine +
+          `\n━━━ Your Party ━━━\n` +
+          partyLines +
+          `\n\n${actionLine}`
+
+        const imagePath = `${process.cwd()}/assets/Images/dungeon.jpg`
+        try {
+          return await client.sendMessage(M.from, {
+            image: { url: imagePath },
+            caption: progressCard,
+            mentions: [checkUser, ...(challId && challId !== checkUser ? [challId] : [])]
+          }, { quoted: M })
+        } catch (_) {
+          return client.sendMessage(M.from, {
+            text: progressCard,
+            mentions: [checkUser, ...(challId && challId !== checkUser ? [challId] : [])]
+          }, { quoted: M })
+        }
+      }
+
+      // No active ruin — just show the progression card
       const imagePath = `${process.cwd()}/assets/Images/dungeon.jpg`
+      progressCard += `\n💡 Use *${prefix}ruin summon* to start your next Ruin!`
       try {
         return await client.sendMessage(M.from, {
           image: { url: imagePath },
-          caption,
-          mentions: challId ? [challId] : []
+          caption: progressCard,
+          mentions: [checkUser]
         }, { quoted: M })
       } catch (_) {
-        return client.sendMessage(M.from, { text: caption, mentions: challId ? [challId] : [] }, { quoted: M })
+        return client.sendMessage(M.from, { text: progressCard, mentions: [checkUser] }, { quoted: M })
       }
     }
 
