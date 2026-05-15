@@ -83,22 +83,71 @@ const CHALLENGE_LABEL = {
   boss:   'Boss Rush Ruin'
 }
 
-const randomBossAt = (difficulty = 'normal') => {
-  const [min, max] = BOSS_AT_RANGES[difficulty] || BOSS_AT_RANGES.normal
+// ─── Ruin tier progression (clears unlock harder tiers endlessly) ─────────────
+// Base tiers 0–3, then boss rush tiers 4+ get progressively harder each clear
+const BASE_RUIN_TIERS = [
+  { name: 'easy',   difficulty: 'easy',   label: '🟢 Easy Ruin',     waveRange: [18, 24], statMult: 1.0, rewards: { gem: 5000,    ball: 0 } },
+  { name: 'normal', difficulty: 'normal', label: '🟡 Normal Ruin',   waveRange: [12, 18], statMult: 1.2, rewards: { gem: 15000,   ball: 1 } },
+  { name: 'hard',   difficulty: 'hard',   label: '🔴 Hard Ruin',     waveRange: [8,  14], statMult: 1.5, rewards: { gem: 40000,   ball: 2 } },
+  { name: 'boss',   difficulty: 'boss',   label: '⚫ Boss Rush I',   waveRange: [6,  10], statMult: 2.0, rewards: { gem: 100000,  ball: 5 } }
+]
+
+const BOSS_RUSH_LABELS = ['II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+
+const getRuinTierInfo = (tierIndex) => {
+  if (tierIndex < BASE_RUIN_TIERS.length) return { ...BASE_RUIN_TIERS[tierIndex], tierIndex }
+  const extra     = tierIndex - (BASE_RUIN_TIERS.length - 1)   // 1, 2, 3, …
+  const waveMin   = Math.max(3, 6 - Math.floor(extra / 2))
+  const waveMax   = Math.max(5, 10 - Math.floor(extra / 2))
+  const statMult  = 2.0 + extra * 0.5
+  const gemReward = Math.floor(100000 * (1 + extra * 0.5))
+  const label     = `🔥 Boss Rush ${BOSS_RUSH_LABELS[extra - 1] || `+${extra}`}`
+  return {
+    name: `boss-rush-${extra + 1}`,
+    difficulty: 'boss',
+    label,
+    waveRange: [waveMin, waveMax],
+    statMult,
+    rewards: { gem: gemReward, ball: 5 + extra },
+    tierIndex
+  }
+}
+
+const getUserRuinTier = async (client, userJid) => {
+  const t = await client.DB.get(`ruin-tier-${userJid}`).catch(() => null)
+  return Math.max(0, Number(t || 0))
+}
+
+const incrementUserRuinTier = async (client, userJid) => {
+  const current = await getUserRuinTier(client, userJid)
+  const next = current + 1
+  await client.DB.set(`ruin-tier-${userJid}`, next).catch(() => null)
+  return next
+}
+
+const randomBossAt = (waveRange = [12, 18]) => {
+  const [min, max] = waveRange
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-const parseRuinSummonOptions = (rawArg = '') => {
+const parseRuinSummonOptions = (rawArg = '', userTierIndex = 0) => {
   const tokens = String(rawArg || '').trim().toLowerCase().split(/\s+/).slice(1)
-  const result = { difficulty: 'normal' }
+  // Default: use the user's progression tier
+  const tierInfo = getRuinTierInfo(userTierIndex)
+  const result   = { difficulty: tierInfo.difficulty, tierInfo, manualOverride: false }
 
   for (const token of tokens) {
-    if (token.startsWith('--challenge=')) {
-      const value = token.split('=')[1]
-      if (value && BOSS_AT_RANGES[value]) result.difficulty = value
-    }
-    if (BOSS_AT_RANGES[token]) {
-      result.difficulty = token
+    let override = null
+    if (token.startsWith('--challenge=')) override = token.split('=')[1]
+    if (BOSS_AT_RANGES[token])             override = token
+    if (override && BOSS_AT_RANGES[override]) {
+      // Find the tier that matches this difficulty (use the first match)
+      const matchingTierIdx = BASE_RUIN_TIERS.findIndex(t => t.difficulty === override)
+      result.difficulty     = override
+      result.tierInfo       = matchingTierIdx >= 0
+        ? { ...BASE_RUIN_TIERS[matchingTierIdx], tierIndex: matchingTierIdx }
+        : getRuinTierInfo(userTierIndex)
+      result.manualOverride = true
     }
   }
 
@@ -253,7 +302,7 @@ const assignRuinMoves = async (pokemonName, level = 100) => {
 }
 
 // ─── Build a Pokémon object for ruin (always Lv 100, always ×3 stats) ─────────
-const buildPokemonForRuin = async (client, nameOrId, encounterIndex) => {
+const buildPokemonForRuin = async (client, nameOrId, encounterIndex, extraStatMult = 1) => {
   const level     = 100
   const scaleMult = 1 + encounterIndex * SCALING_PER_ENCOUNTER
 
@@ -267,8 +316,8 @@ const buildPokemonForRuin = async (client, nameOrId, encounterIndex) => {
 
   let { hp, attack, defense, speed } = await client.utils.getPokemonStats(data.id, level)
 
-  // Scale by encounter depth, then ×3 for all ruin Pokémon
-  const RUIN_MULT = 3
+  // Scale by encounter depth, then ×3 base + tier multiplier (harder tiers = stronger Pokémon)
+  const RUIN_MULT = 3 * extraStatMult
   hp      = Math.floor(hp      * scaleMult * RUIN_MULT)
   attack  = Math.floor(attack  * scaleMult * RUIN_MULT)
   defense = Math.floor(defense * scaleMult * RUIN_MULT)
@@ -412,6 +461,11 @@ const handleRuinEncounterComplete = async (client, M, battle, currentUser) => {
       const prevClrs = Number((await client.DB.get(clrKey).catch(() => null)) || 0)
       await client.DB.set(clrKey, prevClrs + 1).catch(() => null)
 
+      // ── Increment user's ruin tier (progression unlock) ───────────────────
+      const currentTierIdx = Number(battle.ruinTierIndex ?? session.ruinTierIndex ?? 0)
+      const newTierIndex   = await incrementUserRuinTier(client, currentUser.user).catch(() => currentTierIdx + 1)
+      const unlockedTier   = getRuinTierInfo(newTierIndex)
+
       const premiumNote = premiumMult > 1 ? `\n👑 *Premium Bonus* applied — +25% rewards!` : ''
       return client.sendMessage(M.from, {
         text:
@@ -423,7 +477,11 @@ const handleRuinEncounterComplete = async (client, M, battle, currentUser) => {
           `💰 *${session.totalGoldEarned.toLocaleString()}* gems\n` +
           `🎯 *${session.totalBallsEarned}* Pokéballs` +
           premiumNote +
-          `\n\n🌟 Total Ruin Clears: *${prevClrs + 1}*`,
+          `\n\n🌟 Total Ruin Clears: *${prevClrs + 1}*\n\n` +
+          `🔓 *NEW DIFFICULTY UNLOCKED!*\n` +
+          `${unlockedTier.label} is now available!\n` +
+          `_(Stat boost: ×${unlockedTier.statMult.toFixed(1)} | Boss at: ${unlockedTier.waveRange[0]}–${unlockedTier.waveRange[1]} encounters)_\n\n` +
+          `Use *${client.prefix || '-'}ruin summon* to face your next challenge!`,
         mentions: [currentUser.user]
       })
     }
@@ -483,7 +541,11 @@ module.exports = {
         return M.reply('🏚️ A Ruin is already active here. Use *ruin enter* to enter or *ruin quit* to close it.')
       }
 
-      const { difficulty } = parseRuinSummonOptions(sub)
+      // Read the summoner's progression tier for auto-difficulty
+      const userTierIndex = await getUserRuinTier(client, M.sender)
+      const { tierInfo, manualOverride } = parseRuinSummonOptions(sub, userTierIndex)
+      const nextTierInfo  = getRuinTierInfo(userTierIndex + 1)
+
       const econ = await client.getEcon(M, { createIfMissing: false })
       const COST = 400000
       if (!econ || (econ.gem || 0) < COST) {
@@ -497,12 +559,14 @@ module.exports = {
       econ.gem = (econ.gem || 0) - COST
       await econ.save().catch(() => null)
 
-      const bossAt  = randomBossAt(difficulty)
+      const bossAt  = randomBossAt(tierInfo.waveRange)
       const session = {
         summoner: M.sender, summonedAt: Date.now(),
         active: true, entered: false, entrant: null,
         encounterIndex: 0, bossAt,
-        ruinDifficulty: difficulty,
+        ruinDifficulty: tierInfo.difficulty,
+        ruinTierIndex:  tierInfo.tierIndex,
+        ruinStatMult:   tierInfo.statMult,
         totalGoldEarned: 0, totalBallsEarned: 0,
         defeatedNames: []
       }
@@ -510,27 +574,39 @@ module.exports = {
 
       const meta     = await client.groupMetadata(M.from).catch(() => null)
       const mentions = (meta?.participants || []).map(p => p?.id).filter(Boolean)
-      const challengeLabel = CHALLENGE_LABEL[difficulty] || CHALLENGE_LABEL.normal
+
+      const tierEmojis = ['🟢','🟡','🔴','⚫','🔥','🔥','🔥','🔥','🔥','🔥']
+      const tierEmoji  = tierEmojis[Math.min(tierInfo.tierIndex, tierEmojis.length - 1)]
+      const gemReward  = tierInfo.rewards?.gem ?? 5000
+      const ballReward = tierInfo.rewards?.ball ?? 0
+
+      const progressNote = manualOverride
+        ? `_(manual difficulty selected)_`
+        : userTierIndex === 0
+          ? `_(Your first Ruin — clear it to unlock Normal!)_`
+          : `_(Tier ${userTierIndex + 1} — cleared ${userTierIndex} Ruin${userTierIndex !== 1 ? 's' : ''} so far!)_`
 
       return client.sendMessage(M.from, {
         image: { url: `${process.cwd()}/assets/Images/dungeon.jpg` },
         caption:
           `🏚️ *A RUIN HAS APPEARED!* 🏚️\n\n` +
           `*@${M.sender.split('@')[0]}* discovered an ancient Ruin.\n\n` +
-          `⚔️ *${challengeLabel} activated!*\n` +
+          `${tierEmoji} *${tierInfo.label} activated!*\n` +
+          progressNote + `\n` +
           `Each enemy is *+15% stronger* than the last.\n` +
+          (tierInfo.statMult > 1 ? `⚡ *Tier stat boost: ×${tierInfo.statMult.toFixed(1)}*\n` : '') +
           `A *Boss Pokémon* lurks after *${bossAt}* encounters.\n\n` +
-          `🎁 *Rewards per victory:*\n` +
-          `  🟢 Easy → 5,000 gems\n` +
-          `  🟡 Normal → 15,000 gems + 1 Ultra Ball\n` +
-          `  🔴 Hard → 40,000 gems + 2 Ultra Balls\n` +
-          `  ⚫ Boss → 100,000 gems + 5 Ultra Balls + *500k bonus!*\n\n` +
+          `🎁 *Rewards per encounter:*\n` +
+          `  💰 ${gemReward.toLocaleString()} gems` +
+          (ballReward > 0 ? ` + ${ballReward} Ultra Ball${ballReward > 1 ? 's' : ''}` : '') + `\n` +
+          `  🏆 Boss Bonus: *500,000 gems + 10 Master Balls*\n\n` +
+          `🔓 *Clear this Ruin to unlock:* ${nextTierInfo.label}\n\n` +
           `📌 *Commands:*\n` +
           `• *${prefix}ruin enter* — enter with your full party\n` +
           `• *${prefix}ruin fight* — start the next encounter\n` +
           `• *${prefix}ruin status* — view progress\n` +
           `• *${prefix}ruin quit* — abandon the Ruin\n\n` +
-          `💡 Use *${prefix}ruin summon --challenge=easy|normal|hard|boss* to choose difficulty.`,
+          `💡 Override: *${prefix}ruin summon --challenge=easy|normal|hard|boss*`,
         mentions
       }, { quoted: M })
     }
@@ -614,7 +690,8 @@ module.exports = {
 
       let wildPoke
       try {
-        wildPoke = await buildPokemonForRuin(client, encounterName, encounterIndex)
+        const statMult = Number(session.ruinStatMult || 1)
+        wildPoke = await buildPokemonForRuin(client, encounterName, encounterIndex, statMult)
       } catch (err) {
         console.error('ruin fight build error:', err)
         return M.reply('⚠️ Failed to summon the encounter Pokémon. Try again.')
