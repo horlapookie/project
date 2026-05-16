@@ -1154,18 +1154,28 @@ const continueSelection = async (client, M) => {
             }
 
             if (isWildUser(opponent.user)) {
+                // Award XP for defeating this wild/dungeon pokemon before switching
+                const activeForXp = currentUser.activePokemon;
+                if (activeForXp && activeForXp.level < 100) {
+                    try {
+                        await handleStats(client, M, opponent.activePokemon.exp, currentUser.user, activeForXp, battle.turn);
+                    } catch (_) {}
+                }
+
                 // Dungeon: pause between guardians and require an explicit "battle continue".
                 if (battle.isDungeon) {
                     const defeatedCount = opponentData.length - alivePokemon.length;
                     const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
                     const ordinal = ordinals[defeatedCount - 1] || `${defeatedCount}th`;
 
-                    battle.player2.activePokemon = alivePokemon[0];
-                    battle.player2.move = '';
-                    battle.turn = 'player1';
-                    battle.awaitingContinue = true;
-                    touchBattleExpiry(client, battle);
-                    setBattleData(client, M.from, battle);
+                    // Refresh battle after handleStats may have updated it
+                    const latestBattle = client.pokemonBattleResponse.get(M.from) || battle;
+                    latestBattle.player2.activePokemon = alivePokemon[0];
+                    latestBattle.player2.move = '';
+                    latestBattle.turn = 'player1';
+                    latestBattle.awaitingContinue = true;
+                    touchBattleExpiry(client, latestBattle);
+                    setBattleData(client, M.from, latestBattle);
 
                     await client.sendMessage(M.from, {
                         text:
@@ -1176,10 +1186,12 @@ const continueSelection = async (client, M) => {
                     return null;
                 }
 
-                battle.player2.activePokemon = alivePokemon[0];
-                battle.player2.move = pickWildMove(battle);
-                battle.turn = 'player1';
-                setBattleData(client, M.from, battle);
+                // Refresh battle after handleStats may have updated it
+                const latestWildBattle = client.pokemonBattleResponse.get(M.from) || battle;
+                latestWildBattle.player2.activePokemon = alivePokemon[0];
+                latestWildBattle.player2.move = pickWildMove(latestWildBattle);
+                latestWildBattle.turn = 'player1';
+                setBattleData(client, M.from, latestWildBattle);
                 return handleBattles(client, M);
             }
 
@@ -1391,6 +1403,20 @@ const endBattle = async (client, M, winner, loser) => {
 
             await updateEconomy(winner, gold);
             await updateEconomy(loser, -gold);
+
+            // Award XP to the winner for winning the PvP battle
+            try {
+                const winnerKey = battle.player1.user === winner ? 'player1' : 'player2';
+                const loserKey = winnerKey === 'player1' ? 'player2' : 'player1';
+                const winnerActive = battle[winnerKey].activePokemon;
+                const loserParty = await getPartyForUser(client, loser);
+                const avgExp = loserParty.length > 0
+                    ? loserParty.reduce((sum, p) => sum + (Number(p.exp) || 500), 0) / loserParty.length
+                    : 500;
+                if (winnerActive && winnerActive.level < 100) {
+                    await handleStats(client, M, avgExp, winner, winnerActive, winnerKey);
+                }
+            } catch (_) {}
 
             client.pokemonBattleResponse.delete(M.from);
             client.pokemonBattlePlayerMap.delete(loser);

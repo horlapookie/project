@@ -98,42 +98,6 @@ const readBase64Session = () => {
     }
 }
 
-const saveSessionToFile = () => {
-    try {
-        const b64 = readBase64Session()
-        if (b64) {
-            const sessionFile = join(process.cwd(), 'session.backup')
-            writeFileSync(sessionFile, b64, 'utf8')
-            return true
-        }
-    } catch (_) {
-        return false
-    }
-}
-
-const restoreSessionFromFile = () => {
-    // Skip restore if fresh pairing is requested — don't reuse old session
-    if (process.env.PAIRING_PHONE) {
-        console.log('📱 PAIRING_PHONE set — skipping session restore for fresh pair')
-        return false
-    }
-    try {
-        const sessionFile = join(process.cwd(), 'session.backup')
-        if (existsSync(sessionFile)) {
-            const b64 = readFileSync(sessionFile, 'utf8').trim()
-            if (b64 && b64.length > 20 && isValidBase64(b64)) {
-                const ok = writeBase64Session(b64)
-                if (ok) {
-                    console.log('✅ Restored previous session from backup')
-                    return true
-                }
-            }
-        }
-    } catch (_) {
-        return false
-    }
-    return false
-}
 
 const isSessionRegistered = () => {
     try {
@@ -945,11 +909,6 @@ const start = async (authChoice = null) => {
             console.log('✅ Connected to WhatsApp')
             client.log('Total Mods: ' + client.mods.length)
 
-            // Save session backup for future restarts
-            if (saveSessionToFile()) {
-                console.log('💾 Session backed up for next restart')
-            }
-
             // Print the base64 session so the user can save it for later
             const b64 = readBase64Session()
             if (b64) {
@@ -1043,13 +1002,7 @@ const boot = async (dbOk = true) => {
     // Check if a valid session already exists
     let hasValidSession = isSessionRegistered()
     
-    // If no valid session, try to restore from backup
-    if (!hasValidSession) {
-        console.log('🔄 No valid session found. Attempting to restore from backup...')
-        hasValidSession = restoreSessionFromFile()
-    }
-    
-    // Show the auth menu only if the session is not already registered or restored
+    // Show the auth menu only if there is no valid session in the session folder
     const authChoice = hasValidSession ? null : await showAuthMenu()
     start(authChoice)
 }
@@ -1067,15 +1020,12 @@ driver
 
 app.listen(port, () => console.log(`Server started on PORT : ${port}`))
 
-// Handle graceful shutdown - save session before exit
-process.on('SIGINT', async () => {
+process.on('SIGINT', () => {
     console.log('\n⏹️  Shutting down gracefully...')
-    saveSessionToFile()
     process.exit(0)
 })
 
-process.on('SIGTERM', async () => {
+process.on('SIGTERM', () => {
     console.log('\n⏹️  Shutting down gracefully...')
-    saveSessionToFile()
     process.exit(0)
 })
