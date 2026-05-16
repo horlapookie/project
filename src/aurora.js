@@ -112,11 +112,16 @@ const saveSessionToFile = () => {
 }
 
 const restoreSessionFromFile = () => {
+    // Skip restore if fresh pairing is requested — don't reuse old session
+    if (process.env.PAIRING_PHONE) {
+        console.log('📱 PAIRING_PHONE set — skipping session restore for fresh pair')
+        return false
+    }
     try {
         const sessionFile = join(process.cwd(), 'session.backup')
         if (existsSync(sessionFile)) {
             const b64 = readFileSync(sessionFile, 'utf8').trim()
-            if (b64 && isValidBase64(b64)) {
+            if (b64 && b64.length > 20 && isValidBase64(b64)) {
                 const ok = writeBase64Session(b64)
                 if (ok) {
                     console.log('✅ Restored previous session from backup')
@@ -156,6 +161,13 @@ const showAuthMenu = async () => {
     if (_menuShown) return null
     _menuShown = true
 
+    // ── Auto-pairing via env var (no interactive prompt needed) ──────────────
+    const envPhone = process.env.PAIRING_PHONE ? normalizeNumber(process.env.PAIRING_PHONE) : null
+    if (envPhone) {
+        console.log(`\n📱 Auto-pairing with number: +${envPhone}`)
+        return { method: 'pairing', phone: envPhone }
+    }
+
     const rl = createInterface({ input: process.stdin, output: process.stdout })
 
     const botName = process.env.NAME || 'Aurora'
@@ -179,7 +191,6 @@ const showAuthMenu = async () => {
             console.log('(This should be the full encoded session from a previous connection)')
             b64 = (await ask(rl, '> ')).trim()
             
-            // Validate the base64
             if (!b64) {
                 console.log('❌ Session string cannot be empty. Try again.')
                 continue
