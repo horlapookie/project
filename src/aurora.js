@@ -105,16 +105,15 @@ const isSessionRegistered = () => {
         if (!existsSync(credsPath)) return false
         const creds = JSON.parse(readFileSync(credsPath, 'utf8'))
         
-        // Check if credentials are valid and registered
-        if (!creds?.registered) return false
-        
-        // Also verify that we have key files present
-        const requiredFiles = ['creds.json', 'pre-key-1.json', 'session-1.json', 'sender-key-1.json']
-        const hasRequiredFiles = requiredFiles.every(file => {
-            return existsSync(join(sessionDir, file))
-        })
-        
-        return hasRequiredFiles
+        // A session is valid if creds exist and either:
+        // - registered flag is true, OR
+        // - me is set (device has been successfully paired before)
+        const hasValidCreds = creds?.registered === true || (creds?.me?.id != null)
+        if (!hasValidCreds) return false
+
+        // Also ensure at least one key file exists alongside creds (any .json besides creds itself)
+        const files = readdirSync(sessionDir).filter(f => f.endsWith('.json') && f !== 'creds.json')
+        return files.length > 0
     } catch (_) {
         return false
     }
@@ -758,7 +757,7 @@ const start = async (authChoice = null) => {
     let _pairingCodeTimeout = null
     let _reconnectAttempts = 0
     const PAIRING_TIMEOUT = 5 * 60 * 1000  // 5 minutes
-    const MAX_RECONNECT_ATTEMPTS = 3
+    const MAX_RECONNECT_ATTEMPTS = 10
     
     client.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, isNewLogin, qr } = update
@@ -876,18 +875,26 @@ const start = async (authChoice = null) => {
                 _reconnectAttempts++
                 
                 if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-                    // Too many failed attempts - treat as invalid session
-                    console.log('❌ Session appears invalid after multiple connection attempts')
-                    clearSessionFolder()
-                    client.log('Session invalid. Please authenticate with a new session.', 'red')
-                    _menuShown = false
-                    _pairingCodeRequested = false
-                    _reconnectAttempts = 0
-                    console.log('🔄 Starting new authentication...')
-                    setTimeout(async () => {
-                        const choice = await showAuthMenu()
-                        start(choice)
-                    }, 2000)
+                    // Only wipe the session if creds are not registered (truly invalid)
+                    if (!isSessionRegistered()) {
+                        console.log('❌ Session appears invalid after multiple connection attempts')
+                        clearSessionFolder()
+                        client.log('Session invalid. Please authenticate with a new session.', 'red')
+                        _menuShown = false
+                        _pairingCodeRequested = false
+                        _reconnectAttempts = 0
+                        console.log('🔄 Starting new authentication...')
+                        setTimeout(async () => {
+                            const choice = await showAuthMenu()
+                            start(choice)
+                        }, 2000)
+                    } else {
+                        // Session is still valid — keep retrying without wiping
+                        console.log(`📡 Many reconnect attempts but session looks valid — continuing to retry...`)
+                        _reconnectAttempts = 0
+                        _pairingCodeRequested = false
+                        setTimeout(() => start(), 5000)
+                    }
                 } else {
                     // Try reconnecting
                     console.log(`📡 Connection lost (attempt ${_reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) - Reconnecting in 3 seconds...`)
