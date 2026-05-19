@@ -119,12 +119,27 @@ const addPotionQuantity = async (client, userId, key, amount) => {
 }
 
 // ─── Apply a potion boost to an active Pokémon in a battle ───────────────────
-// Returns { boostedStat, oldVal, newVal } or throws on error
+// Stores a pre-boost snapshot in pokemon._potionPreBoost so stats can be
+// fully reverted when the battle ends via revertStoneBoosts.
+// Returns an array of { stat, oldVal, newVal, gain } for display purposes.
 const applyPotionToActivePokemon = (potion, pokemon) => {
     const results = []
     const statsToBoost = potion.stat === 'all'
         ? ['attack', 'defense', 'speed']
         : [potion.stat]
+
+    // Save a snapshot of the original stats before ANY potion boost.
+    // We only write this once — subsequent potions accumulate on top.
+    if (!pokemon._potionPreBoost) {
+        pokemon._potionPreBoost = {
+            attack:  pokemon.attack,
+            defense: pokemon.defense,
+            speed:   pokemon.speed,
+            maxAttack:  pokemon.maxAttack,
+            maxDefense: pokemon.maxDefense,
+            maxSpeed:   pokemon.maxSpeed
+        }
+    }
 
     for (const stat of statsToBoost) {
         const oldVal = Math.floor(pokemon[stat] || 0)

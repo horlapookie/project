@@ -400,6 +400,39 @@ const start = async (authChoice = null) => {
     //Commands
     client.cmd = new Collection()
 
+    //Load commands immediately so they are available as soon as the client is ready,
+    //not only after the WhatsApp connection opens (fixes "unknown command" on deploy).
+    const loadCommands = async () => {
+        const readCommand = (rootDir) => {
+            let dirs
+            try { dirs = readdirSync(rootDir) } catch (_) { dirs = [] }
+            for (const $dir of dirs) {
+                let commandFiles
+                try {
+                    commandFiles = readdirSync(join(rootDir, $dir)).filter((file) => file.endsWith('.js'))
+                } catch (_) {
+                    continue
+                }
+                for (let file of commandFiles) {
+                    try {
+                        const command = require(join(rootDir, $dir, file))
+                        if (command && command.name) {
+                            client.cmd.set(command.name, command)
+                        } else {
+                            client.log(`⚠️ Command file ${file} has no exported name — skipping`, 'yellow')
+                        }
+                    } catch (err) {
+                        client.log(`⚠️ Failed to load command ${file}: ${err.message} — ${err.stack?.split('\n')[1] || ''}`, 'red')
+                    }
+                }
+            }
+            client.log('Commands loaded!')
+        }
+        readCommand(join(__dirname, '.', 'Commands'))
+    }
+
+    loadCommands()
+
     const storedOwner = normalizeNumber((await client.roleDB.get('owner')) || OWNER_NUMBER)
     const storedMods = ((await client.roleDB.get('mods')) || []).map(normalizeNumber).filter(Boolean)
     const storedOfficers = ((await client.roleDB.get('sudo')) || []).map(normalizeNumber).filter(Boolean)
@@ -721,37 +754,6 @@ const start = async (authChoice = null) => {
         return users
     }
 
-    //Command Loader
-    const loadCommands = async () => {
-        const readCommand = (rootDir) => {
-            let dirs
-            try { dirs = readdirSync(rootDir) } catch (_) { dirs = [] }
-            for (const $dir of dirs) {
-                let commandFiles
-                try {
-                    commandFiles = readdirSync(join(rootDir, $dir)).filter((file) => file.endsWith('.js'))
-                } catch (_) {
-                    // $dir is a file (e.g. README.md at root) — skip silently
-                    continue
-                }
-                for (let file of commandFiles) {
-                    try {
-                        const command = require(join(rootDir, $dir, file))
-                        if (command && command.name) {
-                            client.cmd.set(command.name, command)
-                        } else {
-                            client.log(`⚠️ Command file ${file} has no exported name — skipping`, 'yellow')
-                        }
-                    } catch (err) {
-                        client.log(`⚠️ Failed to load command ${file}: ${err.message} — ${err.stack?.split('\n')[1] || ''}`, 'red')
-                    }
-                }
-            }
-            client.log('Commands loaded!')
-        }
-        readCommand(join(__dirname, '.', 'Commands'))
-    }
-
     //connection updates
     let _pairingCodeRequested = false
     let _pairingCodeTimeout = null
@@ -912,7 +914,6 @@ const start = async (authChoice = null) => {
         if (connection === 'open') {
             client.state = 'open'
             _reconnectAttempts = 0 // Reset on successful connection
-            loadCommands()
             console.log('✅ Connected to WhatsApp')
             client.log('Total Mods: ' + client.mods.length)
 

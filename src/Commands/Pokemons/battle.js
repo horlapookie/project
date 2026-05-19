@@ -40,29 +40,47 @@ const savePartyForUser = async (client, user, party) => {
     await client.poke.set(`${user}_Party`, party);
 };
 
-// Revert any active temporary mega-stone boost for all non-wild players in a battle.
-// Must be called before battle cleanup at every exit path.
+// Revert any active temporary mega-stone OR potion boosts for all non-wild players
+// in a battle. Must be called before battle cleanup at every exit path.
 const revertStoneBoosts = async (client, battle) => {
     const userList = [battle?.player1?.user, battle?.player2?.user].filter(u => u && !isWildUser(u));
     for (const userId of userList) {
         const party = (await client.poke.get(`${userId}_Party`)) || [];
         let changed = false;
         for (const poke of party) {
-            if (!poke._stonePreBoost) continue;
-            const pre = poke._stonePreBoost;
-            if (poke.hp > 0) {
-                const ratio = (poke.maxHp || 1) > 0 ? (poke.hp / (poke.maxHp || 1)) : 0;
-                poke.hp = Math.max(1, Math.floor((pre.maxHp ?? pre.hp) * ratio));
+            // ── Revert mega-stone / Dynamax boosts ──────────────────────────
+            if (poke._stonePreBoost) {
+                const pre = poke._stonePreBoost;
+                if (poke.hp > 0) {
+                    const ratio = (poke.maxHp || 1) > 0 ? (poke.hp / (poke.maxHp || 1)) : 0;
+                    poke.hp = Math.max(1, Math.floor((pre.maxHp ?? pre.hp) * ratio));
+                }
+                poke.attack  = pre.attack;
+                poke.defense = pre.defense;
+                if (pre.speed      != null) poke.speed      = pre.speed;
+                if (pre.maxHp      != null) poke.maxHp      = pre.maxHp;
+                if (pre.maxAttack  != null) poke.maxAttack  = pre.maxAttack;
+                if (pre.maxDefense != null) poke.maxDefense = pre.maxDefense;
+                if (pre.maxSpeed   != null) poke.maxSpeed   = pre.maxSpeed;
+                delete poke._stonePreBoost;
+                changed = true;
             }
-            poke.attack  = pre.attack;
-            poke.defense = pre.defense;
-            if (pre.speed      != null) poke.speed      = pre.speed;
-            if (pre.maxHp      != null) poke.maxHp      = pre.maxHp;
-            if (pre.maxAttack  != null) poke.maxAttack  = pre.maxAttack;
-            if (pre.maxDefense != null) poke.maxDefense = pre.maxDefense;
-            if (pre.maxSpeed   != null) poke.maxSpeed   = pre.maxSpeed;
-            delete poke._stonePreBoost;
-            changed = true;
+
+            // ── Revert battle potion boosts ──────────────────────────────────
+            // Potions store a snapshot in _potionPreBoost before the first boost
+            // is applied. Reverting it restores the original stats so boosted
+            // values are never permanently saved to the database.
+            if (poke._potionPreBoost) {
+                const pre = poke._potionPreBoost;
+                if (pre.attack      != null) poke.attack      = pre.attack;
+                if (pre.defense     != null) poke.defense     = pre.defense;
+                if (pre.speed       != null) poke.speed       = pre.speed;
+                if (pre.maxAttack   != null) poke.maxAttack   = pre.maxAttack;
+                if (pre.maxDefense  != null) poke.maxDefense  = pre.maxDefense;
+                if (pre.maxSpeed    != null) poke.maxSpeed    = pre.maxSpeed;
+                delete poke._potionPreBoost;
+                changed = true;
+            }
         }
         if (changed) await client.poke.set(`${userId}_Party`, party);
     }
